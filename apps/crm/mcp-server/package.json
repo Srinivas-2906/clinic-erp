@@ -1,0 +1,22 @@
+{
+  "name": "clinic-desk-mcp-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server: Clinic Desk Playwright screenshots and E2E test runner",
+  "bin": {
+    "clinic-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "auth:save": "node scripts/save-auth.mjs",
+    "capture": "node scripts/capture-cli.mjs",
+    "test": "node scripts/run-tests-cli.mjs",
+    "test:ui": "node scripts/run-tests-cli.mjs --ui",
+    "test:headed": "node scripts/run-tests-cli.mjs --headed"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "playwright": "^1.49.1"
+  }
+}

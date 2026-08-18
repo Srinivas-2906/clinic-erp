@@ -1,0 +1,8 @@
+{
+  "folders": [
+    { "path": ".", "name": "clinic-erp" },
+    { "path": "apps/crm", "name": "CRM" },
+    { "path": "apps/api", "name": "API" }
+  ],
+  "settings": {}
+}

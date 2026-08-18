@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-08-14T07:51:45.782Z",
+  "baseUrl": "http://localhost:5185",
+  "results": [
+    {
+      "id": "login",
+      "name": "Login",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/login.png",
+      "ok": true
+    },
+    {
+      "id": "home",
+      "name": "Home",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/home.png",
+      "ok": true
+    },
+    {
+      "id": "today",
+      "name": "Today",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/today.png",
+      "ok": true
+    },
+    {
+      "id": "patients",
+      "name": "Patients",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/patients.png",
+      "ok": true
+    },
+    {
+      "id": "book",
+      "name": "Book",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/book.png",
+      "ok": true
+    },
+    {
+      "id": "payments",
+      "name": "Payments",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/payments.png",
+      "ok": true
+    },
+    {
+      "id": "reports",
+      "name": "Reports",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/reports.png",
+      "ok": true
+    },
+    {
+      "id": "team",
+      "name": "Team",
+      "screenshot": "/Users/srinivas/Downloads/Demos/clinic-crm/e2e/screenshots/team.png",
+      "ok": true
+    }
+  ]
+}

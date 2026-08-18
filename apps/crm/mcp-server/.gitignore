@@ -1,0 +1,8 @@
+# Playwright MCP auth state (optional)
+clinic-auth.json
+
+# Screenshot output from MCP capture
+screenshots/
+
+# MCP server deps
+node_modules/

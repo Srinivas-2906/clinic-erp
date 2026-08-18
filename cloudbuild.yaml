@@ -1,0 +1,104 @@
+steps:
+  # ── Build & deploy clinic-api (backend) ───────────────────────────────
+  - id: build-clinic-api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api:$BUILD_ID
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api:latest
+      - ./apps/api
+
+  - id: push-clinic-api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api
+
+  - id: deploy-clinic-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMAGE="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api:$BUILD_ID"
+        gcloud run deploy "${_CLINIC_API_SERVICE}" \
+          --image "$$IMAGE" \
+          --region "${_REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 8080 \
+          --min-instances 0 \
+          --max-instances 3 \
+          --memory 512Mi \
+          --cpu 1 \
+          --service-account "${_API_SERVICE_ACCOUNT}" \
+          --set-env-vars "NODE_ENV=production,DATABASE_PATH=/data/clinic.db,LITESTREAM_BUCKET=${_DB_BUCKET},PUBLIC_URL=${_PUBLIC_CLINIC_API_URL},UPLOADS_DIR=/data/uploads,JWT_EXPIRES=7d,SKIP_DEMO_SEED=1" \
+          --set-secrets "JWT_SECRET=${_SECRET_JWT}:latest"
+
+  # ── Build & deploy clinic-crm (frontend) ──────────────────────────────
+  - id: build-clinic-crm
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['deploy-clinic-api']
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm:$BUILD_ID
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm:latest
+      - --build-arg
+      - VITE_CLINIC_API=${_VITE_CLINIC_API}
+      - --build-arg
+      - VITE_TENANT_SLUG=${_VITE_TENANT_SLUG}
+      - ./apps/crm
+
+  - id: push-clinic-crm
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm
+
+  - id: deploy-clinic-crm
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMAGE="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm:$BUILD_ID"
+        gcloud run deploy "${_CLINIC_CRM_SERVICE}" \
+          --image "$$IMAGE" \
+          --region "${_REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 8080 \
+          --min-instances 0 \
+          --max-instances 3 \
+          --memory 256Mi \
+          --cpu 1 \
+          --set-env-vars "CLINIC_API_ORIGIN=$$(gcloud run services describe ${_CLINIC_API_SERVICE} --region ${_REGION} --format='value(status.url)')"
+
+substitutions:
+  _REGION: asia-south1
+  _ARTIFACT_REPO: kaana
+  _CLINIC_API_SERVICE: clinic-api
+  _CLINIC_CRM_SERVICE: kaana-clinic
+  _VITE_CLINIC_API: /api
+  _VITE_TENANT_SLUG: dentacare
+  _PUBLIC_CLINIC_API_URL: https://clinic-api-wtba53dhka-el.a.run.app
+  _DB_BUCKET: crucial-accord-505607-g9-db
+  _API_SERVICE_ACCOUNT: kaana-api-runner@crucial-accord-505607-g9.iam.gserviceaccount.com
+  _SECRET_JWT: kaana-jwt-secret
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm:latest

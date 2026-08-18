@@ -1,0 +1,22 @@
+{
+  "name": "clinic-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test src/modules/**/*.test.js src/modules/scheduling/*.test.js",
+    "migrate": "node scripts/migrate-from-kaana-db.js",
+    "migrate:prod-download": "bash scripts/download-and-migrate.sh",
+    "seed:e2e": "node scripts/seed-e2e-user.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "nanoid": "^5.1.11"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "clinic-erp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/crm",
+    "apps/api"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:crm": "npm run dev --workspace=apps/crm",
+    "build": "npm run build --workspace=apps/crm",
+    "test:api": "npm test --workspace=apps/api",
+    "test:e2e": "npm run test:e2e --workspace=apps/crm",
+    "seed:e2e": "npm run seed:e2e --workspace=apps/api"
+  }
+}

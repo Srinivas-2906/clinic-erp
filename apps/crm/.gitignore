@@ -1,0 +1,16 @@
+# Dependencies & build
+node_modules/
+dist/
+
+# Environment (secrets)
+.env
+.env.local
+.env.*.local
+
+# E2E test artifacts (keep screenshots for review)
+e2e/test-results/
+e2e/report/
+playwright/.cache/
+e2e/screenshots/clinic-auth.json
+
+# Keep e2e/screenshots/ — committed captures optional; index.json updates locally
