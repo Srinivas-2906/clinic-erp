@@ -1,0 +1,63 @@
+name: Deploy Clinic (clinic.kaana.in)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'cloudbuild.yaml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-clinic-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy clinic to Cloud Run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      GCP_PROJECT_ID: crucial-accord-505607-g9
+      GCP_WIF_PROVIDER: projects/888176696307/locations/global/workloadIdentityPools/github/providers/github-provider
+      GCP_DEPLOYER_SA: kaana-cloudbuild-deployer@crucial-accord-505607-g9.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --project "${{ env.GCP_PROJECT_ID }}" \
+            --config cloudbuild.yaml \
+            --service-account=projects/${{ env.GCP_PROJECT_ID }}/serviceAccounts/${{ env.GCP_DEPLOYER_SA }} \
+            .
+
+      - name: Verify live site + API
+        run: |
+          UI_URL="$(gcloud run services describe kaana-clinic \
+            --project "${{ env.GCP_PROJECT_ID }}" \
+            --region asia-south1 \
+            --format='value(status.url)')"
+          API_URL="$(gcloud run services describe clinic-api \
+            --project "${{ env.GCP_PROJECT_ID }}" \
+            --region asia-south1 \
+            --format='value(status.url)')"
+          echo "Checking ${UI_URL}/"
+          curl -fsS "${UI_URL}/" -o /dev/null
+          echo "Checking ${API_URL}/api/health"
+          curl -fsS "${API_URL}/api/health" -o /dev/null
+          echo "Deploy OK: UI=${UI_URL}, API=${API_URL} (prod: https://clinic.kaana.in)"
