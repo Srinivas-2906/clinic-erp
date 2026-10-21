@@ -25,9 +25,7 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
-      - name: Install Vite native bindings (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
+      - run: npm ci --include=optional
       - run: npm run test:api
 
   crm-unit-tests:
@@ -40,9 +38,7 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
-      - name: Install Vite native bindings (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
+      - run: npm ci --include=optional
       - run: npm test --workspace=apps/crm
 
   crm-build:
@@ -55,9 +51,7 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci
-      - name: Install Vite native bindings (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
+      - run: npm ci --include=optional
       - run: npm run build --workspace=apps/crm
 
   docker-build-smoke:
