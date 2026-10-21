@@ -2349,6 +2349,18 @@ img, video, canvas { max-width: 100%; height: auto; }
   margin-bottom: 12px;
 }
 
+.audit-view { display: flex; flex-direction: column; gap: 16px; }
+.audit-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.audit-toolbar-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.audit-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.audit-filters .login-input { min-width: 140px; max-width: 200px; margin: 0; }
+.audit-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.audit-table th, .audit-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+.audit-table th { background: var(--surface-2, #f8fafc); font-weight: 600; color: var(--muted); }
+.audit-detail-cell { max-width: 280px; word-break: break-word; font-family: ui-monospace, monospace; font-size: 11px; }
+.muted-text { color: var(--muted); font-size: 14px; }
+
 .doctors-empty,
 .doctors-error {
   display: flex;

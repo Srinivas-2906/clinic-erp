@@ -13,6 +13,7 @@ import { ReportsView } from './components/ReportsView';
 import { GlobalSearchDialog } from './components/GlobalSearchDialog';
 import { TeamAccessView } from './components/TeamAccessView';
 import { DoctorsView } from './components/DoctorsView';
+import { AuditView } from './components/AuditView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
@@ -33,6 +34,7 @@ const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
   reports:   { title: 'Reports',   sub: 'Payments and follow-up' },
   doctors:   { title: 'Doctors',   sub: 'Manage clinic doctors' },
   team:      { title: 'Team',      sub: 'Approve staff login' },
+  audit:     { title: 'Activity',  sub: 'Owner audit trail' },
 };
 
 function ClinicApp() {
@@ -522,6 +524,12 @@ function ClinicApp() {
             )
           ) : tab === 'team' ? (
             <TeamAccessView onToast={toast} />
+          ) : tab === 'audit' ? (
+            userRole === 'owner' ? (
+              <AuditView />
+            ) : (
+              <div className="doctors-empty">Only the clinic owner can view the activity log.</div>
+            )
           ) : (
             <BookView
               onBooked={handleBooked}

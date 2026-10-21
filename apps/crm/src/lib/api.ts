@@ -285,4 +285,73 @@ export function rejectAccessRequest(id: string) {
   });
 }
 
+export function fetchEntitlements() {
+  return request<{
+    planId: string;
+    planLabel: string;
+    limits: { maxDoctors: number | null; maxStaff: number | null };
+    usage: { doctors: number; staff: number };
+    features: { auditExport: boolean; multiBranch: boolean };
+  }>('/clinic/entitlements');
+}
+
+export function fetchAuditLog(params: {
+  limit?: number;
+  offset?: number;
+  action?: string;
+  entityType?: string;
+  from?: string;
+  to?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params.limit) q.set('limit', String(params.limit));
+  if (params.offset) q.set('offset', String(params.offset));
+  if (params.action) q.set('action', params.action);
+  if (params.entityType) q.set('entityType', params.entityType);
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const qs = q.toString();
+  return request<{
+    items: Array<{
+      id: string;
+      action: string;
+      entityType: string | null;
+      entityId: string | null;
+      userEmail?: string | null;
+      userName?: string | null;
+      createdAt: string;
+      detail: Record<string, unknown>;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }>(`/clinic/audit${qs ? `?${qs}` : ''}`);
+}
+
+export async function downloadAuditExport(params: { action?: string; entityType?: string; from?: string; to?: string }) {
+  const q = new URLSearchParams();
+  if (params.action) q.set('action', params.action);
+  if (params.entityType) q.set('entityType', params.entityType);
+  if (params.from) q.set('from', params.from);
+  if (params.to) q.set('to', params.to);
+  const tenantSlug = resolveTenantSlug();
+  const res = await fetch(`${API}/clinic/audit/export?${q.toString()}`, {
+    headers: {
+      ...authHeaders(),
+      ...(tenantSlug ? { 'x-tenant-slug': tenantSlug } : {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || 'Export failed');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clinic-audit.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export type { AccessRequest } from '../types';

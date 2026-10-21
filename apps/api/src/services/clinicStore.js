@@ -10,9 +10,11 @@ import {
   formatSlotLabel,
 } from '../modules/scheduling/slotEngine.js';
 
-function scheduleAppointmentReminders() {}
-function scheduleRecallReminder() {}
-function clearAppointmentReminders() {}
+import {
+  scheduleAppointmentReminders,
+  scheduleRecallReminder,
+  clearAppointmentReminders,
+} from './reminders/index.js';
 
 function formatPhone(phone) {
   const digits = String(phone).replace(/\D/g, '');

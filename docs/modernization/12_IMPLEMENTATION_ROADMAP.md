@@ -2,20 +2,22 @@
 
 Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, not a single mega-release.
 
-## Milestone A — Staging & deploy hygiene (complete / in flight)
+## Milestone A — Staging & deploy hygiene
 
 - [x] GCP project `clinic-erp-staging`, bucket, AR, SAs, WIF, secrets
 - [x] Cloud Run deploy + API smoke tests (`08_M5_STAGING_LIVE.md`)
-- [ ] Merge `feature/m5-staging-live` (Cloud Build SA fix, `--no-invoker-iam-check`, tenant slug)
-- [ ] GitHub `staging` environment + successful `deploy-staging` workflow run
-- [ ] Console budget $10 @ 50/90/100%
+- [x] Merge M5 deploy fixes (PR #5)
+- [ ] GitHub `staging` environment (repo admin) + green `deploy-staging` after M7
+- [ ] Console budget $10 @ 50/90/100% (Billing Admin)
 
-## Milestone B — Production-quality fixes (critical)
+## Milestone B — SaaS foundation (M7 — in progress)
 
-1. Wire **appointment/reminder** jobs or document manual workflow until SMS provider chosen.
-2. **Audit log read API** + minimal CRM export (Enterprise gate).
-3. **Entitlements stub** — `tenant.plan`, limit checks on doctor create / staff invite.
-4. Harden **upload PUBLIC_URL** on deploy (use resolved Run URL in `cloudbuild.staging.yaml`).
+1. [x] **Entitlements** — plan limits on doctors/staff (`modules/identity/entitlements.js`)
+2. [x] **Audit** — list + CSV export API; CRM Activity tab (owner)
+3. [x] **Reminders** — durable jobs + mock provider (no patient SMS)
+4. [x] **PUBLIC_URL / CLINIC_CRM_URL** — resolved in `cloudbuild.staging.yaml`
+5. [x] **Demo credential rotation** — `CLINIC_DEMO_OWNER_PASSWORD` secret (staging); no passwords in logs/docs
+6. [ ] Razorpay / self-serve signup (M8)
 
 **Validation:** API tests + Playwright smoke on staging; no prod deploy.
 

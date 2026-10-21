@@ -257,8 +257,18 @@ export function initDatabase() {
 
 function shouldSeedDemo() {
   if (process.env.SKIP_DEMO_SEED === '1' || process.env.SKIP_DEMO_SEED === 'true') return false;
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') return true;
   if (process.env.NODE_ENV === 'production') return false;
   return true;
+}
+
+function resolveDemoOwnerPassword() {
+  const fromEnv = process.env.CLINIC_DEMO_OWNER_PASSWORD;
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') {
+    return fromEnv || null;
+  }
+  if (process.env.NODE_ENV === 'production') return null;
+  return fromEnv || 'Dentacare@123';
 }
 
 export function parseSettings(raw) {
@@ -369,11 +379,22 @@ function syncDentaCareDemo() {
     );
   }
 
-  const demoAccounts = [
-    { id: 'user-dentacare-owner', email: 'ajitdentacare@gmail.com', username: 'Admin', name: 'Dr. D. Ajit', password: 'Dentacare@123' },
-    { id: 'user-denta-care-admin', email: 'admin@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'Dentacare@2024' },
-    { id: 'user-denta-care', email: 'demo@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'demo1234' },
-  ];
+  const ownerPassword = resolveDemoOwnerPassword();
+  const demoAccounts = ownerPassword
+    ? [
+      {
+        id: 'user-dentacare-owner',
+        email: process.env.CLINIC_DEMO_OWNER_EMAIL || 'staging-owner@clinic-erp.invalid',
+        username: 'Admin',
+        name: 'Staging Clinic Owner',
+        password: ownerPassword,
+      },
+    ]
+    : [];
+
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1' && !ownerPassword) {
+    console.warn('[db] CLINIC_ALLOW_DEMO_SEED is set but CLINIC_DEMO_OWNER_PASSWORD is missing; skipping demo user seed');
+  }
 
   for (const acct of demoAccounts) {
     const hash = bcrypt.hashSync(acct.password, 10);
@@ -387,6 +408,28 @@ function syncDentaCareDemo() {
       db.prepare('UPDATE users SET tenant_id = ?, username = ?, name = ?, password_hash = ? WHERE email = ?').run(
         tenantId, acct.username || null, acct.name, hash, acct.email,
       );
+    }
+  }
+
+  if (!process.env.CLINIC_ALLOW_DEMO_SEED && shouldSeedDemo()) {
+    const localAccounts = [
+      { id: 'user-dentacare-owner', email: 'ajitdentacare@gmail.com', username: 'Admin', name: 'Dr. D. Ajit', password: ownerPassword || 'Dentacare@123' },
+      { id: 'user-denta-care-admin', email: 'admin@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'Dentacare@2024' },
+      { id: 'user-denta-care', email: 'demo@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'demo1234' },
+    ];
+    for (const acct of localAccounts) {
+      const hash = bcrypt.hashSync(acct.password, 10);
+      const user = db.prepare('SELECT id FROM users WHERE email = ?').get(acct.email);
+      if (!user) {
+        db.prepare(`
+          INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
+          VALUES (?, ?, ?, ?, ?, ?, 'owner', 0)
+        `).run(acct.id, tenantId, acct.username || null, acct.email, hash, acct.name);
+      } else if (shouldSeedDemo()) {
+        db.prepare('UPDATE users SET tenant_id = ?, username = ?, name = ?, password_hash = ? WHERE email = ?').run(
+          tenantId, acct.username || null, acct.name, hash, acct.email,
+        );
+      }
     }
   }
 

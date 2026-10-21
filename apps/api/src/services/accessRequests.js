@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { getDb } from '../db/index.js';
 import { createRateLimiter } from '../utils/rateLimiter.js';
+import { assertCanAddStaff } from '../modules/identity/entitlements.js';
 
 const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 7);
 
@@ -125,6 +126,8 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note } =
   if (existingUser) {
     throw new Error('This email already has clinic access');
   }
+
+  assertCanAddStaff(tenantId, 1);
 
   const userId = `user-${nanoid(10)}`;
   const placeholderHash = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);

@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/index.js';
 import { requireManageDoctors } from '../identity/permissions.js';
+import { assertCanAddDoctor } from '../identity/entitlements.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -57,6 +58,7 @@ export function listDoctors(tenantId, { includeInactive = false } = {}) {
 
 export function createDoctor(tenantId, user, data) {
   requireManageDoctors(user);
+  assertCanAddDoctor(tenantId, 1);
   const name = String(data.name || '').trim();
   if (!name) throw new Error('Doctor name required');
 
