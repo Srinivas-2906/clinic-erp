@@ -54,8 +54,9 @@ jobs:
       - name: Submit Cloud Build (staging)
         run: |
           set -euo pipefail
+          CLOUDBUILD_SA="clinic-staging-cloudbuild@${GCP_STAGING_PROJECT_ID}.iam.gserviceaccount.com"
           gcloud builds submit \
             --project "$GCP_STAGING_PROJECT_ID" \
             --config cloudbuild.staging.yaml \
-            --service-account="projects/$GCP_STAGING_PROJECT_ID/serviceAccounts/$GCP_STAGING_DEPLOYER_SA" \
+            --service-account="projects/$GCP_STAGING_PROJECT_ID/serviceAccounts/${CLOUDBUILD_SA}" \
             .

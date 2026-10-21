@@ -1,6 +1,6 @@
 # Staging architecture — separate GCP project (M4)
 
-**Status:** Design only. **No resources provisioned.**
+**Status:** **Provisioned** (2026-10-22). Live details: `docs/modernization/08_M5_STAGING_LIVE.md`.
 
 ## Project boundary
 
