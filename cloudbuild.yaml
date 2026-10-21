@@ -90,8 +90,9 @@ substitutions:
   _VITE_CLINIC_API: /api
   _VITE_TENANT_SLUG: dentacare
   _PUBLIC_CLINIC_API_URL: https://clinic-api.kaana.in
-  _DB_BUCKET: kaana-prod-db
-  _API_SERVICE_ACCOUNT: kaana-api-runner@kaana-prod.iam.gserviceaccount.com
+  # Production project ID: crucial-accord-505607-g9 (console display name: kaana-prod)
+  _DB_BUCKET: crucial-accord-505607-g9-db
+  _API_SERVICE_ACCOUNT: kaana-api-runner@crucial-accord-505607-g9.iam.gserviceaccount.com
   _SECRET_JWT: kaana-jwt-secret
 
 options:

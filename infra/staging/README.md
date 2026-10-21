@@ -1,6 +1,8 @@
 # Clinic ERP — staging environment (proposal)
 
-**Status:** Not provisioned. No GCP resources created in M2.
+**Status:** Not provisioned. Full design: **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
+
+Production project ID: `crucial-accord-505607-g9` (not `kaana-prod`). Staging must use a **different** GCP project.
 
 ## Goals
 
@@ -14,7 +16,7 @@
 |-----------|----------------------|---------------|
 | Cloud Run API | `clinic-api` | `clinic-api-staging` |
 | Cloud Run UI | `kaana-clinic` | `kaana-clinic-staging` |
-| Litestream GCS bucket | `kaana-prod-db` | `kaana-clinic-staging-db` (new) |
+| Litestream GCS bucket | `crucial-accord-505607-g9-db` | `<staging-project>-clinic-db` (new) |
 | JWT secret | `kaana-jwt-secret` | `clinic-staging-jwt-secret` (new) |
 | Runtime SA | `kaana-api-runner@...` | `clinic-staging-runner@...` (new, bucket-only) |
 | Hostnames | `clinic.kaana.in` | `clinic-staging.kaana.in` (optional; or `*.run.app` only) |

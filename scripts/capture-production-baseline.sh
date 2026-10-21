@@ -2,7 +2,7 @@
 # Read-only production baseline capture. Run locally after: gcloud auth login
 set -euo pipefail
 
-PROJECT="${GCP_PROJECT:-kaana-prod}"
+PROJECT="${GCP_PROJECT:-crucial-accord-505607-g9}"
 REGION="${GCP_REGION:-asia-south1}"
 OUT="${1:-./production-baseline-$(date +%Y%m%d-%H%M%S).txt}"
 

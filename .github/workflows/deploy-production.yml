@@ -1,6 +1,5 @@
-# PRODUCTION — manual only. Does NOT run on push or pull_request.
-# Cutover from kaana-prod requires explicit approval and GitHub Environment protection.
-# Uses Workload Identity Federation (no long-lived JSON keys in repo).
+# PRODUCTION — manual only. Targets live Denta Care (crucial-accord-505607-g9).
+# Requires GitHub Environment "production" + typed confirmation. No push/PR trigger.
 
 name: Deploy production (manual — post-cutover)
 
@@ -8,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type deploy-production to confirm (targets clinic-api + kaana-clinic)'
+        description: 'Type deploy-production to confirm (clinic-api + kaana-clinic in PROD project)'
         required: true
         type: string
 
@@ -25,22 +24,38 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      GCP_PROD_PROJECT_ID: ${{ vars.GCP_PROD_PROJECT_ID }}
+      GCP_PROD_DEPLOYER_SA: ${{ vars.GCP_PROD_DEPLOYER_SA }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate production target configuration
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROD_PROJECT_ID" || { echo "Missing repo variable GCP_PROD_PROJECT_ID"; exit 1; }
+          test -n "$GCP_PROD_DEPLOYER_SA" || { echo "Missing repo variable GCP_PROD_DEPLOYER_SA"; exit 1; }
+          test -n "$GCP_WIF_PROVIDER" || { echo "Missing repo variable GCP_WIF_PROVIDER"; exit 1; }
+          if [ "$GCP_PROD_PROJECT_ID" = "kaana-prod" ]; then
+            echo "GCP_PROD_PROJECT_ID must be the API project id (crucial-accord-505607-g9), not the display name kaana-prod"
+            exit 1
+          fi
+
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_PROD_DEPLOYER_SA }}
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_PROD_DEPLOYER_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: kaana-prod
+          project_id: ${{ env.GCP_PROD_PROJECT_ID }}
 
       - name: Submit Cloud Build (production)
         run: |
+          set -euo pipefail
           gcloud builds submit \
-            --project kaana-prod \
+            --project "$GCP_PROD_PROJECT_ID" \
             --config cloudbuild.yaml \
-            --service-account=projects/kaana-prod/serviceAccounts/kaana-cloudbuild-deployer@kaana-prod.iam.gserviceaccount.com \
+            --service-account="projects/$GCP_PROD_PROJECT_ID/serviceAccounts/$GCP_PROD_DEPLOYER_SA" \
             .
