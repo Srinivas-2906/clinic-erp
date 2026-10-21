@@ -103,7 +103,6 @@ substitutions:
   _CLINIC_CRM_SERVICE: kaana-clinic-staging
   _VITE_CLINIC_API: /api
   _VITE_TENANT_SLUG: dentacare
-  _PUBLIC_CLINIC_API_URL: https://clinic-api-staging-placeholder.run.app
   _DB_BUCKET: clinic-erp-staging-clinic-db
   _API_SERVICE_ACCOUNT: clinic-staging-runner@clinic-erp-staging.iam.gserviceaccount.com
   _SECRET_JWT: clinic-staging-jwt-secret
