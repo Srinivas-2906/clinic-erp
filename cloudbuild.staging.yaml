@@ -33,6 +33,7 @@ steps:
           --region "${_REGION}" \
           --platform managed \
           --allow-unauthenticated \
+          --no-invoker-iam-check \
           --port 8080 \
           --min-instances 0 \
           --max-instances 1 \
@@ -78,6 +79,7 @@ steps:
           --region "${_REGION}" \
           --platform managed \
           --allow-unauthenticated \
+          --no-invoker-iam-check \
           --port 8080 \
           --min-instances 0 \
           --max-instances 1 \
@@ -91,10 +93,10 @@ substitutions:
   _CLINIC_API_SERVICE: clinic-api-staging
   _CLINIC_CRM_SERVICE: kaana-clinic-staging
   _VITE_CLINIC_API: /api
-  _VITE_TENANT_SLUG: dentacare-staging
-  _PUBLIC_CLINIC_API_URL: https://clinic-api-staging.example.invalid
-  _DB_BUCKET: REPLACE_WITH_STAGING_BUCKET
-  _API_SERVICE_ACCOUNT: clinic-staging-runner@PROJECT_ID.iam.gserviceaccount.com
+  _VITE_TENANT_SLUG: dentacare
+  _PUBLIC_CLINIC_API_URL: https://clinic-api-staging-placeholder.run.app
+  _DB_BUCKET: clinic-erp-staging-clinic-db
+  _API_SERVICE_ACCOUNT: clinic-staging-runner@clinic-erp-staging.iam.gserviceaccount.com
   _SECRET_JWT: clinic-staging-jwt-secret
 
 options:

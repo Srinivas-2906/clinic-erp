@@ -1,6 +1,6 @@
 # M5 — Staging provision (approval gate)
 
-**Status:** Read-only checks complete. **No staging project created.** Awaiting explicit approval to link billing and create resources.
+**Status:** **Approved and executed** (2026-10-22). See `08_M5_STAGING_LIVE.md`.
 
 ## Pre-approval verification (2026-10-22)
 
