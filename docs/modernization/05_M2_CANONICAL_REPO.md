@@ -3,7 +3,7 @@
 **Date:** 2026-10-21  
 **Repository:** [Srinivas-2906/clinic-erp](https://github.com/Srinivas-2906/clinic-erp)  
 **Branch:** `feature/m1-repository-separation`  
-**PR:** _(see final report — opened after push)_
+**PR:** https://github.com/Srinivas-2906/clinic-erp/pull/1
 
 ## Canonical status
 
