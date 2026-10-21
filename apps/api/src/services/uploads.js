@@ -1,39 +1,52 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { nanoid } from 'nanoid';
+import {
+  decodeBase64Payload,
+  validateUploadBuffer,
+  validateUploadPrefix,
+  validateTenantId,
+  validateFileName,
+  validationError,
+} from './uploadValidation.js';
+import { getUploadStorageBackend } from './uploadStorage.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsRoot = process.env.UPLOADS_DIR || path.join(__dirname, '../../data/uploads');
+export async function savePatientUpload(tenantId, { data, contentType, prefix = 'prescription' }) {
+  const safeTenant = validateTenantId(tenantId);
+  if (!data) throw validationError('Missing upload data');
 
-function extForContentType(contentType = '') {
-  const t = contentType.toLowerCase();
-  if (t.includes('png')) return 'png';
-  if (t.includes('webp')) return 'webp';
-  if (t.includes('heic') || t.includes('heif')) return 'heic';
-  return 'jpg';
+  const buf = decodeBase64Payload(data);
+  const meta = validateUploadBuffer(buf, contentType);
+  const safePrefix = validateUploadPrefix(prefix);
+
+  const name = `${safePrefix}-${Date.now()}-${nanoid(6)}.${meta.extension}`;
+  validateFileName(name);
+
+  const backend = getUploadStorageBackend();
+  await backend.saveObject({
+    tenantId: safeTenant,
+    fileName: name,
+    buffer: buf,
+    contentType: meta.contentType,
+  });
+
+  return {
+    fileName: name,
+    relativePath: `${safeTenant}/${name}`,
+    contentType: meta.contentType,
+  };
 }
 
-export function savePatientUpload(tenantId, { data, contentType, prefix = 'prescription' }) {
-  if (!tenantId || !data) throw new Error('Missing upload data');
-  const buf = Buffer.from(String(data), 'base64');
-  if (!buf.length) throw new Error('Empty file');
-  if (buf.length > 8 * 1024 * 1024) throw new Error('File too large (max 8 MB)');
-
-  const dir = path.join(uploadsRoot, tenantId);
-  fs.mkdirSync(dir, { recursive: true });
-  const ext = extForContentType(contentType);
-  const name = `${prefix}-${Date.now()}-${nanoid(6)}.${ext}`;
-  const filePath = path.join(dir, name);
-  fs.writeFileSync(filePath, buf);
-
-  return { fileName: name, relativePath: `${tenantId}/${name}` };
+/**
+ * Opens a readable stream for an uploaded patient file (GCS or local dev backend).
+ */
+export async function openPatientUploadReadStream(tenantId, fileName) {
+  const safeTenant = validateTenantId(tenantId);
+  const safeName = validateFileName(fileName);
+  const backend = getUploadStorageBackend();
+  return backend.openReadStream({ tenantId: safeTenant, fileName: safeName });
 }
 
+/** @deprecated use openPatientUploadReadStream — kept for tests migrating off filesystem paths */
 export function resolveUploadPath(relativePath) {
-  const safe = String(relativePath || '').replace(/\.\./g, '');
-  const full = path.join(uploadsRoot, safe);
-  if (!full.startsWith(uploadsRoot)) return null;
-  if (!fs.existsSync(full)) return null;
-  return full;
+  void relativePath;
+  return null;
 }

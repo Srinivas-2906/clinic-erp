@@ -1,0 +1,46 @@
+# PRODUCTION — manual only. Does NOT run on push or pull_request.
+# Cutover from kaana-prod requires explicit approval and GitHub Environment protection.
+# Uses Workload Identity Federation (no long-lived JSON keys in repo).
+
+name: Deploy production (manual — post-cutover)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type deploy-production to confirm (targets clinic-api + kaana-clinic)'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-clinic-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production Cloud Run
+    if: github.event.inputs.confirm == 'deploy-production'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_PROD_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: kaana-prod
+
+      - name: Submit Cloud Build (production)
+        run: |
+          gcloud builds submit \
+            --project kaana-prod \
+            --config cloudbuild.yaml \
+            --service-account=projects/kaana-prod/serviceAccounts/kaana-cloudbuild-deployer@kaana-prod.iam.gserviceaccount.com \
+            .

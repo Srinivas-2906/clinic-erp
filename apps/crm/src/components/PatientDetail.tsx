@@ -10,6 +10,7 @@ import { PatientFormDialog } from './PatientFormDialog';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SharePaymentDialog } from './SharePaymentDialog';
 import { DoctorBadge } from './DoctorBadge';
+import { AuthenticatedClinicRecordThumb } from './AuthenticatedClinicRecordThumb';
 import type { ClinicProfile } from '../lib/clinicBranding';
 
 const PALETTES: [string, string][] = [
@@ -324,10 +325,12 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
                   </div>
                   <div className="panel-body">
                     <div className="record-grid">
-                      {urls.map((u, i) => (
-                        <a key={`${u}-${i}`} className="record-thumb" href={u} target="_blank" rel="noreferrer">
-                          <img src={u} alt={`Record ${i + 1}`} />
-                        </a>
+                      {urls.filter((u): u is string => Boolean(u)).map((u, i) => (
+                        <AuthenticatedClinicRecordThumb
+                          key={`${u}-${i}`}
+                          url={u}
+                          alt={`Record ${i + 1}`}
+                        />
                       ))}
                     </div>
                   </div>

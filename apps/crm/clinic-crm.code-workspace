@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../clinic-api"
+		},
+		{
+			"path": "../../clinic-erp"
+		}
+	]
+}
