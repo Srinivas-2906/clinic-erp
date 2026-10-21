@@ -4,7 +4,11 @@ import { Camera, FileText, X } from 'lucide-react';
 import type { Patient } from '../types';
 import { GENDERS, PATIENT_SOURCES } from '../types';
 import { createPatient, updatePatient } from '../lib/api';
-import { uploadPatientPrescription } from '../lib/uploads';
+import {
+  assertPrescriptionFileSize,
+  PRESCRIPTION_FILE_TOO_LARGE_MESSAGE,
+  uploadPatientPrescription,
+} from '../lib/uploads';
 import { resolveTenantSlug } from '../lib/tenant';
 import { useScrollLock } from '../hooks/useScrollLock';
 import {
@@ -16,6 +20,8 @@ import {
   sanitizeAge,
   sanitizePhoneDigits,
 } from '../lib/patientInput';
+import { AuthenticatedClinicFilePreview } from './AuthenticatedClinicFilePreview';
+import { isProtectedClinicFileUrl } from '../lib/clinicFileUrls';
 
 interface Props {
   patient?: Patient | null;
@@ -34,7 +40,8 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
   const [source, setSource] = useState(patient?.source || 'Walk-in');
   const [chiefComplaint, setChiefComplaint] = useState(patient?.chiefComplaint || '');
   const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
-  const [prescriptionPreview, setPrescriptionPreview] = useState<string>(patient?.prescriptionUrl || patient?.photoUrl || '');
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string>('');
+  const storedPrescriptionUrl = patient?.prescriptionUrl || patient?.photoUrl || '';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,15 +50,35 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
   useScrollLock(true);
 
   useEffect(() => {
-    if (!prescriptionFile) return;
+    if (!prescriptionFile) {
+      setLocalPreviewUrl('');
+      return;
+    }
     const url = URL.createObjectURL(prescriptionFile);
-    setPrescriptionPreview(url);
+    setLocalPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [prescriptionFile]);
 
+  const showStoredPreview =
+    !prescriptionFile &&
+    !!storedPrescriptionUrl &&
+    isProtectedClinicFileUrl(storedPrescriptionUrl);
+  const showExternalPreview =
+    !prescriptionFile &&
+    !!storedPrescriptionUrl &&
+    !isProtectedClinicFileUrl(storedPrescriptionUrl);
+  const hasPreview = !!localPreviewUrl || showStoredPreview || showExternalPreview;
+
   function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) setPrescriptionFile(file);
+    if (file) {
+      try {
+        assertPrescriptionFileSize(file);
+        setPrescriptionFile(file);
+      } catch {
+        onToast(PRESCRIPTION_FILE_TOO_LARGE_MESSAGE, 'err');
+      }
+    }
     e.target.value = '';
   }
 
@@ -77,6 +104,7 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
           const detail = err instanceof Error ? err.message : 'Upload failed';
           console.error('Prescription upload failed:', err);
           onToast(`Image upload failed: ${detail}`, 'err');
+          return;
         }
       }
 
@@ -197,11 +225,15 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
               <div className="prescription-picker">
                 <button
                   type="button"
-                  className={`prescription-picker-btn${prescriptionPreview ? ' has-image' : ''}`}
+                  className={`prescription-picker-btn${hasPreview ? ' has-image' : ''}`}
                   onClick={() => cameraInputRef.current?.click()}
                 >
-                  {prescriptionPreview ? (
-                    <img src={prescriptionPreview} alt="Prescription" />
+                  {localPreviewUrl ? (
+                    <img src={localPreviewUrl} alt="Prescription" />
+                  ) : showStoredPreview ? (
+                    <AuthenticatedClinicFilePreview storedUrl={storedPrescriptionUrl} alt="Prescription" />
+                  ) : showExternalPreview ? (
+                    <img src={storedPrescriptionUrl} alt="Prescription" />
                   ) : (
                     <>
                       <Camera size={22} strokeWidth={1.5} />
@@ -209,8 +241,15 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
                     </>
                   )}
                 </button>
-                {prescriptionPreview && (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setPrescriptionFile(null); setPrescriptionPreview(''); }}>
+                {hasPreview && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setPrescriptionFile(null);
+                      setLocalPreviewUrl('');
+                    }}
+                  >
                     Remove photo
                   </button>
                 )}

@@ -55,7 +55,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'npm run dev',
-      cwd: path.join(__dirname, '../api'),
+      cwd: path.join(__dirname, '../clinic-api'),
       url: 'http://localhost:3010/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

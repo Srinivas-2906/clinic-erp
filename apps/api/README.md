@@ -5,10 +5,10 @@ Self-contained API for the dental clinic desk. **No dependency on botiq-whatsapp
 ## Quick start
 
 ```bash
-# From repo root
+cd clinic-api
 npm install
-cp apps/api/.env.example apps/api/.env
-npm run dev:api
+cp .env.example .env
+npm run dev
 ```
 
 API runs at **http://localhost:3010**
@@ -16,7 +16,8 @@ API runs at **http://localhost:3010**
 ## Start clinic desk
 
 ```bash
-npm run dev:crm
+cd ../clinic-crm
+npm run dev
 ```
 
 Open **http://localhost:5185?tenant=dentacare**
@@ -36,7 +37,7 @@ Both **clinic-api** (3010) and **clinic-crm** (5185) must be running on your Mac
 
 ## Data
 
-SQLite database: `apps/api/data/clinic.db` (created on first run).
+SQLite database: `clinic-api/data/clinic.db` (created on first run).
 
 ## Architecture
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const apiRoot = path.join(__dirname, '../../api');
+const apiRoot = path.join(__dirname, '../../clinic-api');
 const screenshotDir = path.join(__dirname, 'screenshots');
 const reportDir = path.join(__dirname, 'report');
 

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import { initDatabase } from './db/index.js';
+import { jsonBodyParserOptions } from './config/httpBodyLimits.js';
+import { jsonBodyErrorHandler } from './middleware/jsonBodyError.js';
 import { corsMiddleware } from './middleware/cors.js';
 import platformRouter, { clinicRouter } from './routes/index.js';
 
@@ -9,7 +11,8 @@ initDatabase();
 const app = express();
 const PORT = process.env.PORT || 3010;
 
-app.use(express.json());
+app.use(express.json(jsonBodyParserOptions()));
+app.use(jsonBodyErrorHandler);
 app.use(corsMiddleware);
 
 // Auth + tenant public info (matches clinic-crm LoginGate paths)

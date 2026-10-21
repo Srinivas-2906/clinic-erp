@@ -10,7 +10,7 @@ import {
 } from '../services/clinicStore.js';
 import { createPayment, getPayments, getPaymentsRange, getPaymentSummary, updatePayment } from '../services/clinicPayments.js';
 import { logAudit } from '../services/clinicAudit.js';
-import { savePatientUpload, resolveUploadPath } from '../services/uploads.js';
+import { savePatientUpload, openPatientUploadReadStream } from '../services/uploads.js';
 import {
   checkAccessRequestRateLimit,
   submitAccessRequest,
@@ -306,25 +306,44 @@ export function clinicRouter() {
     res.json(payment);
   });
 
-  api.post('/clinic/uploads', authMiddleware, requireLiveTenant, (req, res) => {
+  api.post('/clinic/uploads', authMiddleware, requireLiveTenant, async (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     try {
       const { data, contentType, prefix } = req.body ?? {};
-      const saved = savePatientUpload(req.user.tenantId, { data, contentType, prefix: prefix || 'prescription' });
+      const saved = await savePatientUpload(req.user.tenantId, { data, contentType, prefix: prefix || 'prescription' });
       const publicBase = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
       const url = `${publicBase}/api/clinic/files/${saved.relativePath}`;
       res.status(201).json({ url, path: saved.relativePath });
     } catch (err) {
-      res.status(400).json({ error: err.message || 'Upload failed' });
+      const status = err.statusCode || (err.code === 'VALIDATION_ERROR' ? 400 : 500);
+      res.status(status).json({ error: err.message || 'Upload failed' });
     }
   });
 
-  api.get('/clinic/files/:tenantId/:fileName', authMiddleware, requireLiveTenant, (req, res) => {
+  api.get('/clinic/files/:tenantId/:fileName', authMiddleware, requireLiveTenant, async (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
-    if (req.user.tenantId !== req.params.tenantId) return res.status(403).json({ error: 'Forbidden' });
-    const full = resolveUploadPath(`${req.params.tenantId}/${req.params.fileName}`);
-    if (!full) return res.status(404).json({ error: 'File not found' });
-    res.sendFile(full);
+    if (req.user.tenantId !== req.params.tenantId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    try {
+      const opened = await openPatientUploadReadStream(req.params.tenantId, req.params.fileName);
+      res.setHeader('Content-Type', opened.contentType);
+      res.setHeader('Content-Disposition', opened.contentDisposition || 'inline');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      opened.stream.on('error', () => {
+        if (!res.headersSent) res.status(500).json({ error: 'Failed to read file' });
+      });
+      opened.stream.pipe(res);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND' || err.statusCode === 404) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      if (err.code === 'VALIDATION_ERROR') {
+        return res.status(400).json({ error: err.message });
+      }
+      return res.status(500).json({ error: 'Failed to read file' });
+    }
   });
 
   api.get('/clinic/access-requests', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {

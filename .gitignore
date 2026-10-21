@@ -17,6 +17,8 @@ apps/crm/e2e/test-results/
 apps/crm/e2e/report/
 apps/crm/playwright/.cache/
 apps/crm/e2e/screenshots/clinic-auth.json
+apps/crm/e2e/screenshots/*.png
+!apps/crm/e2e/screenshots/.gitkeep
 
 # OS & IDE
 .DS_Store
