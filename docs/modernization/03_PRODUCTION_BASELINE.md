@@ -1,75 +1,83 @@
 # Production baseline — Clinic ERP
 
-## Live endpoints (verified 2026-10-21)
+Last updated: **2026-10-21 (M3 — verified via GCP)**
 
-| URL | Check | Result |
-|-----|--------|--------|
-| `https://clinic.kaana.in/` | HTTP status | 200 |
-| `https://clinic-api.kaana.in/api/health` | JSON body | `{"ok":true,"service":"clinic-api","standalone":true}` |
-| `https://clinic-api.kaana.in/api/clinics/dentacare/doctors` | Unauthenticated probe | **404** (multi-doctor routes not on prod) |
+## GCP project identity (verified)
 
-Infrastructure headers: `server: Google Frontend`, `via: 1.1 google` (Cloud Run / GLB).
+| Field | Value |
+|-------|--------|
+| **Project ID** | `crucial-accord-505607-g9` |
+| **Display name** | `kaana-prod` |
+| **Project number** | `888176696307` |
+| **Region** | `asia-south1` |
 
-## Intended GCP topology (from repo config)
+GitHub Actions / docs often say `project_id: kaana-prod`; the **actual** deploy target for clinic is **`crucial-accord-505607-g9`**. Use `gcloud config set project crucial-accord-505607-g9` (not the string `kaana-prod` unless that is a separate project you can access).
 
-Documented in `kaana-prod` (`DEPLOY_APPS.md`, `cloudbuild.clinic.yaml`, `scripts/url-map-multi.yaml`):
+**Read access verified with:** `navya-teja@schoolofinterest.com` (after `gcloud auth login`).
 
-| Resource | Name / value |
-|----------|----------------|
-| GCP project (deploy) | `kaana-prod` |
-| Region | `asia-south1` |
-| Cloud Run — UI | `kaana-clinic` |
-| Cloud Run — API | `clinic-api` |
-| Artifact Registry | `asia-south1-docker.pkg.dev/.../kaana/clinic-api` & `clinic-crm` |
-| DB | SQLite at `/data/clinic.db` + `LITESTREAM_BUCKET=kaana-prod-db` |
-| Service account (runtime) | `kaana-api-runner@kaana-prod.iam.gserviceaccount.com` |
-| JWT secret | Secret Manager `kaana-jwt-secret` |
-| Tenant slug (build arg) | `dentacare` |
-| Public API URL substitution | `https://clinic-api-wtba53dhka-el.a.run.app` (in yaml; custom domain `clinic-api.kaana.in` via URL map) |
+## Live endpoints
 
-### Historical GCP account (unverified this session)
+| URL | Result |
+|-----|--------|
+| `https://clinic.kaana.in/` | HTTP 200 |
+| `https://clinic-api.kaana.in/api/health` | `standalone: true` |
+| Run URL (API) | `https://clinic-api-nhgux56o2a-el.a.run.app` |
+| Run URL (UI) | `https://kaana-clinic-nhgux56o2a-el.a.run.app` |
 
-- Local `gcloud` active account: `navya-teja@schoolofinterest.com`
-- Default project in config: `crucial-accord-505607-g9`
-- **Deploy workflows explicitly use `kaana-prod`** — treat `kaana-prod` as production project for clinic.
+## Cloud Run — production baseline
 
-## Deployment mechanism
+### `clinic-api`
 
-### Path-filtered GitHub Actions
+| Field | Value |
+|-------|--------|
+| Latest ready revision | `clinic-api-00018-4c5` |
+| Revision created | `2026-09-29T06:16:40Z` |
+| Traffic | 100% → latest revision |
+| Image (tag) | `asia-south1-docker.pkg.dev/crucial-accord-505607-g9/kaana/clinic-api:d3.1-clinic-20260929-742c4ce1` |
+| Image (digest) | `sha256:2bb647875bbcbdc9bc3a9af95176a5222442ac0e82f648b364b656b83a606db2` |
+| Litestream bucket | `crucial-accord-505607-g9-db` |
+| Patient files (GCS) | bucket `crucial-accord-505607-g9-db`, prefix `clinic-files` |
+| Runtime SA | `kaana-api-runner@crucial-accord-505607-g9.iam.gserviceaccount.com` |
+| JWT secret (name) | `kaana-jwt-secret` |
 
-Workflow: `.github/workflows/deploy-clinic.yml` in `kaana-prod`
+### `kaana-clinic`
 
-- Triggers on push to **`main`** when `clinic-api/**`, `clinic-crm/**`, or `cloudbuild.clinic.yaml` change.
-- Runs `gcloud builds submit` with `cloudbuild.clinic.yaml`.
+| Field | Value |
+|-------|--------|
+| Latest ready revision | `kaana-clinic-00009-hgd` |
+| Revision created | `2026-09-29T06:17:52Z` |
+| Traffic | 100% → `kaana-clinic-00009-hgd` |
+| Image (tag) | `asia-south1-docker.pkg.dev/crucial-accord-505607-g9/kaana/clinic-crm:d3.1-clinic-20260929-742c4ce1` |
+| Image (digest) | `sha256:a9e2f92acff927720233e933b3c8652db9c74877073eea341864421174f60cc1` |
+| `CLINIC_API_ORIGIN` | `https://clinic-api-nhgux56o2a-el.a.run.app` |
 
-**Observed runs (GitHub API):** 3 total, **0 successes**, last run 2026-08-15 (failure).
+Both services last modified via deploy on **2026-09-29** (Ready conditions). `lastModifier` annotation: `navya-teja@schoolofinterest.com`.
 
-Implication: **current production is not reliably tied to green GHA clinic deploys.** Manual Cloud Build, older revision, or suite `cloudbuild.yaml` deploy is likely.
+## Source commit correlation
 
-### Legacy suite build
+| Evidence | Value |
+|----------|--------|
+| Image tag suffix | `742c4ce1` (in tag `d3.1-clinic-20260929-742c4ce1`) |
+| GitHub `Srinivas-2906/kaana-prod` @ `742c4ce1` | **Not found** (short SHA not in recent history via API) |
+| GitHub `Srinivas-2906/clinic-erp` @ `742c4ce1` | **Not found** |
 
-Root `cloudbuild.yaml` in `kaana-prod` still contains clinic image build steps (`clinic-crm` → service `kaana-clinic`). Pushing unrelated products with a full suite build could theoretically redeploy clinic—**risk** if anyone runs monolithic build.
+**Baseline record:** treat **image digests above** and tag **`d3.1-clinic-20260929-742c4ce1`** as the authoritative production artifact IDs until a matching commit is located (may be from another branch, repo, or manual tag).
 
-## Production source commit
+## Storage / backup (metadata only)
 
-| Method | Result |
+| Resource | Detail |
+|----------|--------|
+| `gs://crucial-accord-505607-g9-db` | STANDARD, `ASIA-SOUTH1`, created 2026-08-15, uniform bucket-level access |
+
+No object listing or DB download performed.
+
+## Deployment triggers (unchanged)
+
+| Source | Notes |
 |--------|--------|
-| Cloud Run revision labels / image env | **Not obtained** (gcloud reauth required) |
-| GitHub Actions success SHA | **None** for clinic workflow |
-| GitHub last commit touching `clinic-api` on `main` | `32dd159e4164a0c9526b92edf761a9f77fc05af3` |
-| GitHub last commit touching `clinic-crm` on `main` | `6768e5cdf9a0205181730e47fd3b22df8a498841` |
-| Behavioral match (no doctors API) | Consistent with **`main` without Demos uncommitted work** |
+| `Srinivas-2906/kaana-prod` `deploy-clinic.yml` | Still targets `project_id: kaana-prod` in yaml — **verify** against real project ID before any deploy |
+| `Srinivas-2906/clinic-erp` | PR #1 merged: **no** push-to-prod; manual WIF workflows only |
 
-**Best estimate:** production runs code **at or before** `6768e5c` / `32dd159` on `kaana-prod` `main`, but **exact parity is unproven** until GCP revision metadata is read.
+## Local capture script
 
-## Customer data
-
-- No database download, Litestream restore, or GCS writes performed in M1.
-- Production SQLite remains on Cloud Run volume + GCS backup bucket per existing config.
-
-## Re-baseline checklist (M3)
-
-1. `gcloud auth login` with deploy-read access to `kaana-prod`.
-2. `gcloud run services describe clinic-api` / `kaana-clinic` — record `status.latestReadyRevisionName`, image digest, `metadata.annotations`.
-3. Compare image build time to Cloud Build history in `kaana-prod`.
-4. Fix `deploy-clinic` workflow and run a dry-run staging service before next prod promote.
+`scripts/capture-production-baseline.sh` — re-run after auth; default project should be `crucial-accord-505607-g9`.
