@@ -13,7 +13,17 @@ Last updated: **2026-10-21 (M3 — verified via GCP)**
 
 GitHub Actions / docs often say `project_id: kaana-prod`; the **actual** deploy target for clinic is **`crucial-accord-505607-g9`**. Use `gcloud config set project crucial-accord-505607-g9` (not the string `kaana-prod` unless that is a separate project you can access).
 
-**Read access verified with:** `navya-teja@schoolofinterest.com` (after `gcloud auth login`).
+### GCP access (reconciled M4)
+
+| Account | `gcloud config set project kaana-prod` | `gcloud config set project crucial-accord-505607-g9` |
+|---------|----------------------------------------|------------------------------------------------------|
+| `navya-teja@schoolofinterest.com` | **Fails** — not a member of project id `kaana-prod` (if it exists separately) | **Works** — `run.services.get/list`, bucket metadata |
+| `yarrala.srinivas@gmail.com` | Partial / misleading | Lists other Run services; `clinic-api` **not found** in partial views |
+| `admin@influmojo.com` | Reauth required in automation | Not verified |
+
+**Rule:** Always use project ID **`crucial-accord-505607-g9`** for production clinic infrastructure. Console display name **kaana-prod** is not the API project id.
+
+**Verified (M4 re-check):** `navya-teja@schoolofinterest.com` + `crucial-accord-505607-g9` → revisions `clinic-api-00018-4c5`, `kaana-clinic-00009-hgd` unchanged.
 
 ## Live endpoints
 

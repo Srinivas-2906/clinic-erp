@@ -1,5 +1,5 @@
-# STAGING — manual only. Not enabled until GCP staging resources + WIF vars exist.
-# See infra/staging/README.md and docs/modernization/05_M2_CANONICAL_REPO.md
+# STAGING — manual only. Separate GCP project (NOT crucial-accord-505607-g9).
+# See infra/staging/ARCHITECTURE.md
 
 name: Deploy staging (manual — approval required)
 
@@ -24,22 +24,38 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      GCP_STAGING_PROJECT_ID: ${{ vars.GCP_STAGING_PROJECT_ID }}
+      GCP_STAGING_DEPLOYER_SA: ${{ vars.GCP_STAGING_DEPLOYER_SA }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate staging isolation
+        run: |
+          set -euo pipefail
+          test -n "$GCP_STAGING_PROJECT_ID" || { echo "Missing repo variable GCP_STAGING_PROJECT_ID"; exit 1; }
+          test -n "$GCP_STAGING_DEPLOYER_SA" || { echo "Missing repo variable GCP_STAGING_DEPLOYER_SA"; exit 1; }
+          test -n "$GCP_WIF_PROVIDER" || { echo "Missing repo variable GCP_WIF_PROVIDER"; exit 1; }
+          if [ "$GCP_STAGING_PROJECT_ID" = "crucial-accord-505607-g9" ]; then
+            echo "Refusing to run staging deploy against production project"
+            exit 1
+          fi
+
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_STAGING_DEPLOYER_SA }}
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_STAGING_DEPLOYER_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: kaana-prod
+          project_id: ${{ env.GCP_STAGING_PROJECT_ID }}
 
       - name: Submit Cloud Build (staging)
         run: |
+          set -euo pipefail
           gcloud builds submit \
-            --project kaana-prod \
+            --project "$GCP_STAGING_PROJECT_ID" \
             --config cloudbuild.staging.yaml \
-            --service-account=projects/kaana-prod/serviceAccounts/kaana-cloudbuild-deployer@kaana-prod.iam.gserviceaccount.com \
+            --service-account="projects/$GCP_STAGING_PROJECT_ID/serviceAccounts/$GCP_STAGING_DEPLOYER_SA" \
             .
