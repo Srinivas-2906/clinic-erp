@@ -26,8 +26,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - name: Install Rollup native binary (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+      - name: Install Vite native bindings (npm optional-deps workaround)
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
       - run: npm run test:api
 
   crm-unit-tests:
@@ -41,8 +41,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - name: Install Rollup native binary (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+      - name: Install Vite native bindings (npm optional-deps workaround)
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
       - run: npm test --workspace=apps/crm
 
   crm-build:
@@ -56,8 +56,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - name: Install Rollup native binary (npm optional-deps workaround)
-        run: npm install --no-save @rollup/rollup-linux-x64-gnu
+      - name: Install Vite native bindings (npm optional-deps workaround)
+        run: npm install --no-save @rollup/rollup-linux-x64-gnu @rolldown/binding-linux-x64-gnu
       - run: npm run build --workspace=apps/crm
 
   docker-build-smoke:
