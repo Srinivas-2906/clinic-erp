@@ -9,7 +9,9 @@ import {
   getTodayStats, getAvailableSlots, getAppointmentsRange,
 } from '../services/clinicStore.js';
 import { createPayment, getPayments, getPaymentsRange, getPaymentSummary, updatePayment } from '../services/clinicPayments.js';
-import { logAudit } from '../services/clinicAudit.js';
+import { logAudit, queryAuditLog, formatAuditCsv } from '../services/clinicAudit.js';
+import { getTenantEntitlements, canExportAudit } from '../modules/identity/entitlements.js';
+import { requireViewAudit } from '../modules/identity/permissions.js';
 import { savePatientUpload, openPatientUploadReadStream } from '../services/uploads.js';
 import {
   checkAccessRequestRateLimit,
@@ -346,6 +348,55 @@ export function clinicRouter() {
     }
   });
 
+  api.get('/clinic/entitlements', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json(getTenantEntitlements(req.user.tenantId));
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || 'Could not load plan' });
+    }
+  });
+
+  api.get('/clinic/audit', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      requireViewAudit(req.user);
+      const result = queryAuditLog(req.user.tenantId, {
+        limit: req.query.limit,
+        offset: req.query.offset,
+        action: req.query.action,
+        entityType: req.query.entityType,
+        from: req.query.from,
+        to: req.query.to,
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message || 'Forbidden' });
+    }
+  });
+
+  api.get('/clinic/audit/export', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      requireViewAudit(req.user);
+      if (!canExportAudit(req.user.tenantId)) {
+        return res.status(403).json({ error: 'Audit export is not included in your plan' });
+      }
+      const csv = formatAuditCsv(req.user.tenantId, {
+        action: req.query.action,
+        entityType: req.query.entityType,
+        from: req.query.from,
+        to: req.query.to,
+        limit: req.query.limit,
+      });
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="clinic-audit.csv"');
+      res.send(csv);
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message || 'Forbidden' });
+    }
+  });
+
   api.get('/clinic/access-requests', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     const status = req.query.status ? String(req.query.status) : undefined;
@@ -359,7 +410,7 @@ export function clinicRouter() {
       logAudit(req.user.tenantId, req.user.sub, 'approve', 'access_request', req.params.id, { email: result.user.email });
       res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message || 'Could not approve request' });
+      res.status(err.status || 400).json({ error: err.message || 'Could not approve request' });
     }
   });
 

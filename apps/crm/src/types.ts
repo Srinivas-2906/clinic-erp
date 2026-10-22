@@ -122,7 +122,7 @@ export interface PaymentSummary {
   dueCount: number;
 }
 
-export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team';
+export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'audit';
 
 export interface AccessRequest {
   id: string;

@@ -1,8 +1,13 @@
 {
   "folders": [
-    { "path": ".", "name": "clinic-erp" },
-    { "path": "apps/crm", "name": "CRM" },
-    { "path": "apps/api", "name": "API" }
+    {
+      "name": "Clinic ERP",
+      "path": "."
+    }
   ],
-  "settings": {}
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true
+    }
+  }
 }

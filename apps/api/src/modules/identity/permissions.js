@@ -32,3 +32,15 @@ export function requireViewDoctors(user) {
     throw err;
   }
 }
+
+export function canViewAudit(user) {
+  return canManageTeam(user);
+}
+
+export function requireViewAudit(user) {
+  if (!canViewAudit(user)) {
+    const err = new Error('Owner access required');
+    err.status = 403;
+    throw err;
+  }
+}

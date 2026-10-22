@@ -257,8 +257,18 @@ export function initDatabase() {
 
 function shouldSeedDemo() {
   if (process.env.SKIP_DEMO_SEED === '1' || process.env.SKIP_DEMO_SEED === 'true') return false;
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') return true;
   if (process.env.NODE_ENV === 'production') return false;
   return true;
+}
+
+function resolveDemoOwnerPassword() {
+  const fromEnv = process.env.CLINIC_DEMO_OWNER_PASSWORD?.trim();
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') {
+    return fromEnv || null;
+  }
+  if (process.env.NODE_ENV === 'production') return null;
+  return fromEnv || 'Dentacare@123';
 }
 
 export function parseSettings(raw) {
@@ -369,24 +379,51 @@ function syncDentaCareDemo() {
     );
   }
 
-  const demoAccounts = [
-    { id: 'user-dentacare-owner', email: 'ajitdentacare@gmail.com', username: 'Admin', name: 'Dr. D. Ajit', password: 'Dentacare@123' },
-    { id: 'user-denta-care-admin', email: 'admin@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'Dentacare@2024' },
-    { id: 'user-denta-care', email: 'demo@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'demo1234' },
-  ];
+  const ownerPassword = resolveDemoOwnerPassword();
 
-  for (const acct of demoAccounts) {
-    const hash = bcrypt.hashSync(acct.password, 10);
-    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(acct.email);
-    if (!user) {
-      db.prepare(`
-        INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
-        VALUES (?, ?, ?, ?, ?, ?, 'owner', 0)
-      `).run(acct.id, tenantId, acct.username || null, acct.email, hash, acct.name);
-    } else if (shouldSeedDemo()) {
-      db.prepare('UPDATE users SET tenant_id = ?, username = ?, name = ?, password_hash = ? WHERE email = ?').run(
-        tenantId, acct.username || null, acct.name, hash, acct.email,
-      );
+  if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') {
+    if (!ownerPassword) {
+      console.warn('[db] CLINIC_ALLOW_DEMO_SEED is set but CLINIC_DEMO_OWNER_PASSWORD is missing; skipping demo user seed');
+    } else {
+      const email = process.env.CLINIC_DEMO_OWNER_EMAIL || 'staging-owner@clinic-erp.invalid';
+      const hash = bcrypt.hashSync(ownerPassword, 10);
+      const existingOwner = db.prepare(
+        `SELECT id FROM users WHERE tenant_id = ? AND role = 'owner' ORDER BY created_at ASC LIMIT 1`,
+      ).get(tenantId);
+      if (existingOwner) {
+        db.prepare(`
+          UPDATE users SET email = ?, password_hash = ?, name = ?, username = NULL WHERE id = ?
+        `).run(email, hash, 'Staging Clinic Owner', existingOwner.id);
+      } else {
+        db.prepare(`
+          INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
+          VALUES (?, ?, NULL, ?, ?, 'Staging Clinic Owner', 'owner', 0)
+        `).run(`user-${nanoid(10)}`, tenantId, email, hash);
+      }
+    }
+    if (shouldSeedDemo()) seedDentaCareSampleData(tenantId);
+    return;
+  }
+
+  if (shouldSeedDemo()) {
+    const localAccounts = [
+      { id: 'user-dentacare-owner', email: 'ajitdentacare@gmail.com', username: 'Admin', name: 'Dr. D. Ajit', password: ownerPassword || 'Dentacare@123' },
+      { id: 'user-denta-care-admin', email: 'admin@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'Dentacare@2024' },
+      { id: 'user-denta-care', email: 'demo@dentacare.in', username: null, name: 'Dr. D. Ajit', password: 'demo1234' },
+    ];
+    for (const acct of localAccounts) {
+      const hash = bcrypt.hashSync(acct.password, 10);
+      const user = db.prepare('SELECT id FROM users WHERE email = ?').get(acct.email);
+      if (!user) {
+        db.prepare(`
+          INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
+          VALUES (?, ?, ?, ?, ?, ?, 'owner', 0)
+        `).run(acct.id, tenantId, acct.username || null, acct.email, hash, acct.name);
+      } else if (shouldSeedDemo()) {
+        db.prepare('UPDATE users SET tenant_id = ?, username = ?, name = ?, password_hash = ? WHERE email = ?').run(
+          tenantId, acct.username || null, acct.name, hash, acct.email,
+        );
+      }
     }
   }
 

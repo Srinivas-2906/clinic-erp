@@ -5,8 +5,21 @@ import { jsonBodyParserOptions } from './config/httpBodyLimits.js';
 import { jsonBodyErrorHandler } from './middleware/jsonBodyError.js';
 import { corsMiddleware } from './middleware/cors.js';
 import platformRouter, { clinicRouter } from './routes/index.js';
+import { initReminderInfrastructure, processDueReminders } from './services/reminders/index.js';
 
 initDatabase();
+initReminderInfrastructure();
+
+const REMINDER_POLL_MS = Number(process.env.REMINDER_POLL_MS || 30_000);
+if (process.env.DISABLE_REMINDER_WORKER !== '1') {
+  setInterval(() => {
+    try {
+      processDueReminders();
+    } catch (err) {
+      console.error('[reminder-worker]', err.message || err);
+    }
+  }, REMINDER_POLL_MS).unref?.();
+}
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -26,10 +39,5 @@ app.get('/', (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`
-🏥 Clinic API (standalone)
-   API:    http://localhost:${PORT}/api
-   Health: http://localhost:${PORT}/api/health
-   Login:  ajitdentacare@gmail.com / Dentacare@123  (tenant: dentacare)
-`);
+  console.log(`Clinic API listening on port ${PORT}`);
 });
