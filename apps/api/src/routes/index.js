@@ -10,6 +10,7 @@ import {
 } from '../services/clinicStore.js';
 import { createPayment, getPayments, getPaymentsRange, getPaymentSummary, updatePayment } from '../services/clinicPayments.js';
 import { logAudit, queryAuditLog, formatAuditCsv } from '../services/clinicAudit.js';
+import { checkAuditExportRateLimit } from '../services/clinicAuditExport.js';
 import { getTenantEntitlements, canExportAudit } from '../modules/identity/entitlements.js';
 import { requireViewAudit } from '../modules/identity/permissions.js';
 import { savePatientUpload, openPatientUploadReadStream } from '../services/uploads.js';
@@ -379,6 +380,9 @@ export function clinicRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     try {
       requireViewAudit(req.user);
+      if (!checkAuditExportRateLimit(req)) {
+        return res.status(429).json({ error: 'Too many audit exports; try again later' });
+      }
       if (!canExportAudit(req.user.tenantId)) {
         return res.status(403).json({ error: 'Audit export is not included in your plan' });
       }

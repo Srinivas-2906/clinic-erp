@@ -38,6 +38,12 @@ describe('audit log', () => {
     assert.equal(items[0].detail.password, '[redacted]');
   });
 
+  it('caps export row count at 1000', () => {
+    const csv = formatAuditCsv(tenantA, { limit: 5000 });
+    const lines = csv.trim().split('\n');
+    assert.ok(lines.length <= 1001);
+  });
+
   it('exports csv with header', () => {
     const csv = formatAuditCsv(tenantA);
     assert.match(csv, /^createdAt,/);

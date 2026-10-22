@@ -55,8 +55,30 @@ jobs:
         run: |
           set -euo pipefail
           CLOUDBUILD_SA="clinic-staging-cloudbuild@${GCP_STAGING_PROJECT_ID}.iam.gserviceaccount.com"
-          gcloud builds submit \
+          BUILD_ID="$(gcloud builds submit \
             --project "$GCP_STAGING_PROJECT_ID" \
             --config cloudbuild.staging.yaml \
             --service-account="projects/$GCP_STAGING_PROJECT_ID/serviceAccounts/${CLOUDBUILD_SA}" \
-            .
+            --async \
+            --format='value(id)' \
+            .)"
+          echo "Cloud Build ID: ${BUILD_ID}"
+          for attempt in $(seq 1 80); do
+            STATUS="$(gcloud builds describe "$BUILD_ID" \
+              --project "$GCP_STAGING_PROJECT_ID" \
+              --format='value(status)' 2>/dev/null || echo "UNKNOWN")"
+            echo "Build status: ${STATUS} (poll ${attempt}/80)"
+            case "$STATUS" in
+              SUCCESS) exit 0 ;;
+              FAILURE|CANCELLED|EXPIRED|INTERNAL_ERROR|TIMEOUT) exit 1 ;;
+              UNKNOWN)
+                echo "Transient describe error; retrying…"
+                sleep 20
+                ;;
+              *)
+                sleep 15
+                ;;
+            esac
+          done
+          echo "Timed out waiting for Cloud Build ${BUILD_ID}"
+          exit 1
