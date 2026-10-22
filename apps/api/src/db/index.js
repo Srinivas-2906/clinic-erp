@@ -263,7 +263,7 @@ function shouldSeedDemo() {
 }
 
 function resolveDemoOwnerPassword() {
-  const fromEnv = process.env.CLINIC_DEMO_OWNER_PASSWORD;
+  const fromEnv = process.env.CLINIC_DEMO_OWNER_PASSWORD?.trim();
   if (process.env.CLINIC_ALLOW_DEMO_SEED === '1') {
     return fromEnv || null;
   }
