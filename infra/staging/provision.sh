@@ -119,6 +119,15 @@ echo "==> IAM (GitHub WIF deployer)"
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${GITHUB_EMAIL}" \
   --role="roles/cloudbuild.builds.editor" --quiet
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/serviceusage.serviceUsageConsumer" --quiet
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/cloudbuild.builds.builder" --quiet
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/storage.admin" --quiet
 
 gcloud iam service-accounts add-iam-policy-binding "$CLOUDBUILD_EMAIL" \
   --project="$PROJECT_ID" \

@@ -114,17 +114,29 @@ export function processDueReminders({ limit = 20, now = new Date() } = {}) {
   const db = getDb();
   initReminderInfrastructure(db);
   const due = db.prepare(`
-    SELECT * FROM reminder_jobs
+    SELECT id FROM reminder_jobs
     WHERE status = 'pending' AND scheduled_at <= ?
     ORDER BY scheduled_at ASC
     LIMIT ?
   `).all(now.toISOString(), limit);
 
   const results = [];
-  for (const row of due) {
-    results.push(processOneReminder(row));
+  for (const { id } of due) {
+    const claimed = claimReminderJob(id);
+    if (claimed) results.push(processOneReminder(claimed));
   }
   return results;
+}
+
+function claimReminderJob(id) {
+  const db = getDb();
+  const claim = db.prepare(`
+    UPDATE reminder_jobs
+    SET status = 'processing', updated_at = datetime('now')
+    WHERE id = ? AND status = 'pending'
+  `).run(id);
+  if (!claim.changes) return null;
+  return db.prepare('SELECT * FROM reminder_jobs WHERE id = ?').get(id);
 }
 
 function processOneReminder(row) {
