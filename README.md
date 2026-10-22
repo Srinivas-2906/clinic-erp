@@ -2,6 +2,9 @@
 
 Standalone dental clinic SaaS — CRM frontend + API backend in one monorepo.
 
+**Local folder (open this in Cursor, not `Demos/`):** `/Users/srinivas/Downloads/clinic-erp`  
+See `docs/LOCAL_WORKSPACE.md` or open `clinic-erp.code-workspace`.
+
 **Canonical repo:** [github.com/Srinivas-2906/clinic-erp](https://github.com/Srinivas-2906/clinic-erp)  
 Deploys to **clinic.kaana.in** via GitHub Actions on push to `main` (see `.github/workflows/deploy.yml`).
 
