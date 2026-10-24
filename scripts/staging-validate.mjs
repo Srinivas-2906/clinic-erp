@@ -10,9 +10,11 @@ const TENANT = 'dentacare';
 const OWNER_EMAIL = 'staging-owner@clinic-erp.invalid';
 
 function secretPassword() {
+  const fromEnv = process.env.STAGING_DEMO_PASSWORD?.trim();
+  if (fromEnv) return fromEnv;
   return execSync(
     'gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=clinic-erp-staging',
-    { encoding: 'utf8' },
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   ).trim();
 }
 
@@ -86,7 +88,31 @@ async function main() {
   const slots = await json('GET', `/api/appointments/slots?date=${new Date().toISOString().slice(0, 10)}`, { token });
   ok('Slots', slots.status === 200);
 
+  const payments = await json('GET', '/api/clinic/payments', { token });
+  ok('List payments', payments.status === 200 && Array.isArray(payments.data?.payments));
+
+  if (created.data?.id) {
+    const pay = await json('POST', '/api/clinic/payments', {
+      token,
+      body: { patientId: created.data.id, amount: 100, method: 'cash', notes: 'staging-smoke' },
+    });
+    ok('Record payment', pay.status === 200 || pay.status === 201, `status=${pay.status}`);
+  }
+
+  const accessReq = await json('GET', '/api/clinic/access-requests', { token });
+  ok('Access requests (owner)', accessReq.status === 200 && Array.isArray(accessReq.data?.requests));
+
+  const profile = await json('GET', '/api/platform/me', { token });
+  ok('Session / me', profile.status === 200 && profile.data?.email === OWNER_EMAIL);
+
+  const wrongTenant = await json('GET', '/api/patients', {
+    token,
+    headers: { 'X-Tenant-Slug': 'nonexistent-tenant-slug' },
+  });
+  ok('Tenant scoping (JWT wins)', wrongTenant.status === 200 && Array.isArray(wrongTenant.data));
+
   ok('CRM reachable', (await fetch(CRM)).status === 200, CRM);
+  ok('CRM tenant query', (await fetch(`${CRM}/?tenant=${TENANT}`)).status === 200);
 
   printSummary();
   process.exit(checks.every((c) => c.pass) ? 0 : 1);
