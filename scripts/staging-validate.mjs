@@ -12,10 +12,39 @@ const OWNER_EMAIL = 'staging-owner@clinic-erp.invalid';
 function secretPassword() {
   const fromEnv = process.env.STAGING_DEMO_PASSWORD?.trim();
   if (fromEnv) return fromEnv;
-  return execSync(
-    'gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=clinic-erp-staging',
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-  ).trim();
+
+  try {
+    return execSync(
+      'gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=clinic-erp-staging',
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    ).trim();
+  } catch (err) {
+    const stderr = String(err.stderr || err.message || '');
+    const account = execSync('gcloud config get-value account 2>/dev/null', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+
+    console.error('Could not read clinic-staging-demo-password from Secret Manager.');
+    if (account) console.error(`Active gcloud account: ${account}`);
+    if (/PERMISSION_DENIED|secretmanager\.versions\.access/i.test(stderr)) {
+      console.error(`
+Fix (pick one):
+  1) Project owner runs:
+     gcloud secrets add-iam-policy-binding clinic-staging-demo-password \\
+       --project=clinic-erp-staging \\
+       --member="user:YOUR_EMAIL" \\
+       --role="roles/secretmanager.secretAccessor"
+  2) Use an account that already has staging access:
+     gcloud config set account OWNER_ACCOUNT && gcloud auth login
+  3) Pass password without printing it in shell history (prefer 1Password paste):
+     STAGING_DEMO_PASSWORD='…' node scripts/staging-validate.mjs
+`);
+    } else if (/Reauthentication|auth/i.test(stderr)) {
+      console.error('Run: gcloud auth login');
+    }
+    process.exit(1);
+  }
 }
 
 async function json(method, path, { token, body, headers = {} } = {}) {
@@ -103,7 +132,13 @@ async function main() {
   ok('Access requests (owner)', accessReq.status === 200 && Array.isArray(accessReq.data?.requests));
 
   const profile = await json('GET', '/api/platform/me', { token });
-  ok('Session / me', profile.status === 200 && profile.data?.email === OWNER_EMAIL);
+  ok(
+    'Session / me',
+    profile.status === 200
+      && profile.data?.user?.email === OWNER_EMAIL
+      && profile.data?.tenant?.slug === TENANT,
+    profile.status !== 200 ? `status=${profile.status}` : '',
+  );
 
   const wrongTenant = await json('GET', '/api/patients', {
     token,
