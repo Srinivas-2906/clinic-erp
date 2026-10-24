@@ -1,5 +1,5 @@
 import { authHeaders, clearToken } from './auth';
-import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, CatalogItem, Doctor, DoctorSession, DoctorTimeOff } from '../types';
+import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, CatalogItem, Doctor, DoctorSession, DoctorTimeOff, Encounter, PrescriptionItemInput, VitalInput } from '../types';
 import { resolveTenantSlug } from './tenant';
 
 const API = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';
@@ -190,7 +190,78 @@ export function saveDoctorServices(doctorId: string, catalogItemIds: string[]) {
 }
 
 export function fetchMe() {
-  return request<{ user: { id: string; name?: string; email?: string; username?: string; role?: string; isPlatformAdmin?: boolean } }>('/platform/me');
+  return request<{
+    user: {
+      id: string;
+      name?: string;
+      email?: string;
+      username?: string;
+      role?: string;
+      isPlatformAdmin?: boolean;
+      canSignClinical?: boolean;
+      clinicianDoctorId?: string | null;
+    };
+    tenant?: { slug?: string; name?: string };
+  }>('/platform/me');
+}
+
+export function createEncounter(patientId: string, body: Record<string, unknown>) {
+  return request<Encounter>(`/clinic/patients/${encodeURIComponent(patientId)}/encounters`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchEncounter(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}`);
+}
+
+export function updateEncounter(encounterId: string, body: {
+  chiefComplaint?: string;
+  historySummary?: string;
+  clinicalNote?: string;
+  vitals?: VitalInput[];
+  diagnoses?: { description: string; isPrimary?: boolean; code?: string }[];
+  prescriptionItems?: PrescriptionItemInput[];
+}) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function finalizeEncounter(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/finalize`, {
+    method: 'POST',
+  });
+}
+
+export function scheduleEncounterFollowUp(encounterId: string, body: { dueDate: string; instructions?: string; phone?: string }) {
+  return request<{ id: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function openPrescriptionPdf(encounterId: string) {
+  const tenantSlug = resolveTenantSlug();
+  const res = await fetch(`${API}/clinic/encounters/${encodeURIComponent(encounterId)}/prescription.pdf`, {
+    headers: {
+      ...authHeaders(),
+      ...(tenantSlug ? { 'x-tenant-slug': tenantSlug } : {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || 'Could not load PDF');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function fetchPayments(patientId?: string) {

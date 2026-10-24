@@ -4,8 +4,36 @@
  */
 import { execSync } from 'node:child_process';
 
-const API = process.env.STAGING_API_URL || 'https://clinic-api-staging-ofczrxs2ca-el.a.run.app';
-const CRM = process.env.STAGING_CRM_URL || 'https://kaana-clinic-staging-ofczrxs2ca-el.a.run.app';
+const PROJECT = process.env.GCP_STAGING_PROJECT_ID || 'clinic-erp-staging';
+const REGION = process.env.GCP_STAGING_REGION || 'asia-south1';
+
+function resolveStagingUrls() {
+  if (process.env.STAGING_API_URL?.trim() && process.env.STAGING_CRM_URL?.trim()) {
+    return {
+      API: process.env.STAGING_API_URL.trim(),
+      CRM: process.env.STAGING_CRM_URL.trim(),
+    };
+  }
+  try {
+    const api = execSync(
+      `gcloud run services describe clinic-api-staging --project=${PROJECT} --region=${REGION} --format=value(status.url)`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    ).trim();
+    const crm = execSync(
+      `gcloud run services describe kaana-clinic-staging --project=${PROJECT} --region=${REGION} --format=value(status.url)`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    ).trim();
+    if (api && crm) return { API: api, CRM: crm };
+  } catch {
+    /* fall through */
+  }
+  return {
+    API: 'https://clinic-api-staging-339065153036.asia-south1.run.app',
+    CRM: 'https://kaana-clinic-staging-339065153036.asia-south1.run.app',
+  };
+}
+
+const { API, CRM } = resolveStagingUrls();
 const TENANT = 'dentacare';
 const OWNER_EMAIL = 'staging-owner@clinic-erp.invalid';
 
@@ -15,7 +43,7 @@ function secretPassword() {
 
   try {
     return execSync(
-      'gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=clinic-erp-staging',
+      `gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=${PROJECT}`,
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     ).trim();
   } catch (err) {
@@ -32,7 +60,7 @@ function secretPassword() {
 Fix (pick one):
   1) Project owner runs:
      gcloud secrets add-iam-policy-binding clinic-staging-demo-password \\
-       --project=clinic-erp-staging \\
+       --project=${PROJECT} \\
        --member="user:YOUR_EMAIL" \\
        --role="roles/secretmanager.secretAccessor"
   2) Use an account that already has staging access:
@@ -80,7 +108,7 @@ async function main() {
   ok('API health', (await json('GET', '/')).status === 200);
 
   const login = await json('POST', '/api/platform/login', {
-    body: { email: OWNER_EMAIL, password },
+    body: { email: OWNER_EMAIL, password, tenantSlug: TENANT },
   });
   ok('Owner login', login.status === 200 && login.data?.token, `status=${login.status}`);
   const token = login.data?.token;

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDb, tenantToClient } from '../db/index.js';
+import { resolveClinicianDoctorId } from '../modules/clinical/clinicalPermissions.js';
 import { getTenantBySlug } from '../tenantContext.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'clinic-dev-secret-change-in-production';
@@ -100,6 +101,9 @@ export function getUserProfile(userId) {
   if (user.tenant_id) {
     tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(user.tenant_id);
   }
+  const clinicianDoctorId = user.tenant_id
+    ? resolveClinicianDoctorId({ sub: user.id, tenantId: user.tenant_id }, user.tenant_id)
+    : null;
   return {
     user: {
       id: user.id,
@@ -108,6 +112,8 @@ export function getUserProfile(userId) {
       name: user.name,
       role: user.role,
       isPlatformAdmin: !!user.is_platform_admin,
+      clinicianDoctorId,
+      canSignClinical: !!clinicianDoctorId,
     },
     tenant: tenant ? tenantToClient(tenant) : null,
   };

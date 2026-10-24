@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import { getCatalogTemplate } from '../templates/catalogTemplates.js';
 import { migrateTenantsToDoctors } from '../modules/providers/doctorMigration.js';
+import { initClinicalSchema } from '../modules/clinical/clinicalDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
@@ -258,6 +259,8 @@ export function initDatabase() {
     UPDATE tenants SET subscription_status = 'active'
     WHERE subscription_status IS NULL OR subscription_status = ''
   `).run();
+
+  initClinicalSchema(db);
 
   migrateTenantsToDoctors(db);
 

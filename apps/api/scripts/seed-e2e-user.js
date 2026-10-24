@@ -47,6 +47,14 @@ if (!existing) {
   console.log(`Updated E2E user: ${E2E.email}`);
 }
 
+const doctor = db.prepare(
+  `SELECT id FROM doctors WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order ASC LIMIT 1`,
+).get(tenantId);
+if (doctor) {
+  db.prepare(`UPDATE doctors SET user_id = ? WHERE id = ?`).run(E2E.id, doctor.id);
+  console.log(`Linked E2E user to doctor ${doctor.id} for clinical sign-off`);
+}
+
 console.log(JSON.stringify({
   tenant: 'dentacare',
   email: E2E.email,

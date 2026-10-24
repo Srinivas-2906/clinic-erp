@@ -11,6 +11,7 @@ import { useDoctors } from '../hooks/useDoctors';
 import { AppointmentBoard } from './AppointmentBoard';
 import { CalendarMonth } from './CalendarMonth';
 import { CompleteVisitDialog } from './CompleteVisitDialog';
+import { ConsultationDialog } from './ConsultationDialog';
 import { AppointmentActionsDialog } from './AppointmentActionsDialog';
 import { DoctorFilterChips } from './DoctorFilterChips';
 import { DoctorBadge } from './DoctorBadge';
@@ -48,7 +49,7 @@ const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
 const ACTION_LABEL: Partial<Record<AppointmentStatus, string>> = {
   requested: 'Confirm',
   confirmed: 'Arrived',
-  arrived:   'Complete',
+  arrived:   'Consult',
 };
 
 const ACTION_CLASS: Partial<Record<AppointmentStatus, string>> = {
@@ -102,6 +103,7 @@ export function TodayView({
   const [collapseSessions, setCollapseSessions] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(() => !isMobileViewport());
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
   const [actionsAppt, setActionsAppt] = useState<Appointment | null>(null);
   const headerLabel = formatScheduleHeader(selectedDate);
   const stats = useMemo(() => dayAppointmentStats(appointments), [appointments]);
@@ -130,7 +132,11 @@ export function TodayView({
     const next = NEXT[appt.status];
     if (!next) return;
     if (next === 'visited') {
-      setCompleteAppt(appt);
+      if (appt.status === 'arrived') {
+        setConsultAppt(appt);
+      } else {
+        setCompleteAppt(appt);
+      }
       return;
     }
     try {
@@ -416,6 +422,15 @@ export function TodayView({
           )}
         </div>
       </div>
+
+      {consultAppt && (
+        <ConsultationDialog
+          appointment={consultAppt}
+          onClose={() => setConsultAppt(null)}
+          onDone={() => { setConsultAppt(null); onRefresh(); }}
+          onToast={onToast}
+        />
+      )}
 
       {completeAppt && (
         <CompleteVisitDialog

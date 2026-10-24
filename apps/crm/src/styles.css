@@ -4322,6 +4322,8 @@ body.modal-open .clinic-app {
 @media (min-width: 640px) {
   .modal-overlay { align-items: center; padding: 20px; }
   .modal-sheet   { width: 100%; max-width: 480px; border-radius: var(--radius-lg); max-height: 88vh; }
+  .modal-sheet-tall { max-height: 92vh; }
+  .consultation-body { max-height: 60vh; overflow-y: auto; }
   .modal-handle  { display: none; }
 
   .search-overlay {
