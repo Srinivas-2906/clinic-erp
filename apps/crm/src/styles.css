@@ -2150,6 +2150,115 @@ img, video, canvas { max-width: 100%; height: auto; }
   margin-top: 10px;
 }
 
+.signup-card {
+  max-width: 440px;
+}
+
+.signup-slug-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.signup-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+.signup-hint.ok {
+  color: #059669;
+}
+
+.signup-hint.err {
+  color: #dc2626;
+}
+
+.signup-plan-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signup-plan {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.signup-plan.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.signup-plan strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.signup-plan span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.signup-review {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-2, #f8fafc);
+  font-size: 13px;
+}
+
+.signup-review div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.signup-review span {
+  color: var(--muted);
+}
+
+.signup-nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.signup-nav .login-submit {
+  flex: 1;
+}
+
+.signup-back {
+  border: none;
+  background: transparent;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.signup-success-text {
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.signup-link-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .login-switch-mode {
   display: inline-flex;
   align-items: center;

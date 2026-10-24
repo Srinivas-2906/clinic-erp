@@ -25,17 +25,15 @@ Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, n
 
 **Validation:** 56/56 API unit tests; `scripts/staging-validate.mjs` on staging; no prod deploy.
 
-## Milestone C — M8 commercial onboarding & billing (next)
+## Milestone C — M8 commercial onboarding & billing
 
-**Order (dependency-aware):**
-
-| Step | Deliverable | Depends on | Safe with SQLite |
-|------|-------------|------------|------------------|
-| C1 | Internal `POST /platform/tenants` provision (slug, plan, owner invite) | M7 entitlements | Yes |
-| C2 | CRM signup wizard (collect clinic + owner → C1) | C1 | Yes |
-| C3 | Subscription state machine on `tenants` (trial/active/past_due) | C1 | Yes |
-| C4 | Razorpay sandbox webhooks → C3 (no live keys) | C3 + approval | Yes |
-| C5 | Usage metering hooks (doctors/staff already counted) | M7 | Yes |
+| Step | Deliverable | Status |
+|------|-------------|--------|
+| C1 | Provisioning API + idempotency + audit | **Done** (Batch 1) |
+| C2 | CRM `/signup` wizard | **Done** (Batch 1) |
+| C3 | Subscription states + write guards | **Done** (Batch 1) |
+| C4 | Razorpay sandbox webhooks | Not started (needs approval) |
+| C5 | Usage metering hooks | Partial (doctor/staff counts in M7) |
 
 **Do not batch with C1–C2 until decided:** Postgres migration (Enterprise scale) — see `13_M7_DATABASE_DECISION.md`.
 

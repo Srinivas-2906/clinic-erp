@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { authMiddleware, loginUser, getUserProfile, requireOwner } from '../middleware/auth.js';
 import { requireLiveTenant } from '../middleware/requireLiveTenant.js';
-import { getClient, getTenantBySlug, setRequestTenant, runWithTenant } from '../tenantContext.js';
-import { getCatalogItems, tenantToClient } from '../db/index.js';
+import { getClient, getTenantBySlug, getTenantById, setRequestTenant, runWithTenant } from '../tenantContext.js';
+import { getCatalogItems, tenantToClient, getDb } from '../db/index.js';
 import {
   getPatients, createPatient, updatePatient, getPatientTimeline,
   getAppointments, createAppointment, updateAppointment,
@@ -30,6 +30,24 @@ import {
   submitPublicBooking,
 } from '../services/publicBooking.js';
 import { doctorsRouter } from '../modules/providers/doctors.routes.js';
+import { createRateLimiter } from '../utils/rateLimiter.js';
+import {
+  isSlugAvailable,
+  provisionClinicTenant,
+  updateTenantSubscription,
+} from '../services/tenantProvisioning.js';
+import {
+  isPublicSignupEnabled,
+  requireProvisioningAuth,
+} from '../modules/platform/provisioningAuth.js';
+import { requireTenantWrite } from '../middleware/requireTenantWrite.js';
+import { assertSubscriptionTransition } from '../modules/identity/subscription.js';
+import { normalizePlanId } from '../modules/identity/plans.js';
+
+const checkSignupRateLimit = createRateLimiter({
+  max: Number(process.env.SIGNUP_RATE_MAX || 5),
+  windowMs: Number(process.env.SIGNUP_RATE_WINDOW_MS || 15 * 60 * 1000),
+});
 
 const router = Router();
 
@@ -143,11 +161,66 @@ router.post('/set-password', (req, res) => {
   }
 });
 
+router.get('/signup/slug-available', (req, res) => {
+  res.json(isSlugAvailable(String(req.query.slug || '')));
+});
+
+router.post('/signup', (req, res) => {
+  if (!isPublicSignupEnabled()) {
+    return res.status(403).json({ error: 'Self-service signup is not enabled on this environment' });
+  }
+  if (!checkSignupRateLimit(req)) {
+    return res.status(429).json({ error: 'Too many signup attempts. Try again later.' });
+  }
+  try {
+    const idempotencyKey = String(req.headers['idempotency-key'] || req.body?.idempotencyKey || '').trim();
+    const result = provisionClinicTenant({ ...req.body, idempotencyKey });
+    res.status(result.idempotentReplay ? 200 : 201).json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || 'Could not create clinic', code: err.code });
+  }
+});
+
+router.post('/internal/tenants', requireProvisioningAuth, (req, res) => {
+  try {
+    const idempotencyKey = String(req.headers['idempotency-key'] || req.body?.idempotencyKey || '').trim();
+    const result = provisionClinicTenant({ ...req.body, idempotencyKey });
+    res.status(result.idempotentReplay ? 200 : 201).json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || 'Provision failed', code: err.code });
+  }
+});
+
+router.patch('/internal/tenants/:tenantId', requireProvisioningAuth, (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const { subscriptionStatus, planId } = req.body ?? {};
+    if (subscriptionStatus !== undefined) {
+      const row = getTenantBySlug(tenantId) || getTenantById(tenantId);
+      const id = row?.id || tenantId;
+      const current = getDb().prepare('SELECT subscription_status FROM tenants WHERE id = ?').get(id);
+      if (current) assertSubscriptionTransition(current.subscription_status, subscriptionStatus);
+      const tenant = updateTenantSubscription(id, { subscriptionStatus, planId: planId !== undefined ? normalizePlanId(planId) : undefined });
+      return res.json({ tenant });
+    }
+    if (planId !== undefined) {
+      const row = getTenantBySlug(tenantId) || getTenantById(tenantId);
+      const id = row?.id || tenantId;
+      const tenant = updateTenantSubscription(id, { planId: normalizePlanId(planId) });
+      return res.json({ tenant });
+    }
+    res.status(400).json({ error: 'No updates provided' });
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message, code: err.code });
+  }
+});
+
 export default router;
 
 export function clinicRouter() {
   const api = Router();
   api.use(withTenant);
+  api.use(requireTenantWrite);
 
   api.get('/client', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });

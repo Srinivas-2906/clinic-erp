@@ -40,7 +40,7 @@ steps:
           --memory 512Mi \
           --cpu 1 \
           --service-account "${_API_SERVICE_ACCOUNT}" \
-          --set-env-vars "NODE_ENV=production,DATABASE_PATH=/data/clinic.db,LITESTREAM_BUCKET=${_DB_BUCKET},UPLOADS_DIR=/data/uploads,JWT_EXPIRES=7d,SKIP_DEMO_SEED=0,CLINIC_ALLOW_DEMO_SEED=1,CLINIC_DEMO_OWNER_EMAIL=staging-owner@clinic-erp.invalid,CLINIC_FILES_STORAGE=gcs,CLINIC_FILES_BUCKET=${_DB_BUCKET},CLINIC_FILES_PREFIX=clinic-files-staging,REMINDER_DELIVERY_ENABLED=0" \
+          --set-env-vars "NODE_ENV=production,DATABASE_PATH=/data/clinic.db,LITESTREAM_BUCKET=${_DB_BUCKET},UPLOADS_DIR=/data/uploads,JWT_EXPIRES=7d,SKIP_DEMO_SEED=0,CLINIC_ALLOW_DEMO_SEED=1,CLINIC_DEMO_OWNER_EMAIL=staging-owner@clinic-erp.invalid,CLINIC_FILES_STORAGE=gcs,CLINIC_FILES_BUCKET=${_DB_BUCKET},CLINIC_FILES_PREFIX=clinic-files-staging,REMINDER_DELIVERY_ENABLED=0,CLINIC_PUBLIC_SIGNUP_ENABLED=1" \
           --set-secrets "JWT_SECRET=${_SECRET_JWT}:latest,CLINIC_DEMO_OWNER_PASSWORD=${_SECRET_DEMO_PASSWORD}:latest"
         API_URL=$$(gcloud run services describe ${_CLINIC_API_SERVICE} --region ${_REGION} --format='value(status.url)')
         gcloud run services update "${_CLINIC_API_SERVICE}" \

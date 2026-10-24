@@ -210,6 +210,9 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             >
               <UserPlus size={14} /> Need access? Request
             </button>
+            <a className="login-switch-mode" href="/signup" style={{ display: 'block', marginTop: 8 }}>
+              Start a new clinic workspace
+            </a>
               </>
             ) : (
               <>

@@ -1,8 +1,12 @@
 import { getDb } from '../../db/index.js';
 import { getPlanDefinition, normalizePlanId } from './plans.js';
+import {
+  canWriteTenantSubscription,
+  normalizeSubscriptionStatus,
+} from './subscription.js';
 
 export function getTenantPlanRow(tenantId) {
-  return getDb().prepare('SELECT id, plan, status FROM tenants WHERE id = ?').get(tenantId);
+  return getDb().prepare('SELECT id, plan, status, subscription_status, trial_ends_at FROM tenants WHERE id = ?').get(tenantId);
 }
 
 export function getTenantEntitlements(tenantId) {
@@ -16,11 +20,18 @@ export function getTenantEntitlements(tenantId) {
   const plan = getPlanDefinition(planId);
   const doctors = countActiveDoctors(tenantId);
   const staff = countStaffUsers(tenantId);
+  const subscriptionStatus = normalizeSubscriptionStatus(row.subscription_status);
   return {
     tenantId,
     planId,
     planLabel: plan.label,
     status: row.status,
+    subscriptionStatus,
+    subscription: {
+      status: subscriptionStatus,
+      trialEndsAt: row.trial_ends_at || null,
+      canWrite: canWriteTenantSubscription(subscriptionStatus),
+    },
     limits: {
       maxDoctors: plan.maxDoctors,
       maxStaff: plan.maxStaff,
