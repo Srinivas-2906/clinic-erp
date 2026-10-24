@@ -95,7 +95,7 @@ export function listAccessRequests(tenantId, { status } = {}) {
   return rows.map(rowToRequest);
 }
 
-function createInviteToken(userId) {
+export function createInviteTokenForUser(userId) {
   const db = getDb();
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
@@ -110,7 +110,7 @@ function createInviteToken(userId) {
   return rawToken;
 }
 
-function buildSetPasswordUrl(token) {
+export function buildSetPasswordUrl(token) {
   const base = (process.env.CLINIC_CRM_URL || 'http://localhost:5185').replace(/\/$/, '');
   return `${base}/?set-password=${encodeURIComponent(token)}`;
 }
@@ -138,7 +138,7 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note } =
     VALUES (?, ?, NULL, ?, ?, ?, 'staff', 0)
   `).run(userId, tenantId, email, placeholderHash, displayName);
 
-  const rawToken = createInviteToken(userId);
+  const rawToken = createInviteTokenForUser(userId);
   const now = new Date().toISOString();
 
   db.prepare(`

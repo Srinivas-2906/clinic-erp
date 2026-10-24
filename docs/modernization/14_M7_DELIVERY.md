@@ -43,7 +43,11 @@ Script: `scripts/staging-validate.mjs` — password from `STAGING_DEMO_PASSWORD`
 
 Checks passed (2026-10-22, pre-`8112cb7b`): health, owner login, entitlements, patients, doctors, audit + CSV, slots, CRM.
 
-**Re-run after deploy:** `gcloud auth login` (or export `STAGING_DEMO_PASSWORD`) then `node scripts/staging-validate.mjs`.
+**Re-run after deploy:** `node scripts/staging-validate.mjs` (needs Secret Manager access or `STAGING_DEMO_PASSWORD`).
+
+Developers without `secretmanager.versions.access`: project owner runs  
+`./infra/staging/grant-developer-secret-access.sh user:YOUR_EMAIL`  
+(or `gcloud config set account` to a staging Owner, then `gcloud auth login`).
 
 **Not fully automated in script (manual / next):** staff approve/reject E2E, binary file upload + GET, reminder job timing, Litestream restore drill, Playwright responsive CRM.
 

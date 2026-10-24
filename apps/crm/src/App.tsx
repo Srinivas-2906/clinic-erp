@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LogOut, RefreshCw, Search, Rows3 } from 'lucide-react';
 import { LoginGate } from './components/LoginGate';
+import { SignupWizard } from './components/SignupWizard';
 import { Sidebar } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
 import { OverviewTab } from './components/OverviewTab';
@@ -565,6 +566,11 @@ export default function App() {
   const setPasswordToken = params.get('set-password');
   if (setPasswordToken) {
     return <SetPasswordScreen token={setPasswordToken} />;
+  }
+
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path === '/signup' || params.get('signup') === '1') {
+    return <SignupWizard />;
   }
 
   return (

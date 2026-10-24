@@ -248,6 +248,17 @@ export function initDatabase() {
     /* index exists */
   }
 
+  try {
+    db.exec(`ALTER TABLE tenants ADD COLUMN subscription_status TEXT DEFAULT 'active'`);
+  } catch {
+    /* column exists */
+  }
+
+  db.prepare(`
+    UPDATE tenants SET subscription_status = 'active'
+    WHERE subscription_status IS NULL OR subscription_status = ''
+  `).run();
+
   migrateTenantsToDoctors(db);
 
   syncDentaCareDemo();
@@ -293,6 +304,8 @@ export function tenantToClient(row) {
     industry: row.industry,
     plan: row.plan,
     status: row.status,
+    subscriptionStatus: row.subscription_status || 'active',
+    trialEndsAt: row.trial_ends_at || null,
     isLive: row.status === 'active',
   };
 }

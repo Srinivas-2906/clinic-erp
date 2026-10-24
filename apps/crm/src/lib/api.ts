@@ -355,3 +355,42 @@ export async function downloadAuditExport(params: { action?: string; entityType?
 }
 
 export type { AccessRequest } from '../types';
+
+const platformBase = () => {
+  const raw = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';
+  return raw.replace(/\/api$/, '') || '';
+};
+
+export type SignupPlanId = 'essential' | 'professional' | 'enterprise';
+
+export async function checkSignupSlugAvailable(slug: string) {
+  const res = await fetch(`${platformBase()}/api/platform/signup/slug-available?slug=${encodeURIComponent(slug)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error || 'Could not check URL');
+  return data as { available: boolean; slug: string; error?: string };
+}
+
+export async function submitClinicSignup(body: {
+  clinicName: string;
+  slug: string;
+  planId: SignupPlanId;
+  ownerName: string;
+  ownerEmail: string;
+  idempotencyKey: string;
+}) {
+  const res = await fetch(`${platformBase()}/api/platform/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': body.idempotencyKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error || 'Signup failed');
+  return data as {
+    tenant: { slug: string; name: string };
+    invite: { setPasswordUrl: string };
+    idempotentReplay?: boolean;
+  };
+}

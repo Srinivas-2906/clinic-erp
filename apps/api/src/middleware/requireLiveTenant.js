@@ -1,4 +1,5 @@
 import { getTenantById } from '../tenantContext.js';
+import { canAccessTenantSubscription, normalizeSubscriptionStatus } from '../modules/identity/subscription.js';
 
 export function requireLiveTenant(req, res, next) {
   const tenantId = req.user?.tenantId;
@@ -12,6 +13,15 @@ export function requireLiveTenant(req, res, next) {
   }
   if (tenant.status !== 'active') {
     return res.status(403).json({ error: 'Clinic workspace is not active' });
+  }
+
+  const sub = normalizeSubscriptionStatus(tenant.subscription_status);
+  if (!canAccessTenantSubscription(sub)) {
+    return res.status(403).json({
+      error: 'Clinic subscription is inactive',
+      code: 'SUBSCRIPTION_INACTIVE',
+      subscriptionStatus: sub,
+    });
   }
 
   next();
