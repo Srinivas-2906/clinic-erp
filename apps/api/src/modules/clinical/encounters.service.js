@@ -93,6 +93,7 @@ export function encounterDetail(encounterId, tenantId) {
 }
 
 export function listEncountersForPatient(patientId, tenantId, { limit = 50 } = {}) {
+  if (!getPatientById(patientId, tenantId)) return [];
   const rows = getDb().prepare(
     `SELECT * FROM encounters WHERE tenant_id = ? AND patient_id = ? ORDER BY created_at DESC LIMIT ?`,
   ).all(tenantId, patientId, limit);
@@ -272,12 +273,19 @@ export function updateEncounterDraft(encounterId, tenantId, user, patch = {}) {
     throw err;
   }
 
-  requireClinician(user, tenantId);
   const clinicianDoctorId = resolveClinicianDoctorId(user, tenantId);
-  if (row.doctor_id !== clinicianDoctorId && user.role !== 'owner') {
-    const err = new Error('You can only edit consultations assigned to your doctor profile');
-    err.status = 403;
-    throw err;
+  const touchesClinicalContent =
+    patch.prescriptionItems !== undefined
+    || patch.diagnoses !== undefined
+    || patch.vitals !== undefined
+    || patch.clinicalNote !== undefined;
+  if (touchesClinicalContent) {
+    requireClinician(user, tenantId);
+    if (row.doctor_id !== clinicianDoctorId) {
+      const err = new Error('You can only edit consultations assigned to your doctor profile');
+      err.status = 403;
+      throw err;
+    }
   }
 
   const fields = [];
@@ -342,29 +350,13 @@ export async function finalizeEncounter(encounterId, tenantId, user) {
   const doctor = getDoctorById(row.doctor_id, tenantId);
   const tenant = getDb().prepare(`SELECT name, settings FROM tenants WHERE id = ?`).get(tenantId);
 
-  const now = nowIso();
-  const db = getDb();
-  db.transaction(() => {
-    db.prepare(`
-      UPDATE encounters SET status = 'finalized', finalized_by = ?, finalized_at = ?, updated_at = ?
-      WHERE id = ? AND tenant_id = ?
-    `).run(user.sub, now, now, encounterId, tenantId);
-
-    if (detail.prescription?.items?.length) {
-      upsertPrescription(db, encounterId, tenantId, detail.prescription.items, 'finalized');
-    }
-
-    if (row.appointment_id) {
-      db.prepare(`UPDATE appointments SET status = 'visited' WHERE id = ? AND tenant_id = ?`).run(row.appointment_id, tenantId);
-    }
-  })();
-
+  let pdfFileName = '';
   if (detail.prescription?.items?.length) {
     const pdfBuffer = await buildPrescriptionPdfBuffer({
       clinicName: tenant?.name || 'Clinic',
       patient,
       doctor,
-      encounter: detail,
+      encounter: { ...detail, finalizedAt: nowIso() },
       items: detail.prescription.items,
     });
     const saved = await saveBinaryUpload(tenantId, {
@@ -372,11 +364,38 @@ export async function finalizeEncounter(encounterId, tenantId, user) {
       contentType: 'application/pdf',
       prefix: 'prescription-pdf',
     });
-    getDb().prepare(`UPDATE prescriptions SET pdf_storage_key = ?, updated_at = datetime('now') WHERE encounter_id = ?`).run(
-      saved.fileName,
-      encounterId,
-    );
+    pdfFileName = saved.fileName;
   }
+
+  const now = nowIso();
+  const db = getDb();
+  const finalizeInfo = db.transaction(() => {
+    const info = db.prepare(`
+      UPDATE encounters SET status = 'finalized', finalized_by = ?, finalized_at = ?, updated_at = ?
+      WHERE id = ? AND tenant_id = ? AND status = 'draft'
+    `).run(user.sub, now, now, encounterId, tenantId);
+    if (info.changes === 0) {
+      const err = new Error('Encounter already finalized');
+      err.status = 409;
+      throw err;
+    }
+
+    if (detail.prescription?.items?.length) {
+      upsertPrescription(db, encounterId, tenantId, detail.prescription.items, 'finalized');
+      if (pdfFileName) {
+        db.prepare(`
+          UPDATE prescriptions SET pdf_storage_key = ?, updated_at = datetime('now')
+          WHERE encounter_id = ? AND tenant_id = ?
+        `).run(pdfFileName, encounterId, tenantId);
+      }
+    }
+
+    if (row.appointment_id) {
+      db.prepare(`UPDATE appointments SET status = 'visited' WHERE id = ? AND tenant_id = ?`).run(row.appointment_id, tenantId);
+    }
+    return info;
+  })();
+  void finalizeInfo;
 
   logAudit(tenantId, user.sub, 'finalize', 'encounter', encounterId, {});
   return encounterDetail(encounterId, tenantId);
@@ -442,6 +461,20 @@ export function scheduleFollowUp(encounterId, tenantId, user, { dueDate, instruc
 
   const due = String(dueDate || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Error('dueDate must be YYYY-MM-DD');
+
+  const existing = getDb().prepare(
+    `SELECT id, reminder_job_id, instructions FROM follow_ups WHERE tenant_id = ? AND encounter_id = ? AND due_date = ? LIMIT 1`,
+  ).get(tenantId, encounterId, due);
+  if (existing) {
+    return {
+      id: existing.id,
+      encounterId,
+      dueDate: due,
+      instructions: existing.instructions || '',
+      reminderJobId: existing.reminder_job_id,
+      idempotentReplay: true,
+    };
+  }
 
   const patient = getPatientById(enc.patientId, tenantId);
   const recipient = String(phone || patient?.phone || '').trim();

@@ -179,8 +179,8 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
                 </p>
               )}
               <div className="form-field">
-                <label className="form-label">Chief complaint</label>
-                <input className="form-input" value={chiefComplaint} disabled={readOnly} onChange={(e) => setChiefComplaint(e.target.value)} />
+                <label className="form-label" htmlFor="consult-complaint">Chief complaint</label>
+                <input id="consult-complaint" className="form-input" value={chiefComplaint} disabled={readOnly} onChange={(e) => setChiefComplaint(e.target.value)} />
               </div>
               <div className="form-field">
                 <label className="form-label">History</label>
@@ -208,8 +208,8 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
                 </div>
               </div>
               <div className="form-field">
-                <label className="form-label">Diagnosis</label>
-                <input className="form-input" value={diagnosis} disabled={readOnly} onChange={(e) => setDiagnosis(e.target.value)} />
+                <label className="form-label" htmlFor="consult-diagnosis">Diagnosis</label>
+                <input id="consult-diagnosis" className="form-input" value={diagnosis} disabled={readOnly} onChange={(e) => setDiagnosis(e.target.value)} />
               </div>
               <div className="form-field">
                 <label className="form-label">Clinical notes</label>

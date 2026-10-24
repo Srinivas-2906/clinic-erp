@@ -90,6 +90,9 @@ export function clinicalRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     const enc = encounterDetail(req.params.id, req.user.tenantId);
     if (!enc) return res.status(404).json({ error: 'Encounter not found' });
+    if (enc.status !== 'finalized') {
+      return res.status(403).json({ error: 'Prescription PDF available after consultation is finalized' });
+    }
     const key = enc.prescription?.pdfStorageKey;
     if (!key) return res.status(404).json({ error: 'Prescription PDF not available' });
     const fileName = key.includes('/') ? key.split('/').pop() : key;

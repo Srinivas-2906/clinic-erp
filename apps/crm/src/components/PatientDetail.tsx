@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, MessageSquare, UserCheck, Clock, FileText, PlusCircle, Phone, Pencil, Banknote, Share2 } from 'lucide-react';
-import type { Appointment, Patient, Payment } from '../types';
+import type { Appointment, Patient, Payment, Encounter } from '../types';
+import { fetchPatientAllergies, addPatientAllergy, openPrescriptionPdf } from '../lib/api';
 import { STATUS_LABELS } from '../types';
 import { updatePatient, updateAppointment, fetchPatientPayments } from '../lib/api';
 import { toTelUrl, toWhatsAppUrl } from '../lib/phone';
@@ -32,6 +33,7 @@ type DetailTab = 'overview' | 'history' | 'notes';
 interface Props {
   patient: Patient;
   appointments: Appointment[];
+  encounters?: Encounter[];
   clinicProfile: ClinicProfile;
   onBack: () => void;
   onUpdated: () => void;
@@ -39,7 +41,7 @@ interface Props {
   onBookFollowup?: (patient: Patient) => void;
 }
 
-export function PatientDetail({ patient, appointments, clinicProfile, onBack, onUpdated, onToast, onBookFollowup }: Props) {
+export function PatientDetail({ patient, appointments, encounters = [], clinicProfile, onBack, onUpdated, onToast, onBookFollowup }: Props) {
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [note,    setNote]    = useState('');
   const [saving,  setSaving]  = useState(false);
@@ -47,6 +49,8 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
   const [showPay, setShowPay] = useState(false);
   const [sharePayment, setSharePayment] = useState<Payment | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [allergies, setAllergies] = useState<{ id: string; substance: string; severity?: string }[]>([]);
+  const [allergyInput, setAllergyInput] = useState('');
   const [fg, bg] = ava(patient.name);
   const telUrl = toTelUrl(patient.phone);
   const waUrl = toWhatsAppUrl(patient.phone);
@@ -78,6 +82,9 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
     fetchPatientPayments(patient.id)
       .then((data) => { if (alive) setPayments(data.payments || []); })
       .catch(() => { if (alive) setPayments([]); });
+    fetchPatientAllergies(patient.id)
+      .then((data) => { if (alive) setAllergies(data.allergies || []); })
+      .catch(() => { if (alive) setAllergies([]); });
     return () => { alive = false; };
   }, [patient.id]);
 
@@ -108,7 +115,7 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
 
   const TABS: { id: DetailTab; label: string }[] = [
     { id: 'overview', label: 'Details' },
-    { id: 'history',  label: `Visits (${appointments.length})` },
+    { id: 'history',  label: `Visits (${appointments.length + encounters.length})` },
     { id: 'notes',    label: `Notes (${(patient.notes||[]).length})` },
   ];
 
@@ -424,9 +431,33 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
               <span className="panel-title">Visit history</span>
             </div>
             <div className="panel-body">
-              {appointments.length === 0 ? (
+              {encounters.length > 0 && (
+                <ul className="mini-appt-list" style={{ marginBottom: 16 }}>
+                  {encounters.map((enc) => (
+                    <li key={enc.id} className="mini-appt-row">
+                      <div>
+                        <div className="mini-appt-date">
+                          {enc.finalizedAt
+                            ? new Date(enc.finalizedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                            : new Date(enc.createdAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium' })}
+                        </div>
+                        <div className="mini-appt-svc">{enc.chiefComplaint || 'Consultation'}</div>
+                        <span className={`tag ${enc.status === 'finalized' ? 'tag-success' : 'tag-warning'}`}>
+                          {enc.status}
+                        </span>
+                      </div>
+                      {enc.status === 'finalized' && enc.prescription?.pdfStorageKey && (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPrescriptionPdf(enc.id).catch(() => onToast('PDF unavailable', 'err'))}>
+                          Rx PDF
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {appointments.length === 0 && encounters.length === 0 ? (
                 <p className="muted">No visits yet.</p>
-              ) : (
+              ) : appointments.length > 0 ? (
                 <ul className="mini-appt-list">
                   {[...appointments].sort((a,b)=>new Date(b.scheduledAt).getTime()-new Date(a.scheduledAt).getTime()).map((a) => (
                     <li key={a.id} className="mini-appt-row">
@@ -455,7 +486,7 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
                     </li>
                   ))}
                 </ul>
-              )}
+              ) : null}
             </div>
           </div>
         )}

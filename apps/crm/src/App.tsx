@@ -23,7 +23,7 @@ import { resolveClinicProfile, type ClinicProfile } from './lib/clinicBranding';
 import { formatApptDayLabel, formatApptTime, isApptToday, clinicTodayYmd, apptDayKey, monthStartYmd, monthEndYmd } from './lib/appointmentDisplay';
 import { logout } from './lib/auth';
 import { isDenseMode, setDenseMode } from './lib/denseMode';
-import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment } from './types';
+import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment, Encounter } from './types';
 import './styles.css';
 
 const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
@@ -45,7 +45,7 @@ function ClinicApp() {
   const { today, rawToday, refetch: loadToday } = useTodayData(doctorFilter);
   const [patients,      setPatients]      = useState<Patient[]>([]);
   const [selectedId,    setSelectedId]    = useState<string | null>(null);
-  const [patientDetail, setPatientDetail] = useState<{ patient: Patient; appointments: import('./types').Appointment[] } | null>(null);
+  const [patientDetail, setPatientDetail] = useState<{ patient: Patient; appointments: Appointment[]; encounters?: Encounter[] } | null>(null);
   const [clinicName,    setClinicName]    = useState('Clinic');
   const [clinicEmoji,   setClinicEmoji]   = useState('🏥');
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(() => resolveClinicProfile(null));
@@ -449,6 +449,7 @@ function ClinicApp() {
             <PatientDetail
               patient={patientDetail!.patient}
               appointments={patientDetail!.appointments}
+              encounters={patientDetail!.encounters}
               clinicProfile={clinicProfile}
               onBack={() => { setSelectedId(null); setPatientDetail(null); }}
               onUpdated={() => loadPatientDetail(selectedId!)}

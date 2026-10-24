@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Clinic ERP",
+    "slug": "clinic-erp-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "clinicerp",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "in.kaana.clinicerp",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "in.kaana.clinicerp",
+      "adaptiveIcon": {
+        "backgroundColor": "#1565C0"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_AFTER_EAS_INIT"
+      }
+    }
+  }
+}

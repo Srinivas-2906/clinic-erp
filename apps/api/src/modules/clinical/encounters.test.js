@@ -18,6 +18,7 @@ const {
   updateEncounterDraft,
   finalizeEncounter,
   encounterDetail,
+  listEncountersForPatient,
 } = await import('./encounters.service.js');
 
 const tenantId = 'tenant-clinical-test';
@@ -81,6 +82,11 @@ describe('clinical encounters', () => {
       () => finalizeEncounter(enc.id, ctx.tenantId, { sub: ctx.ownerId, tenantId: ctx.tenantId, role: 'owner' }),
       (err) => err.status === 403,
     );
+  });
+
+  it('does not expose encounters across tenants', () => {
+    const other = listEncountersForPatient(ctx.patientId, 'other-tenant-id');
+    assert.deepEqual(other, []);
   });
 
   it('clinician completes draft → finalize → PDF key', async () => {

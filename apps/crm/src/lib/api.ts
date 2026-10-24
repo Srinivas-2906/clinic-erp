@@ -48,7 +48,7 @@ export function fetchPatients(search?: string) {
 }
 
 export function fetchPatient(id: string) {
-  return request<{ patient: Patient; appointments: Appointment[] }>(`/patients/${id}`);
+  return request<{ patient: Patient; appointments: Appointment[]; encounters?: Encounter[] }>(`/patients/${id}`);
 }
 
 export function createPatient(data: Partial<Patient> & { name: string; phone: string }) {
@@ -240,6 +240,20 @@ export function finalizeEncounter(encounterId: string) {
 
 export function scheduleEncounterFollowUp(encounterId: string, body: { dueDate: string; instructions?: string; phone?: string }) {
   return request<{ id: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchPatientAllergies(patientId: string) {
+  return request<{ allergies: { id: string; substance: string; severity?: string; notes?: string }[] }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies`,
+  );
+}
+
+export function addPatientAllergy(patientId: string, body: { substance: string; severity?: string; notes?: string }) {
+  return request<{ id: string; substance: string }>(`/clinic/patients/${encodeURIComponent(patientId)}/allergies`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
