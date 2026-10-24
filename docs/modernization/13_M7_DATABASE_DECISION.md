@@ -3,6 +3,8 @@
 **Date:** 2026-10-22  
 **Scope:** Clinic ERP canonical repo (`apps/api` SQLite + Litestream) vs `kaana-clinic` Postgres/Drizzle experiment.
 
+**Update (2026-10-24):** Pre–Batch 2 assessment [`16_PRODUCT_ARCHITECTURE_ASSESSMENT.md`](16_PRODUCT_ARCHITECTURE_ASSESSMENT.md) keeps SQLite for the **current** deploy pattern but recommends **Neon Postgres** as the **commercial multi-tenant target**. Owner sign-off on doc `16` §12 before migration.
+
 ## Current production pattern (verified)
 
 - Single SQLite file per Cloud Run API instance path (`/data/clinic.db`).
