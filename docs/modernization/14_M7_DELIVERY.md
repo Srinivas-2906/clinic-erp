@@ -1,6 +1,6 @@
 # M7 — Closure report
 
-**Date:** 2026-10-22  
+**Date:** 2026-10-22 (updated 2026-10-24)  
 **Canonical repo:** [Srinivas-2906/clinic-erp](https://github.com/Srinivas-2906/clinic-erp)
 
 ## PR #6
@@ -19,32 +19,35 @@
 | [39677266949](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39677266949) | Failed | GitHub WIF SA could not write to `clinic-erp-staging_cloudbuild` |
 | [39727596876](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39727596876) | Failed | IAM fixed; still failed (bucket access) |
 | [39728762897](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39728762897) | Failed (GHA poll) | Cloud Build **SUCCESS** `a200bd31` — GHA got HTTP **429** while polling build status (concurrent local submit) |
+| [39731216613](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39731216613) | **Success** | `main` @ `bbfe1b9` (PR #7); Cloud Build **`8112cb7b`**; async poll fix verified |
 
-**Root cause:** `github-clinic-erp-staging@…` lacked Cloud Build default bucket + `serviceusage.serviceUsageConsumer` (and related) permissions. **Fix applied in GCP** (bucket `objectAdmin`, project `storage.admin`, `serviceusage.serviceUsageConsumer`, `cloudbuild.builds.builder`) and codified in `infra/staging/provision.sh`.
-
-**Follow-up PR:** `fix/m7-staging-deploy-hardening` — async Cloud Build submit + retry polling to avoid 429 false failures; audit export rate limit; reminder job claim lock.
+**Root cause:** `github-clinic-erp-staging@…` lacked Cloud Build default bucket + `serviceusage.serviceUsageConsumer` (and related) permissions. **Fix applied in GCP** and codified in `infra/staging/provision.sh`. PR [#7](https://github.com/Srinivas-2906/clinic-erp/pull/7) merged: async Cloud Build submit + retry polling, audit export rate limit, reminder job claim lock.
 
 ## Deployed staging (validated)
 
-| Service | Revision | URL |
-|---------|----------|-----|
-| `clinic-api-staging` | `clinic-api-staging-00013-qhd` | `https://clinic-api-staging-ofczrxs2ca-el.a.run.app` |
-| `kaana-clinic-staging` | `kaana-clinic-staging-00004-gqj` | `https://kaana-clinic-staging-ofczrxs2ca-el.a.run.app/?tenant=dentacare` |
+| Service | URL |
+|---------|-----|
+| `clinic-api-staging` | `https://clinic-api-staging-ofczrxs2ca-el.a.run.app` |
+| `kaana-clinic-staging` | `https://kaana-clinic-staging-ofczrxs2ca-el.a.run.app/?tenant=dentacare` |
 
-**Build:** Cloud Build `a200bd31` from `main` post-merge.  
+**Source commit:** `bbfe1b9` via GHA deploy [39731216613](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39731216613).  
+**Cloud Build:** `8112cb7b-fadf-47b9-a5bf-4a6b4ce8c06c` ([console](https://console.cloud.google.com/cloud-build/builds/8112cb7b-fadf-47b9-a5bf-4a6b4ce8c06c?project=339065153036)).  
+**Revisions:** see Cloud Run console (revision names rotate each deploy; latest ready revision matches build `8112cb7b` image tag).  
 **Env (API):** `PUBLIC_URL` and `CLINIC_CRM_URL` set dynamically; `REMINDER_DELIVERY_ENABLED=0`; demo seed via `CLINIC_ALLOW_DEMO_SEED=1` + Secret Manager password only.
 
-**Scaling:** `max-instances=1` applied on both services (SQLite safety).
+**Scaling:** `max-instances=1` target on both services (SQLite safety).
 
 ## Authenticated staging evidence
 
-Script: `scripts/staging-validate.mjs` (password from Secret Manager `clinic-staging-demo-password` — never printed).
+Script: `scripts/staging-validate.mjs` — password from `STAGING_DEMO_PASSWORD` or Secret Manager `clinic-staging-demo-password` (never printed).
 
-Checks passed (2026-10-22): health, owner login (`staging-owner@clinic-erp.invalid`), entitlements (Professional limits), patient create/list, doctors, audit list + CSV export, appointment slots, CRM HTTP 200.
+Checks passed (2026-10-22, pre-`8112cb7b`): health, owner login, entitlements, patients, doctors, audit + CSV, slots, CRM.
 
-**Not fully automated in script (manual / next):** staff approval flow, payment POST, file upload binary, reminder job timing, Litestream restore drill, Playwright responsive CRM.
+**Re-run after deploy:** `gcloud auth login` (or export `STAGING_DEMO_PASSWORD`) then `node scripts/staging-validate.mjs`.
 
-## Security / reliability fixes (hardening branch)
+**Not fully automated in script (manual / next):** staff approve/reject E2E, binary file upload + GET, reminder job timing, Litestream restore drill, Playwright responsive CRM.
+
+## Security / reliability fixes (PR #7 on `main`)
 
 - Audit CSV export: per-tenant/user rate limit (`AUDIT_EXPORT_RATE_*`), existing 1000-row cap.
 - Reminder worker: `pending` → `processing` claim before send (reduces duplicate delivery on overlapping polls).
@@ -65,10 +68,10 @@ Attempted `$10/month` budget on billing account `017956-7B909E-A19606` scoped to
 
 ## Remaining blockers
 
-1. Merge **hardening PR** and re-run `deploy-staging` for green GHA + security fixes on staging.
-2. **Billing budget** — Billing Admin (see above).
-3. Optional: branch protection on `main` (require CI before merge).
-4. E2E Playwright against staging URL; backup/restore drill.
+1. **Billing budget** — Billing Admin (see above).
+2. Optional: branch protection on `main` (require CI before merge).
+3. E2E Playwright against staging URL; Litestream backup/restore drill on staging bucket only.
+4. Local **gcloud re-auth** to re-run `scripts/staging-validate.mjs` against build `8112cb7b` (HTTP health checks OK as of 2026-10-24).
 
 ## M8 — recommended batch (no live Razorpay)
 

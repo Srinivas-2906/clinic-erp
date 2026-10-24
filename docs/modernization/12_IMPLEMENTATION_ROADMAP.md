@@ -9,7 +9,7 @@ Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, n
 - [x] Merge M5 deploy fixes (PR #5)
 - [x] Merge M7 (PR #6) — entitlements, audit, reminders
 - [x] Staging Cloud Build from `main` (build `a200bd31`; IAM fix for GitHub WIF)
-- [ ] Green GitHub `deploy-staging` workflow (async poll fix in hardening PR)
+- [x] Green GitHub `deploy-staging` workflow ([39731216613](https://github.com/Srinivas-2906/clinic-erp/actions/runs/39731216613), build `8112cb7b`)
 - [x] GitHub `staging` environment + repo variables (WIF, project, deployer SA)
 - [ ] GitHub required reviewers on `staging` (plan limitation — manual dispatch gate)
 - [ ] Console budget $10 @ 50/90/100% (Billing Admin)
@@ -21,7 +21,7 @@ Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, n
 3. [x] **Reminders** — durable jobs + mock provider (no patient SMS)
 4. [x] **PUBLIC_URL / CLINIC_CRM_URL** — resolved in `cloudbuild.staging.yaml`
 5. [x] **Demo credential rotation** — `CLINIC_DEMO_OWNER_PASSWORD` secret (staging)
-6. [ ] **Hardening** — export rate limit, reminder claim, GHA deploy poll (hardening PR)
+6. [x] **Hardening** — export rate limit, reminder claim, GHA deploy poll (PR #7)
 
 **Validation:** 56/56 API unit tests; `scripts/staging-validate.mjs` on staging; no prod deploy.
 
