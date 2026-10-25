@@ -1,6 +1,11 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab } from '../helpers/navigation';
-import { continueBookAfterTreatment, pickFirstBookSlot, ensureBookableScheduleDate } from '../helpers/booking';
+import {
+  continueBookAfterTreatment,
+  pickFirstBookSlot,
+  ensureBookableScheduleDate,
+  selectTodayCalendarDate,
+} from '../helpers/booking';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 
 const API = process.env.E2E_API_URL || 'https://clinic-api-staging-339065153036.asia-south1.run.app';
@@ -66,6 +71,15 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.getByRole('button', { name: /save walk-in/i }).click();
     await expect(page.locator('.today-view, .overview-view, .book-view')).toBeVisible({ timeout: 20_000 });
 
+    await goToTab(page, 'patients');
+    const search = page.locator('#patients-search');
+    if (await search.isVisible().catch(() => false)) {
+      await search.fill(phone.slice(-6));
+      await expect(page.locator('.patients-view').filter({ hasText: UNIQUE })).toBeVisible({ timeout: 15_000 });
+    } else {
+      await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 20_000 });
+    }
+
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
@@ -100,15 +114,17 @@ test.describe('Staging pilot journey (real UI)', () => {
     await expect(page.getByText(/finalized/i)).toBeVisible({ timeout: 20_000 });
 
     await page.keyboard.press('Escape');
+    await goToTab(page, 'overview');
     await goToTab(page, 'patients');
     const patientSearch = page.locator('#patients-search');
     if (await patientSearch.isVisible().catch(() => false)) {
-      await patientSearch.fill(phone);
+      await patientSearch.fill(phone.slice(-6));
     }
-    const patientRow = page.locator('.patient-card, .patient-list-row, .patients-view').filter({ hasText: UNIQUE });
-    await expect(patientRow.first()).toBeVisible({ timeout: 30_000 });
-    await patientRow.first().click();
-    await page.getByRole('button', { name: /Visits/i }).click();
+    const patientCard = page.locator('.patient-card, .patient-list-row').filter({ hasText: UNIQUE });
+    await expect(patientCard.first()).toBeVisible({ timeout: 30_000 });
+    await patientCard.first().click();
+    await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.detail-tab').filter({ hasText: /^Visits/i }).click();
     await expect(page.getByText(/finalized|visit/i).first()).toBeVisible({ timeout: 15_000 });
 
     const pdfBtn = page.getByRole('button', { name: /prescription pdf|rx pdf/i }).first();
@@ -155,7 +171,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.getByRole('button', { name: 'Next' }).click();
     await page.locator('.form-select').first().selectOption({ index: 0 });
     await continueBookAfterTreatment(page, 'schedule');
-    await ensureBookableScheduleDate(page);
+    const bookDate = await ensureBookableScheduleDate(page);
     await pickFirstBookSlot(page);
     await page.getByRole('button', { name: 'Review' }).click();
     await page.getByRole('button', { name: /book appointment/i }).click();
@@ -163,6 +179,7 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await selectTodayCalendarDate(page, bookDate);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
     const card = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
