@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, FileText, Save, CheckCircle2 } from 'lucide-react';
 import type { Appointment } from '../types';
 import type { Encounter, PrescriptionItemInput, VitalInput } from '../types';
@@ -44,12 +44,17 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
 
   useScrollLock(true);
 
+  const loadGeneration = useRef(0);
+
   useEffect(() => {
+    const generation = ++loadGeneration.current;
     let alive = true;
     (async () => {
+      setLoading(true);
       try {
         const me = await fetchMe();
-        if (alive) setCanSign(!!(me.user as { canSignClinical?: boolean }).canSignClinical);
+        if (!alive || loadGeneration.current !== generation) return;
+        setCanSign(!!(me.user as { canSignClinical?: boolean }).canSignClinical);
         const enc = appointment.encounterId
           ? await fetchEncounter(appointment.encounterId)
           : await createEncounter(appointment.patientId, {
@@ -57,17 +62,19 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
             doctorId: appointment.assignedDoctorId || undefined,
             chiefComplaint: appointment.notes || '',
           });
-        if (!alive) return;
+        if (!alive || loadGeneration.current !== generation) return;
         applyEncounter(enc);
       } catch (e) {
+        if (!alive || loadGeneration.current !== generation) return;
         onToast(e instanceof Error ? e.message : 'Could not start consultation', 'err');
         onClose();
       } finally {
-        if (alive) setLoading(false);
+        if (alive && loadGeneration.current === generation) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [appointment.id, appointment.patientId, appointment.assignedDoctorId, appointment.encounterId, appointment.notes, onClose, onToast]);
+    // Intentionally omit onClose/onToast — inline handlers from parents change every render and re-trigger load.
+  }, [appointment.id, appointment.encounterId, appointment.patientId, appointment.assignedDoctorId, appointment.notes]);
 
   function applyEncounter(enc: Encounter) {
     setEncounter(enc);
