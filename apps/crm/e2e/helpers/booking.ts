@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { localYmd } from './queue';
 
 /** Advance BookView after treatment — handles optional multi-doctor step. */
 export async function continueBookAfterTreatment(page: Page, mode: 'walkin' | 'schedule') {
@@ -44,7 +45,7 @@ export async function ensureBookableScheduleDate(page: Page) {
   for (let offset = 0; offset <= 7; offset++) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    const ymd = d.toISOString().slice(0, 10);
+    const ymd = localYmd(d);
     await dateInput.fill(ymd);
     await page.waitForTimeout(1200);
     const options = await slotSelect.locator('option').allTextContents();
@@ -56,11 +57,27 @@ export async function ensureBookableScheduleDate(page: Page) {
 
 /** Match Today schedule calendar to appointment date (YYYY-MM-DD). */
 export async function selectTodayCalendarDate(page: Page, ymd: string) {
-  const day = Number(ymd.slice(8, 10));
   const showCal = page.getByRole('button', { name: /Show calendar/i });
   if (await showCal.isVisible().catch(() => false)) {
     await showCal.click();
   }
-  await page.getByRole('gridcell', { name: new RegExp(`^${day}[,\\s]`) }).first().click();
+  const target = page.locator(`button.calendar-cell[data-ymd="${ymd}"]`);
+  async function tryNav(direction: 'next' | 'prev') {
+    const label = direction === 'next' ? 'Next month' : 'Previous month';
+    for (let i = 0; i < 14; i++) {
+      if (await target.isVisible().catch(() => false)) {
+        await target.scrollIntoViewIfNeeded();
+        await target.click();
+        await page.waitForTimeout(600);
+        return true;
+      }
+      await page.getByRole('button', { name: label }).click();
+      await page.waitForTimeout(250);
+    }
+    return false;
+  }
+  if (await tryNav('next')) return;
+  if (await tryNav('prev')) return;
+  await target.click({ timeout: 10_000 });
   await page.waitForTimeout(600);
 }

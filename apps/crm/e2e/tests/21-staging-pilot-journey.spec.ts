@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { goToTab } from '../helpers/navigation';
+import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen } from '../helpers/navigation';
+import { advanceQueueToConsult } from '../helpers/queue';
 import {
   continueBookAfterTreatment,
   pickFirstBookSlot,
@@ -50,6 +51,9 @@ test.describe('Staging pilot journey (real UI)', () => {
   test('login → register → book → queue → consult → PDF → payment → logout', async ({ page }) => {
     test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
 
+    await page.addInitScript(() => {
+      localStorage.setItem('pilot-setup-dismissed', '1');
+    });
     await page.goto('/');
     await page.locator('#lUser').fill(E2E_CREDENTIALS.email);
     await page.locator('#lPass').fill(E2E_CREDENTIALS.password);
@@ -85,18 +89,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
 
-    const card = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
-    const advanceBtn = card.locator('button.board-card-advance, button.action-done').first();
-    const label = await advanceBtn.innerText();
-    if (/confirm/i.test(label)) await advanceBtn.click();
-    await page.waitForTimeout(800);
-    const card2 = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
-    const btn2 = card2.locator('button.board-card-advance, button.action-done').first();
-    if (/arrived/i.test(await btn2.innerText())) await btn2.click();
-
-    await page.waitForTimeout(800);
-    const card3 = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
-    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await advanceQueueToConsult(page, UNIQUE);
 
     await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 25_000 });
     await page.locator('#consult-complaint').fill('Staging browser QA complaint');
@@ -104,12 +97,13 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.getByRole('button', { name: /save draft/i }).click();
     await expect(page.getByText(/consultation saved/i)).toBeVisible({ timeout: 15_000 });
 
-    await page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') }).locator('button.modal-close').click();
+    await closeConsultModalIfOpen(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
-    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await advanceQueueToConsult(page, UNIQUE);
     await expect.poll(() => page.locator('#consult-complaint').inputValue(), { timeout: 20_000 })
       .toBe('Staging browser QA complaint');
 
+    await page.getByRole('button', { name: /finalize visit/i }).scrollIntoViewIfNeeded();
     await page.getByRole('button', { name: /finalize visit/i }).click();
     await expect(page.getByText(/finalized/i)).toBeVisible({ timeout: 20_000 });
 
@@ -134,7 +128,7 @@ test.describe('Staging pilot journey (real UI)', () => {
       await popup;
     }
 
-    await page.getByRole('button', { name: 'Back' }).click().catch(() => {});
+    await closePatientDetailIfOpen(page);
     await goToTab(page, 'payments');
     await page.getByRole('button', { name: '+ Add' }).click();
     await expect(page.getByRole('heading', { name: 'Record payment' })).toBeVisible();
@@ -158,6 +152,8 @@ test.describe('Staging pilot journey (real UI)', () => {
 
   test('scheduled booking → check-in → consult', async ({ authedPage: page }) => {
     test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
+    await page.evaluate(() => localStorage.setItem('pilot-setup-dismissed', '1'));
+    await dismissPilotBanner(page);
     const phone = uniquePhone();
     const name = `Sched ${Date.now().toString().slice(-5)}`;
     await goToTab(page, 'book');
@@ -182,17 +178,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await selectTodayCalendarDate(page, bookDate);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
-    const card = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
-    const advance = card.locator('button.board-card-advance, button.action-done').first();
-    const t0 = await advance.innerText();
-    if (/confirm/i.test(t0)) await advance.click();
-    await page.waitForTimeout(600);
-    const card2 = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
-    const adv2 = card2.locator('button.board-card-advance, button.action-done').first();
-    if (/arrived/i.test(await adv2.innerText())) await adv2.click();
-    await page.waitForTimeout(600);
-    const card3 = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
-    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await advanceQueueToConsult(page, name);
     await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 25_000 });
     await page.locator('#consult-complaint').fill('Scheduled visit QA');
     await page.getByRole('button', { name: /save draft/i }).click();

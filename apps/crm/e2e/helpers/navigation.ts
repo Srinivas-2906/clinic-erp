@@ -13,14 +13,35 @@ const TAB_LABELS: Record<TabId, string> = {
   team: 'Team',
 };
 
-/** Navigate via desktop sidebar (1280px viewport). */
+/** Close full-screen patient detail (mobile hides bottom nav while open). */
+export async function closePatientDetailIfOpen(page: Page) {
+  const back = page.locator('.top-bar-back, .detail-back').first();
+  if (await back.isVisible().catch(() => false)) {
+    await back.click();
+    await page.waitForTimeout(400);
+  }
+}
+
+/** Close consultation modal if still open. */
+export async function closeConsultModalIfOpen(page: Page) {
+  const overlay = page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') });
+  if (await overlay.isVisible().catch(() => false)) {
+    await overlay.locator('button.modal-close').click();
+    await page.waitForTimeout(300);
+  }
+}
+
 export async function goToTab(page: Page, tab: TabId) {
+  await closeConsultModalIfOpen(page);
+  await closePatientDetailIfOpen(page);
   const label = TAB_LABELS[tab];
   const sidebar = page.locator('.clinic-sidebar');
   if (await sidebar.isVisible()) {
     await sidebar.getByRole('button', { name: label }).click();
   } else {
-    await page.locator('.bottom-nav').getByRole('button', { name: label, exact: true }).click();
+    const nav = page.locator('.bottom-nav');
+    await nav.waitFor({ state: 'visible', timeout: 10_000 });
+    await nav.getByRole('button', { name: label, exact: true }).click();
   }
   await page.waitForTimeout(400);
 }
