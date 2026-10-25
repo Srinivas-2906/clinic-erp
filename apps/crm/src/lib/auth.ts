@@ -88,3 +88,37 @@ export async function completePasswordSetup(token: string, password: string) {
   if (!res.ok) throw new Error(data.error || 'Could not set password');
   return data as { ok: boolean; email: string; name: string };
 }
+
+export async function requestPasswordReset(email: string) {
+  const base = apiBase();
+  const tenantSlug = resolveTenantSlug();
+  if (!tenantSlug) throw new Error('Clinic workspace not found');
+  const res = await fetch(`${base}/api/platform/tenant/${encodeURIComponent(tenantSlug)}/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-tenant-slug': tenantSlug },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not send reset link');
+  return data as { ok: boolean; message: string };
+}
+
+export async function validateResetToken(token: string) {
+  const base = apiBase();
+  const res = await fetch(`${base}/api/platform/reset-password/validate?token=${encodeURIComponent(token)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Invalid link');
+  return data as { email: string; name: string };
+}
+
+export async function completePasswordReset(token: string, password: string) {
+  const base = apiBase();
+  const res = await fetch(`${base}/api/platform/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not reset password');
+  return data as { ok: boolean; email: string; name: string };
+}

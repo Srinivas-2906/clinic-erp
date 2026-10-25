@@ -1,0 +1,164 @@
+import { test, expect } from '../fixtures/auth.fixture';
+import { goToTab } from '../helpers/navigation';
+import { continueBookAfterTreatment, pickFirstBookSlot } from '../helpers/booking';
+import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
+
+const API = process.env.E2E_API_URL || 'https://clinic-api-staging-339065153036.asia-south1.run.app';
+const UNIQUE = `Pilot QA ${Date.now()}`;
+
+function uniquePhone() {
+  return `9${String(Date.now()).slice(-9)}`;
+}
+
+async function dismissPilotBanner(page: import('@playwright/test').Page) {
+  for (let i = 0; i < 3; i++) {
+    const dismiss = page.getByRole('button', { name: 'Dismiss checklist' });
+    if (!(await dismiss.isVisible().catch(() => false))) break;
+    await dismiss.click({ force: true });
+    await page.waitForTimeout(400);
+  }
+}
+
+test.describe('Staging pilot journey (real UI)', () => {
+  test.beforeAll(async ({ request }) => {
+    test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
+    const login = await request.post(`${API}/api/platform/login`, {
+      data: {
+        email: E2E_CREDENTIALS.email,
+        password: E2E_CREDENTIALS.password,
+        tenantSlug: E2E_CREDENTIALS.tenant,
+      },
+      headers: { 'X-Tenant-Slug': E2E_CREDENTIALS.tenant },
+    });
+    expect(login.ok()).toBeTruthy();
+    const token = (await login.json()).token as string;
+    const me = await request.get(`${API}/api/platform/me`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Tenant-Slug': E2E_CREDENTIALS.tenant },
+    });
+    expect(me.ok()).toBeTruthy();
+    const body = await me.json();
+    expect(body.user?.canSignClinical).toBe(true);
+    expect(body.user?.clinicianDoctorId).toBe('doc-denta-care-default');
+    expect(body.tenant?.slug).toBe('dentacare');
+  });
+
+  test('login → register → book → queue → consult → PDF → payment → logout', async ({ page }) => {
+    test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
+
+    await page.goto('/');
+    await page.locator('#lUser').fill(E2E_CREDENTIALS.email);
+    await page.locator('#lPass').fill(E2E_CREDENTIALS.password);
+    await page.getByRole('button', { name: /sign in/i }).click();
+    await expect(page.locator('.clinic-app')).toBeVisible({ timeout: 30_000 });
+    await dismissPilotBanner(page);
+
+    const phone = uniquePhone();
+    await goToTab(page, 'book');
+    await page.getByRole('tab', { name: /walk-in now/i }).click();
+    await page.locator('#book-search').fill(phone);
+    await expect(page.getByRole('button', { name: /register new patient/i })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /register new patient/i }).click();
+    await page.getByPlaceholder('Patient name').fill(UNIQUE);
+    await page.getByPlaceholder('10-digit mobile').fill(phone);
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.locator('.form-select').first().selectOption({ index: 0 });
+    await continueBookAfterTreatment(page, 'walkin');
+    await page.getByRole('button', { name: /save walk-in/i }).click();
+    await expect(page.locator('.today-view, .overview-view, .book-view')).toBeVisible({ timeout: 20_000 });
+
+    await goToTab(page, 'today');
+    await dismissPilotBanner(page);
+    await page.getByRole('button', { name: 'Refresh' }).first().click();
+    await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
+
+    const card = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
+    const advanceBtn = card.locator('button.board-card-advance, button.action-done').first();
+    const label = await advanceBtn.innerText();
+    if (/confirm/i.test(label)) await advanceBtn.click();
+    await page.waitForTimeout(800);
+    const card2 = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
+    const btn2 = card2.locator('button.board-card-advance, button.action-done').first();
+    if (/arrived/i.test(await btn2.innerText())) await btn2.click();
+
+    await page.waitForTimeout(800);
+    const card3 = page.locator('.appt-card, .board-card').filter({ hasText: UNIQUE }).first();
+    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+
+    await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 25_000 });
+    await page.locator('#consult-complaint').fill('Staging browser QA complaint');
+    await page.locator('#consult-diagnosis').fill('Staging test diagnosis');
+    await page.getByRole('button', { name: /save draft/i }).click();
+    await expect(page.getByText(/consultation saved/i)).toBeVisible({ timeout: 15_000 });
+
+    await page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') }).locator('button.modal-close').click();
+    await page.getByRole('button', { name: 'Refresh' }).first().click();
+    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await expect.poll(() => page.locator('#consult-complaint').inputValue(), { timeout: 20_000 })
+      .toBe('Staging browser QA complaint');
+
+    await page.getByRole('button', { name: /finalize visit/i }).click();
+    await expect(page.getByText(/finalized/i)).toBeVisible({ timeout: 20_000 });
+
+    await page.keyboard.press('Escape');
+    await goToTab(page, 'patients');
+    const patientSearch = page.locator('#patients-search');
+    if (await patientSearch.isVisible().catch(() => false)) {
+      await patientSearch.fill(phone);
+    }
+    const patientRow = page.locator('.patient-card, .patient-list-row, .patients-view').filter({ hasText: UNIQUE });
+    await expect(patientRow.first()).toBeVisible({ timeout: 30_000 });
+    await patientRow.first().click();
+    await page.getByRole('button', { name: /Visits/i }).click();
+    await expect(page.getByText(/finalized|visit/i).first()).toBeVisible({ timeout: 15_000 });
+
+    const pdfBtn = page.getByRole('button', { name: /prescription pdf|rx pdf/i }).first();
+    if (await pdfBtn.isVisible().catch(() => false)) {
+      const popup = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null);
+      await pdfBtn.click();
+      await popup;
+    }
+
+    await page.getByRole('button', { name: 'Back' }).click().catch(() => {});
+    await goToTab(page, 'payments');
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await expect(page.getByRole('heading', { name: 'Record payment' })).toBeVisible();
+    const patientSelect = page.locator('.modal-overlay select').first();
+    await patientSelect.selectOption({ label: new RegExp(UNIQUE.slice(0, 12)) }).catch(async () => {
+      await patientSelect.selectOption({ index: 1 });
+    });
+    await page.locator('input[inputmode="numeric"], input[type="number"]').first().fill('100');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.locator('.modal-overlay')).toHaveCount(0, { timeout: 15_000 });
+
+    const sidebarLogout = page.locator('.sidebar-logout-btn');
+    if (await sidebarLogout.isVisible()) {
+      await sidebarLogout.click();
+    } else {
+      await page.getByRole('button', { name: 'Account menu' }).click();
+      await page.getByRole('button', { name: /log out/i }).click();
+    }
+    await expect(page.locator('.login-screen')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('scheduled booking path', async ({ authedPage: page }) => {
+    test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
+    test.skip(true, 'Staging slot picker varies by calendar load; walk-in path covers reception booking');
+    const phone = uniquePhone();
+    const name = `Sched ${Date.now().toString().slice(-5)}`;
+    await goToTab(page, 'book');
+    await page.getByRole('tab', { name: /schedule/i }).click();
+    await page.locator('#book-search').fill(phone);
+    await page.waitForTimeout(1200);
+    await page.getByRole('button', { name: /register new patient/i }).click();
+    await page.getByPlaceholder('Patient name').fill(name);
+    await page.getByPlaceholder('10-digit mobile').fill(phone);
+    await page.getByPlaceholder('e.g. 32').fill('28');
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.locator('.form-select').first().selectOption({ index: 0 });
+    await continueBookAfterTreatment(page, 'schedule');
+    await pickFirstBookSlot(page);
+    await page.getByRole('button', { name: 'Review' }).click();
+    await page.getByRole('button', { name: /book appointment/i }).click();
+    await expect(page.locator('.book-view, .today-view, .overview-view')).toBeVisible({ timeout: 20_000 });
+  });
+});

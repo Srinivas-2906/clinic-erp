@@ -7,6 +7,7 @@ import {
   updateEncounter,
   finalizeEncounter,
   fetchEncounter,
+  fetchPatientAllergies,
   scheduleEncounterFollowUp,
   openPrescriptionPdf,
 } from '../lib/api';
@@ -41,6 +42,7 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
   ]);
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpNote, setFollowUpNote] = useState('');
+  const [allergies, setAllergies] = useState<{ substance: string; severity?: string }[]>([]);
 
   useScrollLock(true);
 
@@ -55,14 +57,18 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
         const me = await fetchMe();
         if (!alive || loadGeneration.current !== generation) return;
         setCanSign(!!(me.user as { canSignClinical?: boolean }).canSignClinical);
-        const enc = appointment.encounterId
-          ? await fetchEncounter(appointment.encounterId)
-          : await createEncounter(appointment.patientId, {
-            appointmentId: appointment.id,
-            doctorId: appointment.assignedDoctorId || undefined,
-            chiefComplaint: appointment.notes || '',
-          });
+        const [enc, allergyRes] = await Promise.all([
+          appointment.encounterId
+            ? fetchEncounter(appointment.encounterId)
+            : createEncounter(appointment.patientId, {
+              appointmentId: appointment.id,
+              doctorId: appointment.assignedDoctorId || undefined,
+              chiefComplaint: appointment.notes || '',
+            }),
+          fetchPatientAllergies(appointment.patientId).catch(() => ({ allergies: [] })),
+        ]);
         if (!alive || loadGeneration.current !== generation) return;
+        setAllergies(allergyRes.allergies || []);
         applyEncounter(enc);
       } catch (e) {
         if (!alive || loadGeneration.current !== generation) return;
@@ -188,6 +194,12 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
             <p className="muted">Loading consultation…</p>
           ) : (
             <>
+              {allergies.length > 0 && (
+                <div className="consult-allergy-banner" role="alert">
+                  <strong>Allergies:</strong>{' '}
+                  {allergies.map((a) => a.substance + (a.severity ? ` (${a.severity})` : '')).join(' · ')}
+                </div>
+              )}
               {!canSign && !readOnly && (
                 <p className="login-error" style={{ marginBottom: 12 }}>
                   View-only: your account is not linked to a doctor profile. Save drafts only; a clinician must finalize.

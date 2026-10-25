@@ -20,7 +20,7 @@ export async function goToTab(page: Page, tab: TabId) {
   if (await sidebar.isVisible()) {
     await sidebar.getByRole('button', { name: label }).click();
   } else {
-    await page.locator('.bottom-nav').getByRole('button', { name: label }).click();
+    await page.locator('.bottom-nav').getByRole('button', { name: label, exact: true }).click();
   }
   await page.waitForTimeout(400);
 }

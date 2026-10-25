@@ -24,6 +24,12 @@ import {
   completePasswordSetup,
 } from '../services/accessRequests.js';
 import {
+  checkForgotPasswordRateLimit,
+  requestPasswordReset,
+  validateResetToken,
+  completePasswordReset,
+} from '../services/passwordReset.js';
+import {
   checkBookingRateLimit,
   listPublicServices,
   listPublicSlots,
@@ -160,6 +166,38 @@ router.post('/set-password', (req, res) => {
     res.json({ ok: true, email: user.email, name: user.name });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Could not set password' });
+  }
+});
+
+router.post('/tenant/:slug/forgot-password', (req, res) => {
+  if (!checkForgotPasswordRateLimit(req)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+  const tenant = getTenantBySlug(req.params.slug);
+  if (!tenant) return res.status(404).json({ error: 'Business not found' });
+  try {
+    const email = req.body?.email;
+    const result = requestPasswordReset(tenant.id, email);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not process request' });
+  }
+});
+
+router.get('/reset-password/validate', (req, res) => {
+  const token = String(req.query.token || '');
+  const result = validateResetToken(token);
+  if (!result.valid) return res.status(400).json(result);
+  res.json({ valid: true, email: result.email, name: result.name, purpose: 'reset' });
+});
+
+router.post('/reset-password', (req, res) => {
+  const { token, password } = req.body ?? {};
+  try {
+    const user = completePasswordReset(token, password);
+    res.json({ ok: true, email: user.email, name: user.name });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not reset password' });
   }
 });
 

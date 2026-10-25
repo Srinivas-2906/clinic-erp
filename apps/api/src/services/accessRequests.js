@@ -214,7 +214,9 @@ export function completePasswordSetup(rawToken, password) {
   const hash = bcrypt.hashSync(pwd, 10);
   const now = new Date().toISOString();
 
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, invite.user_id);
+  db.prepare(`
+    UPDATE users SET password_hash = ?, session_version = COALESCE(session_version, 0) + 1 WHERE id = ?
+  `).run(hash, invite.user_id);
   db.prepare('UPDATE user_invite_tokens SET used_at = ? WHERE id = ?').run(now, invite.id);
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(invite.user_id);

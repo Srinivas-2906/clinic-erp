@@ -52,6 +52,7 @@ function paymentSummary(p: Patient) {
 
 export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPaymentRecorded }: Props) {
   const [filter, setFilter] = useState<FilterId>('all');
+  const [query, setQuery] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [payPatient, setPayPatient] = useState<Patient | null>(null);
   const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
@@ -78,9 +79,18 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
     let list = [...patients];
     if (filter === 'returning') list = list.filter((p) => p.isReturning);
     if (filter === 'new')       list = list.filter((p) => !p.isReturning && !p.lastVisit);
+    const q = query.trim().toLowerCase();
+    if (q) {
+      const digits = q.replace(/\D/g, '');
+      list = list.filter((p) => {
+        if (p.name.toLowerCase().includes(q)) return true;
+        if (digits.length >= 4 && p.phone.replace(/\D/g, '').includes(digits)) return true;
+        return false;
+      });
+    }
     list.sort((a, b) => a.name.localeCompare(b.name, 'en-IN'));
     return list;
-  }, [patients, filter]);
+  }, [patients, filter, query]);
 
   const counts = useMemo(() => ({
     all:       patients.length,
@@ -124,6 +134,15 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
       </header>
 
       <div className="patients-toolbar patients-toolbar-filters-only">
+        <input
+          id="patients-search"
+          type="search"
+          className="form-input patients-search-input"
+          placeholder="Search name or phone…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search patients"
+        />
         <div className="filter-chips patients-filter-chips">
           {FILTERS.map((f) => (
             <button

@@ -85,6 +85,19 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+## Staging browser QA (synthetic tenant)
+
+Uses deployed Cloud Run URLs only (`clinic-erp-staging` project). Does not start local servers.
+
+```bash
+export E2E_STAGING=1
+export E2E_BASE_URL=https://kaana-clinic-staging-339065153036.asia-south1.run.app
+export E2E_TENANT=dentacare
+export E2E_EMAIL=staging-owner@clinic-erp.invalid
+export E2E_PASSWORD="$(gcloud secrets versions access latest --secret=clinic-staging-demo-password --project=clinic-erp-staging)"
+npm run test:e2e:staging
+```
+
 ## Playwright MCP
 
 See `mcp-server/README.md` — Cursor MCP tools for capture + test runs.
