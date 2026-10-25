@@ -622,7 +622,11 @@ export default function App() {
   const params = new URLSearchParams(window.location.search);
   const setPasswordToken = params.get('set-password');
   if (setPasswordToken) {
-    return <SetPasswordScreen token={setPasswordToken} />;
+    return <SetPasswordScreen token={setPasswordToken} mode="invite" />;
+  }
+  const resetPasswordToken = params.get('reset-password');
+  if (resetPasswordToken) {
+    return <SetPasswordScreen token={resetPasswordToken} mode="reset" />;
   }
 
   const path = window.location.pathname.replace(/\/$/, '') || '/';

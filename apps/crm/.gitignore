@@ -9,6 +9,7 @@ dist/
 
 # E2E test artifacts (keep screenshots for review)
 e2e/test-results/
+e2e/test-results-staging/
 e2e/report/
 playwright/.cache/
 e2e/screenshots/clinic-auth.json

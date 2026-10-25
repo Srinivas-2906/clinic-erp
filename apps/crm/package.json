@@ -16,6 +16,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:desktop": "playwright test --project=chromium-desktop",
+    "test:e2e:staging": "playwright test --config playwright.staging.config.ts",
     "test:e2e:report": "playwright show-report e2e/report",
     "test:e2e:install": "playwright install chromium",
     "seed:e2e": "npm run seed:e2e --prefix ../clinic-api",

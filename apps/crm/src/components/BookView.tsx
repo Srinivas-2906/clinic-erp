@@ -958,6 +958,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
           <div className="form-field">
             <label className="form-label">Date</label>
             <input
+              id="book-schedule-date"
               type="date"
               className="form-input"
               min={new Date().toISOString().slice(0, 10)}
@@ -968,6 +969,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
           <div className="form-field">
             <label className="form-label">Time</label>
             <select
+              id="book-schedule-slot"
               className="form-input form-select"
               value={slotKey}
               onChange={(e) => {

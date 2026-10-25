@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
-import { completePasswordSetup, validateInviteToken } from '../lib/auth';
+import {
+  completePasswordSetup,
+  completePasswordReset,
+  validateInviteToken,
+  validateResetToken,
+} from '../lib/auth';
 
 interface Props {
   token: string;
+  mode?: 'invite' | 'reset';
 }
 
-export function SetPasswordScreen({ token }: Props) {
+export function SetPasswordScreen({ token, mode = 'invite' }: Props) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +24,8 @@ export function SetPasswordScreen({ token }: Props) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    validateInviteToken(token)
+    const validate = mode === 'reset' ? validateResetToken : validateInviteToken;
+    validate(token)
       .then((data) => {
         setEmail(data.email);
         setName(data.name || '');
@@ -27,7 +34,7 @@ export function SetPasswordScreen({ token }: Props) {
         setError(err instanceof Error ? err.message : 'Invalid link');
       })
       .finally(() => setChecking(false));
-  }, [token]);
+  }, [token, mode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +49,11 @@ export function SetPasswordScreen({ token }: Props) {
     setLoading(true);
     setError('');
     try {
-      await completePasswordSetup(token, password);
+      if (mode === 'reset') {
+        await completePasswordReset(token, password);
+      } else {
+        await completePasswordSetup(token, password);
+      }
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not set password');
@@ -85,7 +96,7 @@ export function SetPasswordScreen({ token }: Props) {
         <div className="login-card">
           <div className="login-hero">
             <div className="login-clinic-badge">Clinic Desk</div>
-            <h1 className="login-hero-dr-name">Password set</h1>
+            <h1 className="login-hero-dr-name">{mode === 'reset' ? 'Password updated' : 'Password set'}</h1>
             <p className="login-hero-qual">You can now sign in with {email}</p>
           </div>
           <div className="login-form-area">
@@ -104,7 +115,7 @@ export function SetPasswordScreen({ token }: Props) {
         <div className="login-hero">
           <div className="login-clinic-badge">Clinic Desk</div>
           <h1 className="login-hero-dr-name">{name || 'Welcome'}</h1>
-          <p className="login-hero-qual">Set password for {email}</p>
+          <p className="login-hero-qual">{mode === 'reset' ? 'Choose a new password for' : 'Set password for'} {email}</p>
         </div>
 
         <div className="login-form-area">

@@ -4319,6 +4319,17 @@ body.modal-open .clinic-app {
   flex-shrink: 0;
 }
 
+.consult-allergy-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .consult-progress {
   display: flex;
   flex-wrap: wrap;

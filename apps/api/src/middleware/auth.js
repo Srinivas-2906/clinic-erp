@@ -14,6 +14,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export function signToken(user, tenant = null) {
+  const sessionVersion = Number(user.session_version ?? 0);
   return jwt.sign(
     {
       sub: user.id,
@@ -21,10 +22,17 @@ export function signToken(user, tenant = null) {
       tenantId: tenant?.id ?? user.tenant_id,
       role: user.role,
       isPlatformAdmin: !!user.is_platform_admin,
+      sv: sessionVersion,
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES },
   );
+}
+
+function sessionVersionForUser(userId) {
+  const db = getDb();
+  const row = db.prepare('SELECT session_version FROM users WHERE id = ?').get(userId);
+  return Number(row?.session_version ?? 0);
 }
 
 export function verifyToken(token) {
@@ -39,7 +47,13 @@ export function authMiddleware(req, res, next) {
     : (allowQueryToken ? req.query.token : null);
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    req.user = verifyToken(token);
+    const payload = verifyToken(token);
+    const currentSv = sessionVersionForUser(payload.sub);
+    const tokenSv = payload.sv ?? 0;
+    if (tokenSv !== currentSv) {
+      return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    }
+    req.user = payload;
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

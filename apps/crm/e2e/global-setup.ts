@@ -12,6 +12,11 @@ export default async function globalSetup() {
   fs.mkdirSync(screenshotDir, { recursive: true });
   fs.mkdirSync(reportDir, { recursive: true });
 
+  if (process.env.E2E_STAGING === '1') {
+    console.log('\n[e2e] Staging target — skipping local API seed.');
+    return;
+  }
+
   console.log('\n[e2e] Seeding E2E test credentials…');
   execSync('node scripts/seed-e2e-user.js', {
     cwd: apiRoot,

@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Info, LogIn, UserPlus, ArrowLeft } from 'lucide-react';
-import { isAuthenticated, loginWithCredentials, saveToken, clearToken, getAuthToken, submitAccessRequest } from '../lib/auth';
+import {
+  isAuthenticated,
+  loginWithCredentials,
+  saveToken,
+  clearToken,
+  getAuthToken,
+  submitAccessRequest,
+  requestPasswordReset,
+} from '../lib/auth';
 import { resolveTenantSlug, getTenantLoginDefaults } from '../lib/tenant';
 
 const API_BASE = (() => {
@@ -20,8 +28,9 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [businessName, setBusinessName] = useState('');
-  const [mode, setMode] = useState<'login' | 'request'>('login');
-  const [requestPurpose, setRequestPurpose] = useState<'access' | 'password'>('access');
+  const [mode, setMode] = useState<'login' | 'request' | 'forgot'>('login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [requestSent, setRequestSent] = useState(false);
@@ -73,6 +82,27 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Wrong email or password.');
     } finally { setLoading(false); }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setError('Enter your email address.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const result = await requestPasswordReset(forgotEmail.trim());
+      setForgotSent(true);
+      if (result.message) {
+        setError('');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send reset link.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRequestAccess(e: React.FormEvent) {
@@ -197,7 +227,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 className="login-forgot"
-                onClick={() => { setMode('request'); setRequestPurpose('password'); setError(''); setRequestSent(false); }}
+                onClick={() => { setMode('forgot'); setError(''); setForgotSent(false); setForgotEmail(identifier.includes('@') ? identifier : ''); }}
               >
                 Forgot password?
               </button>
@@ -215,13 +245,56 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               className="login-switch-mode"
-              onClick={() => { setMode('request'); setRequestPurpose('access'); setError(''); setRequestSent(false); }}
+              onClick={() => { setMode('request'); setError(''); setRequestSent(false); }}
             >
               <UserPlus size={14} /> Need access? Request
             </button>
             <a className="login-switch-mode" href="/signup" style={{ display: 'block', marginTop: 8 }}>
               Start a new clinic workspace
             </a>
+              </>
+            ) : mode === 'forgot' ? (
+              <>
+                {forgotSent ? (
+                  <div className="login-request-sent">
+                    <strong>Check your email</strong>
+                    <p>If an account exists for <code>{forgotEmail}</code>, we sent a single-use reset link. It expires after a short time.</p>
+                    <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+                      Did not receive it? Ask your clinic owner or try again later. For brand-new staff, use Request access instead.
+                    </p>
+                    <button type="button" className="login-switch-mode" onClick={() => { setMode('login'); setForgotSent(false); }}>
+                      <ArrowLeft size={14} /> Back to sign in
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="login-request-intro">
+                      Enter the email on your clinic account. We will send a secure, single-use link to reset your password.
+                    </p>
+                    <form onSubmit={handleForgotPassword} noValidate>
+                      <div className="login-field">
+                        <label htmlFor="forgotEmail" className="login-label">Email</label>
+                        <input
+                          id="forgotEmail"
+                          type="email"
+                          className="login-input"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          autoComplete="email"
+                          autoCapitalize="none"
+                          required
+                        />
+                      </div>
+                      {error && <div className="login-error">{error}</div>}
+                      <button type="submit" className="login-submit" disabled={loading}>
+                        {loading ? 'Sending…' : 'Send reset link'}
+                      </button>
+                    </form>
+                    <button type="button" className="login-switch-mode" onClick={() => { setMode('login'); setError(''); }}>
+                      <ArrowLeft size={14} /> Back to sign in
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -236,9 +309,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             ) : (
               <>
                 <p className="login-request-intro">
-                  {requestPurpose === 'password'
-                    ? 'Forgot your password? Submit your Gmail. After the clinic owner approves, you will receive a secure set-password link (same flow as new staff invites).'
-                    : 'Enter your Gmail. Owner must approve before you can sign in.'}
+                  {'Enter your Gmail. Owner must approve before you can sign in.'}
                 </p>
                 <form onSubmit={handleRequestAccess} noValidate>
                   <div className="login-field">
