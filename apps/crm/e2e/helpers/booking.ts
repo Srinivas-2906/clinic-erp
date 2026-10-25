@@ -53,3 +53,14 @@ export async function ensureBookableScheduleDate(page: Page) {
   }
   throw new Error('No bookable slots in the next 7 days');
 }
+
+/** Match Today schedule calendar to appointment date (YYYY-MM-DD). */
+export async function selectTodayCalendarDate(page: Page, ymd: string) {
+  const day = Number(ymd.slice(8, 10));
+  const showCal = page.getByRole('button', { name: /Show calendar/i });
+  if (await showCal.isVisible().catch(() => false)) {
+    await showCal.click();
+  }
+  await page.getByRole('gridcell', { name: new RegExp(`^${day}[,\\s]`) }).first().click();
+  await page.waitForTimeout(600);
+}
