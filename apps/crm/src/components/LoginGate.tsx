@@ -21,6 +21,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [businessName, setBusinessName] = useState('');
   const [mode, setMode] = useState<'login' | 'request'>('login');
+  const [requestPurpose, setRequestPurpose] = useState<'access' | 'password'>('access');
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [requestSent, setRequestSent] = useState(false);
@@ -193,6 +194,14 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
 
+              <button
+                type="button"
+                className="login-forgot"
+                onClick={() => { setMode('request'); setRequestPurpose('password'); setError(''); setRequestSent(false); }}
+              >
+                Forgot password?
+              </button>
+
               {error && <div className="login-error">{error}</div>}
 
               <button type="submit" className="login-submit" disabled={loading}>
@@ -206,7 +215,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               className="login-switch-mode"
-              onClick={() => { setMode('request'); setError(''); setRequestSent(false); }}
+              onClick={() => { setMode('request'); setRequestPurpose('access'); setError(''); setRequestSent(false); }}
             >
               <UserPlus size={14} /> Need access? Request
             </button>
@@ -227,7 +236,9 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             ) : (
               <>
                 <p className="login-request-intro">
-                  Enter your Gmail. Owner must approve before you can sign in.
+                  {requestPurpose === 'password'
+                    ? 'Forgot your password? Submit your Gmail. After the clinic owner approves, you will receive a secure set-password link (same flow as new staff invites).'
+                    : 'Enter your Gmail. Owner must approve before you can sign in.'}
                 </p>
                 <form onSubmit={handleRequestAccess} noValidate>
                   <div className="login-field">

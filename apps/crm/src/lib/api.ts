@@ -238,6 +238,23 @@ export function finalizeEncounter(encounterId: string) {
   });
 }
 
+export function amendEncounter(encounterId: string, body: {
+  reason: string;
+  patch: { clinicalNote?: string; historySummary?: string };
+}) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/amendments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function regeneratePrescriptionPdf(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/prescription/regenerate`, {
+    method: 'POST',
+  });
+}
+
 export function scheduleEncounterFollowUp(encounterId: string, body: { dueDate: string; instructions?: string; phone?: string }) {
   return request<{ id: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
     method: 'POST',
@@ -258,6 +275,24 @@ export function addPatientAllergy(patientId: string, body: { substance: string; 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export function updatePatientAllergy(patientId: string, allergyId: string, body: { substance?: string; severity?: string; notes?: string }) {
+  return request<{ id: string; substance: string }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies/${encodeURIComponent(allergyId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function deletePatientAllergy(patientId: string, allergyId: string) {
+  return request<{ ok: boolean }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies/${encodeURIComponent(allergyId)}`,
+    { method: 'DELETE' },
+  );
 }
 
 export async function openPrescriptionPdf(encounterId: string) {

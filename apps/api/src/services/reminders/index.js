@@ -32,11 +32,17 @@ function ensureReminderSchema(db) {
       last_error TEXT,
       delivered_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      follow_up_id TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_reminder_jobs_due ON reminder_jobs(status, scheduled_at);
     CREATE INDEX IF NOT EXISTS idx_reminder_jobs_tenant ON reminder_jobs(tenant_id);
   `);
+  try {
+    db.exec(`ALTER TABLE reminder_jobs ADD COLUMN follow_up_id TEXT`);
+  } catch {
+    /* exists */
+  }
 }
 
 export function initReminderInfrastructure(db = getDb()) {

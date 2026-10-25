@@ -45,6 +45,15 @@ export async function saveBinaryUpload(tenantId, { buffer, contentType, prefix =
   };
 }
 
+export async function deleteBinaryUpload(tenantId, fileName) {
+  const safeTenant = validateTenantId(tenantId);
+  const safeName = validateFileName(fileName);
+  const backend = getUploadStorageBackend();
+  if (typeof backend.deleteObject === 'function') {
+    await backend.deleteObject({ tenantId: safeTenant, fileName: safeName });
+  }
+}
+
 export async function savePatientUpload(tenantId, { data, contentType, prefix = 'prescription' }) {
   const safeTenant = validateTenantId(tenantId);
   if (!data) throw validationError('Missing upload data');

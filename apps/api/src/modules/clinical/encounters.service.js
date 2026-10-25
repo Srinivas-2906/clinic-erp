@@ -5,11 +5,22 @@ import { assertDoctorBelongsToTenant, getDoctorById } from '../providers/doctors
 import { logAudit } from '../../services/clinicAudit.js';
 import { requireClinician, resolveClinicianDoctorId } from './clinicalPermissions.js';
 import { buildPrescriptionPdfBuffer } from './prescriptionPdf.js';
-import { saveBinaryUpload } from '../../services/uploads.js';
+import { saveBinaryUpload, deleteBinaryUpload } from '../../services/uploads.js';
 import { enqueueReminder } from '../../services/reminders/index.js';
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/** @type {(() => void) | null} */
+let finalizeTxnBeforeCommitForTests = null;
+
+export function setFinalizeTxnBeforeCommitForTests(fn) {
+  finalizeTxnBeforeCommitForTests = fn;
+}
+
+export function resetFinalizeTxnBeforeCommitForTests() {
+  finalizeTxnBeforeCommitForTests = null;
 }
 
 function rowToEncounter(row) {
@@ -369,35 +380,103 @@ export async function finalizeEncounter(encounterId, tenantId, user) {
 
   const now = nowIso();
   const db = getDb();
-  const finalizeInfo = db.transaction(() => {
-    const info = db.prepare(`
-      UPDATE encounters SET status = 'finalized', finalized_by = ?, finalized_at = ?, updated_at = ?
-      WHERE id = ? AND tenant_id = ? AND status = 'draft'
-    `).run(user.sub, now, now, encounterId, tenantId);
-    if (info.changes === 0) {
-      const err = new Error('Encounter already finalized');
-      err.status = 409;
-      throw err;
-    }
+  try {
+    db.transaction(() => {
+      const info = db.prepare(`
+        UPDATE encounters SET status = 'finalized', finalized_by = ?, finalized_at = ?, updated_at = ?
+        WHERE id = ? AND tenant_id = ? AND status = 'draft'
+      `).run(user.sub, now, now, encounterId, tenantId);
+      if (info.changes === 0) {
+        const err = new Error('Encounter already finalized');
+        err.status = 409;
+        throw err;
+      }
 
-    if (detail.prescription?.items?.length) {
-      upsertPrescription(db, encounterId, tenantId, detail.prescription.items, 'finalized');
-      if (pdfFileName) {
-        db.prepare(`
-          UPDATE prescriptions SET pdf_storage_key = ?, updated_at = datetime('now')
-          WHERE encounter_id = ? AND tenant_id = ?
-        `).run(pdfFileName, encounterId, tenantId);
+      if (detail.prescription?.items?.length) {
+        upsertPrescription(db, encounterId, tenantId, detail.prescription.items, 'finalized');
+        if (pdfFileName) {
+          db.prepare(`
+            UPDATE prescriptions SET pdf_storage_key = ?, updated_at = datetime('now')
+            WHERE encounter_id = ? AND tenant_id = ?
+          `).run(pdfFileName, encounterId, tenantId);
+        }
+      }
+
+      if (row.appointment_id) {
+        db.prepare(`UPDATE appointments SET status = 'visited' WHERE id = ? AND tenant_id = ?`).run(row.appointment_id, tenantId);
+      }
+
+      if (finalizeTxnBeforeCommitForTests) finalizeTxnBeforeCommitForTests();
+    })();
+  } catch (err) {
+    if (pdfFileName) {
+      try {
+        await deleteBinaryUpload(tenantId, pdfFileName);
+      } catch {
+        /* best-effort orphan cleanup */
       }
     }
-
-    if (row.appointment_id) {
-      db.prepare(`UPDATE appointments SET status = 'visited' WHERE id = ? AND tenant_id = ?`).run(row.appointment_id, tenantId);
-    }
-    return info;
-  })();
-  void finalizeInfo;
+    throw err;
+  }
 
   logAudit(tenantId, user.sub, 'finalize', 'encounter', encounterId, {});
+  return encounterDetail(encounterId, tenantId);
+}
+
+export async function regeneratePrescriptionPdf(encounterId, tenantId, user) {
+  requireClinician(user, tenantId);
+  const row = getDb().prepare(`SELECT * FROM encounters WHERE id = ? AND tenant_id = ?`).get(encounterId, tenantId);
+  if (!row) {
+    const err = new Error('Encounter not found');
+    err.status = 404;
+    throw err;
+  }
+  if (row.status !== 'finalized') {
+    const err = new Error('Prescription PDF can only be regenerated for finalized consultations');
+    err.status = 409;
+    throw err;
+  }
+
+  const detail = encounterDetail(encounterId, tenantId);
+  if (!detail.prescription?.items?.length) {
+    const err = new Error('No prescription lines to render');
+    err.status = 400;
+    throw err;
+  }
+
+  const patient = getPatientById(row.patient_id, tenantId);
+  const doctor = getDoctorById(row.doctor_id, tenantId);
+  const tenant = getDb().prepare(`SELECT name, settings FROM tenants WHERE id = ?`).get(tenantId);
+
+  const pdfBuffer = await buildPrescriptionPdfBuffer({
+    clinicName: tenant?.name || 'Clinic',
+    patient,
+    doctor,
+    encounter: detail,
+    items: detail.prescription.items,
+  });
+  const saved = await saveBinaryUpload(tenantId, {
+    buffer: pdfBuffer,
+    contentType: 'application/pdf',
+    prefix: 'prescription-pdf',
+  });
+
+  const previousKey = detail.prescription.pdfStorageKey;
+  getDb().prepare(`
+    UPDATE prescriptions SET pdf_storage_key = ?, updated_at = datetime('now')
+    WHERE encounter_id = ? AND tenant_id = ?
+  `).run(saved.fileName, encounterId, tenantId);
+
+  if (previousKey && previousKey !== saved.fileName) {
+    const prevName = previousKey.includes('/') ? previousKey.split('/').pop() : previousKey;
+    try {
+      await deleteBinaryUpload(tenantId, prevName);
+    } catch {
+      /* ignore stale object cleanup failures */
+    }
+  }
+
+  logAudit(tenantId, user.sub, 'regenerate_pdf', 'encounter', encounterId, {});
   return encounterDetail(encounterId, tenantId);
 }
 
@@ -546,4 +625,47 @@ export function addPatientAllergy(patientId, tenantId, user, data = {}) {
   `).run(id, tenantId, patientId, substance, String(data.severity || '').trim(), String(data.notes || '').trim());
   logAudit(tenantId, user.sub, 'create', 'patient_allergy', id, { patientId, substance });
   return { id, substance, severity: data.severity || '', notes: data.notes || '' };
+}
+
+export function updatePatientAllergy(allergyId, patientId, tenantId, user, data = {}) {
+  const row = getDb().prepare(
+    `SELECT * FROM patient_allergies WHERE id = ? AND tenant_id = ? AND patient_id = ?`,
+  ).get(allergyId, tenantId, patientId);
+  if (!row) {
+    const err = new Error('Allergy not found');
+    err.status = 404;
+    throw err;
+  }
+  const substance = data.substance !== undefined ? String(data.substance || '').trim() : row.substance;
+  if (!substance) throw new Error('substance required');
+  getDb().prepare(`
+    UPDATE patient_allergies SET substance = ?, severity = ?, notes = ? WHERE id = ? AND tenant_id = ?
+  `).run(
+    substance,
+    data.severity !== undefined ? String(data.severity || '').trim() : (row.severity || ''),
+    data.notes !== undefined ? String(data.notes || '').trim() : (row.notes || ''),
+    allergyId,
+    tenantId,
+  );
+  logAudit(tenantId, user.sub, 'update', 'patient_allergy', allergyId, { patientId, substance });
+  return {
+    id: allergyId,
+    substance,
+    severity: data.severity !== undefined ? String(data.severity || '').trim() : (row.severity || ''),
+    notes: data.notes !== undefined ? String(data.notes || '').trim() : (row.notes || ''),
+  };
+}
+
+export function deletePatientAllergy(allergyId, patientId, tenantId, user) {
+  const row = getDb().prepare(
+    `SELECT * FROM patient_allergies WHERE id = ? AND tenant_id = ? AND patient_id = ?`,
+  ).get(allergyId, tenantId, patientId);
+  if (!row) {
+    const err = new Error('Allergy not found');
+    err.status = 404;
+    throw err;
+  }
+  getDb().prepare(`DELETE FROM patient_allergies WHERE id = ? AND tenant_id = ?`).run(allergyId, tenantId);
+  logAudit(tenantId, user.sub, 'delete', 'patient_allergy', allergyId, { patientId, substance: row.substance });
+  return { ok: true };
 }

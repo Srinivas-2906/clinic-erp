@@ -10,6 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {UploadStorageBackend | null} */
 let testBackendOverride = null;
+/** @type {ReturnType<typeof createMemoryUploadStorage> | null} */
+let memoryBackendSingleton = null;
 
 export function setUploadStorageBackendForTests(backend) {
   testBackendOverride = backend;
@@ -17,13 +19,15 @@ export function setUploadStorageBackendForTests(backend) {
 
 export function resetUploadStorageBackendForTests() {
   testBackendOverride = null;
+  memoryBackendSingleton = null;
 }
 
 function resolveBackend() {
   if (testBackendOverride) return testBackendOverride;
   const cfg = getClinicFilesConfig();
   if (cfg.storageMode === 'memory') {
-    return createMemoryUploadStorage();
+    if (!memoryBackendSingleton) memoryBackendSingleton = createMemoryUploadStorage();
+    return memoryBackendSingleton;
   }
   if (cfg.storageMode === 'local') {
     return createLocalBackend(cfg);
@@ -62,6 +66,11 @@ function createGcsBackend(cfg) {
         contentDisposition: 'inline',
       };
     },
+    async deleteObject({ tenantId, fileName }) {
+      const objectKey = buildObjectKey(cfg.prefix, tenantId, fileName);
+      const file = bucket.file(objectKey);
+      await file.delete({ ignoreNotFound: true });
+    },
   };
 }
 
@@ -92,6 +101,10 @@ function createLocalBackend(cfg) {
         contentType: detectContentTypeFromName(fileName),
         contentDisposition: 'inline',
       };
+    },
+    async deleteObject({ tenantId, fileName }) {
+      const safeName = validateLocalPath(tenantId, fileName, uploadsRoot);
+      if (safeName && fs.existsSync(safeName)) fs.unlinkSync(safeName);
     },
   };
 }
@@ -145,6 +158,10 @@ export function createMemoryUploadStorage() {
         contentType: hit.contentType,
         contentDisposition: 'inline',
       };
+    },
+    async deleteObject({ tenantId, fileName }) {
+      const key = buildObjectKey(cfg().prefix, tenantId, fileName);
+      objects.delete(key);
     },
   };
 }

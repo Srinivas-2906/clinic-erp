@@ -7,6 +7,7 @@ import { toTelUrl, toWhatsAppUrl } from '../lib/phone';
 import { formatApptDayLabel, formatApptTime, isApptToday } from '../lib/appointmentDisplay';
 import { doctorColorFor } from '../lib/doctorDisplay';
 import { CompleteVisitDialog } from './CompleteVisitDialog';
+import { ConsultationDialog } from './ConsultationDialog';
 import { AppointmentActionsDialog } from './AppointmentActionsDialog';
 import { DoctorBadge } from './DoctorBadge';
 
@@ -34,7 +35,7 @@ const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
 const ADVANCE_LABEL: Partial<Record<AppointmentStatus, string>> = {
   requested: 'Confirm',
   confirmed: 'Arrived',
-  arrived:   'Complete',
+  arrived:   'Consult',
 };
 
 const PALETTES: [string, string][] = [
@@ -152,13 +153,18 @@ export function AppointmentBoard({
   onToast,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
   const [actionsAppt, setActionsAppt] = useState<Appointment | null>(null);
 
   async function advance(appt: Appointment) {
     const next = NEXT[appt.status];
     if (!next) return;
     if (next === 'visited') {
-      setCompleteAppt(appt);
+      if (appt.status === 'arrived') {
+        setConsultAppt(appt);
+      } else {
+        setCompleteAppt(appt);
+      }
       return;
     }
     try {
@@ -215,6 +221,15 @@ export function AppointmentBoard({
           );
         })}
       </div>
+
+      {consultAppt && (
+        <ConsultationDialog
+          appointment={consultAppt}
+          onClose={() => { setConsultAppt(null); onRefresh(); }}
+          onDone={() => { setConsultAppt(null); onRefresh(); }}
+          onToast={onToast}
+        />
+      )}
 
       {completeAppt && (
         <CompleteVisitDialog

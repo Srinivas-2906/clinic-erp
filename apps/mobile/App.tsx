@@ -40,7 +40,11 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [today, setToday] = useState<{ appointments?: { patientName?: string; service?: string; status?: string }[] } | null>(null);
+  const [screen, setScreen] = useState<'today' | 'patients'>('today');
+  const [today, setToday] = useState<{ appointments?: { id?: string; patientName?: string; service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
+  const [patients, setPatients] = useState<{ id: string; name: string; phone?: string }[]>([]);
+  const [patientQuery, setPatientQuery] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState<{ patient: { name: string; phone?: string }; appointments: { service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
   const [error, setError] = useState('');
 
   const client = useMemo(
@@ -67,8 +71,15 @@ export default function App() {
 
   useEffect(() => {
     if (!token) return;
-    client.today().then(setToday).catch((e) => setError(e.message));
-  }, [token, client]);
+    setError('');
+    if (screen === 'today') {
+      client.today().then(setToday).catch((e) => setError(e.message));
+    } else {
+      client.patients(patientQuery.trim() || undefined)
+        .then((rows) => setPatients(Array.isArray(rows) ? rows as { id: string; name: string; phone?: string }[] : []))
+        .catch((e) => setError(e.message));
+    }
+  }, [token, client, screen, patientQuery]);
 
   async function onLogin() {
     setBusy(true);
@@ -116,24 +127,79 @@ export default function App() {
 
   const appts = today?.appointments || [];
 
+  if (selectedPatient) {
+    const p = selectedPatient.patient;
+    return (
+      <SafeAreaView style={styles.screen}>
+        <TouchableOpacity onPress={() => setSelectedPatient(null)}>
+          <Text style={styles.link}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{p.name}</Text>
+        <Text style={styles.subtitle}>{p.phone || 'No phone'}</Text>
+        <FlatList
+          data={selectedPatient.appointments || []}
+          keyExtractor={(_, i) => String(i)}
+          ListEmptyComponent={<Text style={styles.muted}>No appointments on file.</Text>}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{item.service || 'Visit'}</Text>
+              <Text style={styles.muted}>{item.status} · {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : ''}</Text>
+            </View>
+          )}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Today</Text>
+        <Text style={styles.title}>{screen === 'today' ? 'Today' : 'Patients'}</Text>
         <TouchableOpacity onPress={onLogout}>
           <Text style={styles.link}>Logout</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.tabRow}>
+        <TouchableOpacity style={[styles.tabBtn, screen === 'today' && styles.tabBtnActive]} onPress={() => setScreen('today')}>
+          <Text style={screen === 'today' ? styles.tabTextActive : styles.muted}>Today</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, screen === 'patients' && styles.tabBtnActive]} onPress={() => setScreen('patients')}>
+          <Text style={screen === 'patients' ? styles.tabTextActive : styles.muted}>Patients</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.subtitle}>{tenant} · {email || 'staff'}</Text>
+      {screen === 'patients' && (
+        <TextInput
+          style={styles.input}
+          placeholder="Search patients"
+          value={patientQuery}
+          onChangeText={setPatientQuery}
+          autoCapitalize="none"
+        />
+      )}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
       <FlatList
-        data={appts}
-        keyExtractor={(_, i) => String(i)}
-        ListEmptyComponent={<Text style={styles.muted}>No appointments loaded.</Text>}
+        data={screen === 'today' ? appts : patients}
+        keyExtractor={(item, i) => ('id' in item && item.id) ? item.id : String(i)}
+        ListEmptyComponent={<Text style={styles.muted}>{screen === 'today' ? 'No appointments loaded.' : 'No patients found.'}</Text>}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{item.patientName || 'Patient'}</Text>
-            <Text style={styles.muted}>{item.service || 'Visit'} · {item.status}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.card}
+            disabled={screen === 'today'}
+            onPress={() => {
+              if (screen !== 'patients' || !('id' in item)) return;
+              client.patient(item.id).then(setSelectedPatient).catch((e) => setError(e.message));
+            }}
+          >
+            <Text style={styles.cardTitle}>
+              {'patientName' in item ? (item.patientName || 'Patient') : item.name}
+            </Text>
+            <Text style={styles.muted}>
+              {'service' in item
+                ? `${item.service || 'Visit'} · ${item.status}`
+                : (item.phone || '—')}
+            </Text>
+          </TouchableOpacity>
         )}
       />
     </SafeAreaView>
@@ -156,6 +222,10 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#fff', textAlign: 'center', fontWeight: typography.weightSemibold },
   error: { color: colors.danger, marginVertical: spacing.sm },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  tabRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  tabBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surface },
+  tabBtnActive: { backgroundColor: '#e3f0fd' },
+  tabTextActive: { color: colors.brand, fontWeight: typography.weightSemibold },
   link: { color: colors.brand },
   card: {
     backgroundColor: colors.surface,

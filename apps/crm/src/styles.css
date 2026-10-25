@@ -4319,6 +4319,86 @@ body.modal-open .clinic-app {
   flex-shrink: 0;
 }
 
+.consult-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.consult-progress li {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-2, #f1f5f9);
+  color: var(--muted);
+}
+.consult-progress li.done {
+  background: color-mix(in srgb, var(--success, #059669) 12%, transparent);
+  color: var(--success, #059669);
+}
+
+.pilot-setup-banner {
+  margin: 12px 14px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+}
+.pilot-setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.pilot-setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.pilot-setup-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pilot-setup-list li span { flex: 1; min-width: 0; }
+
+.login-forgot {
+  display: block;
+  margin: 8px 0 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--brand);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.allergy-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.allergy-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-2, #f1f5f9);
+  font-size: 13px;
+}
+.allergy-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.allergy-chip-actions { display: flex; gap: 4px; }
+
 @media (min-width: 640px) {
   .modal-overlay { align-items: center; padding: 20px; }
   .modal-sheet   { width: 100%; max-width: 480px; border-radius: var(--radius-lg); max-height: 88vh; }

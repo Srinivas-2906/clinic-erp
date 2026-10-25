@@ -426,7 +426,7 @@ export function TodayView({
       {consultAppt && (
         <ConsultationDialog
           appointment={consultAppt}
-          onClose={() => setConsultAppt(null)}
+          onClose={() => { setConsultAppt(null); onRefresh(); }}
           onDone={() => { setConsultAppt(null); onRefresh(); }}
           onToast={onToast}
         />

@@ -50,11 +50,13 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
       try {
         const me = await fetchMe();
         if (alive) setCanSign(!!(me.user as { canSignClinical?: boolean }).canSignClinical);
-        const enc = await createEncounter(appointment.patientId, {
-          appointmentId: appointment.id,
-          doctorId: appointment.assignedDoctorId || undefined,
-          chiefComplaint: appointment.notes || '',
-        });
+        const enc = appointment.encounterId
+          ? await fetchEncounter(appointment.encounterId)
+          : await createEncounter(appointment.patientId, {
+            appointmentId: appointment.id,
+            doctorId: appointment.assignedDoctorId || undefined,
+            chiefComplaint: appointment.notes || '',
+          });
         if (!alive) return;
         applyEncounter(enc);
       } catch (e) {
@@ -65,7 +67,7 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
       }
     })();
     return () => { alive = false; };
-  }, [appointment.id, appointment.patientId]);
+  }, [appointment.id, appointment.patientId, appointment.assignedDoctorId, appointment.encounterId, appointment.notes, onClose, onToast]);
 
   function applyEncounter(enc: Encounter) {
     setEncounter(enc);
@@ -156,6 +158,12 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
 
   const name = appointment.patientName || 'Patient';
   const readOnly = encounter?.status === 'finalized';
+  const progressSteps = [
+    { id: 'complaint', label: 'Complaint', done: chiefComplaint.trim().length > 0 },
+    { id: 'clinical', label: 'Clinical note / diagnosis', done: !!(clinicalNote.trim() || diagnosis.trim()) },
+    { id: 'rx', label: 'Prescription (optional)', done: rxLines.some((l) => l.drugName.trim()) },
+    { id: 'sign', label: 'Clinician sign-off', done: canSign && !readOnly },
+  ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -177,6 +185,13 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
                 <p className="login-error" style={{ marginBottom: 12 }}>
                   View-only: your account is not linked to a doctor profile. Save drafts only; a clinician must finalize.
                 </p>
+              )}
+              {!readOnly && (
+                <ul className="consult-progress" aria-label="Consultation progress">
+                  {progressSteps.map((step) => (
+                    <li key={step.id} className={step.done ? 'done' : ''}>{step.label}</li>
+                  ))}
+                </ul>
               )}
               <div className="form-field">
                 <label className="form-label" htmlFor="consult-complaint">Chief complaint</label>

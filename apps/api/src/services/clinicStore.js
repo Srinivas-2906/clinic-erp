@@ -82,6 +82,7 @@ function rowToAppointment(row) {
     status: row.status,
     assignedDoctor: row.assigned_doctor || row.doctor_display_name || '',
     assignedDoctorId: row.assigned_doctor_id || null,
+    encounterId: row.encounter_id || null,
     notes: row.notes || '',
     source: row.source || 'WhatsApp',
     paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : null,

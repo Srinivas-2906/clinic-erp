@@ -6,12 +6,15 @@ import {
   createEncounter,
   updateEncounterDraft,
   finalizeEncounter,
+  regeneratePrescriptionPdf,
   amendFinalizedEncounter,
   encounterDetail,
   listEncountersForPatient,
   scheduleFollowUp,
   listPatientAllergies,
   addPatientAllergy,
+  updatePatientAllergy,
+  deletePatientAllergy,
 } from './encounters.service.js';
 import { canViewClinical } from './clinicalPermissions.js';
 
@@ -66,6 +69,16 @@ export function clinicalRouter() {
     }
   });
 
+  r.post('/encounters/:id/prescription/regenerate', async (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const enc = await regeneratePrescriptionPdf(req.params.id, req.user.tenantId, req.user);
+      res.json(enc);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message, code: err.code });
+    }
+  });
+
   r.post('/encounters/:id/amendments', (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     try {
@@ -97,10 +110,10 @@ export function clinicalRouter() {
     if (!key) return res.status(404).json({ error: 'Prescription PDF not available' });
     const fileName = key.includes('/') ? key.split('/').pop() : key;
     try {
-      const stream = await openPatientUploadReadStream(req.user.tenantId, fileName);
-      res.setHeader('Content-Type', 'application/pdf');
+      const opened = await openPatientUploadReadStream(req.user.tenantId, fileName);
+      res.setHeader('Content-Type', opened.contentType || 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="prescription-${enc.id}.pdf"`);
-      stream.pipe(res);
+      opened.stream.pipe(res);
     } catch (err) {
       res.status(404).json({ error: err.message || 'File not found' });
     }
@@ -116,6 +129,31 @@ export function clinicalRouter() {
     try {
       const row = addPatientAllergy(req.params.patientId, req.user.tenantId, req.user, req.body ?? {});
       res.status(201).json(row);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  r.patch('/patients/:patientId/allergies/:allergyId', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const row = updatePatientAllergy(
+        req.params.allergyId,
+        req.params.patientId,
+        req.user.tenantId,
+        req.user,
+        req.body ?? {},
+      );
+      res.json(row);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  r.delete('/patients/:patientId/allergies/:allergyId', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json(deletePatientAllergy(req.params.allergyId, req.params.patientId, req.user.tenantId, req.user));
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }

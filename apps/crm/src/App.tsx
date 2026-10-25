@@ -16,6 +16,8 @@ import { TeamAccessView } from './components/TeamAccessView';
 import { DoctorsView } from './components/DoctorsView';
 import { AuditView } from './components/AuditView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
+import { PilotSetupChecklist } from './components/PilotSetupChecklist';
+import { useDoctors } from './hooks/useDoctors';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
 import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
@@ -25,6 +27,28 @@ import { logout } from './lib/auth';
 import { isDenseMode, setDenseMode } from './lib/denseMode';
 import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment, Encounter } from './types';
 import './styles.css';
+
+const ROUTE_TABS = new Set<TabId>([
+  'overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team', 'audit',
+]);
+
+function readAppRoute() {
+  const params = new URLSearchParams(window.location.search);
+  const tabParam = params.get('tab');
+  const patient = params.get('patient');
+  return {
+    tab: tabParam && ROUTE_TABS.has(tabParam as TabId) ? (tabParam as TabId) : null,
+    patientId: patient?.trim() || null,
+  };
+}
+
+function writeAppRoute(opts: { tab: TabId; patientId?: string | null }) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', opts.tab);
+  if (opts.patientId) url.searchParams.set('patient', opts.patientId);
+  else url.searchParams.delete('patient');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+}
 
 const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
   overview:  { title: 'Home',      sub: 'What is happening today' },
@@ -39,7 +63,9 @@ const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
 };
 
 function ClinicApp() {
-  const [tab,           setTab]           = useState<TabId>('overview');
+  const initialRouteRef = useRef(readAppRoute());
+  const bootRoute = initialRouteRef.current;
+  const [tab,           setTab]           = useState<TabId>(bootRoute.tab ?? 'overview');
   const [collapsed,     setCollapsed]     = useState(false);
   const [doctorFilter,  setDoctorFilter]  = useState<string | null>(null);
   const { today, rawToday, refetch: loadToday } = useTodayData(doctorFilter);
@@ -55,6 +81,11 @@ function ClinicApp() {
   const [showSearch,    setShowSearch]    = useState(false);
   const [displayName,   setDisplayName]   = useState<string>('');
   const [userRole,      setUserRole]      = useState<string>('');
+  const [canSignClinical, setCanSignClinical] = useState(false);
+  const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
+    () => localStorage.getItem('pilot-setup-dismissed') === '1',
+  );
+  const { data: doctorsList = [] } = useDoctors(false);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
@@ -146,8 +177,17 @@ function ClinicApp() {
       const n = m?.user?.name || m?.user?.username || m?.user?.email || '';
       if (n) setDisplayName(n);
       if (m?.user?.role) setUserRole(m.user.role);
+      setCanSignClinical(!!m?.user?.canSignClinical);
     }).catch(() => {});
   }, [loadPatients]);
+
+  useEffect(() => {
+    if (!bootRoute.patientId) return;
+    void loadPatientDetail(bootRoute.patientId);
+    if (!bootRoute.tab) setTab('patients');
+    // Deep-link bootstrap only on first mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Poll "today" only when it matters (Home/Today) and only while tab is visible.
   useEffect(() => {
@@ -258,6 +298,7 @@ function ClinicApp() {
       toast('Patient record not linked to this booking', 'err');
       return;
     }
+    writeAppRoute({ tab: 'patients', patientId: id });
     const ok = await loadPatientDetail(id);
     if (!ok) toast('Could not load patient', 'err');
   }
@@ -281,9 +322,15 @@ function ClinicApp() {
     setSelectedId(null);
     setPatientDetail(null);
     setPrefillPt(null);
+    writeAppRoute({ tab: t, patientId: null });
     if (t === 'patients') loadPatients();
     if (t === 'overview' || t === 'today') void loadToday();
     if (t === 'today') void refreshSchedule();
+  }
+
+  function dismissPilotSetup() {
+    localStorage.setItem('pilot-setup-dismissed', '1');
+    setPilotSetupDismissed(true);
   }
 
   function handleScheduleDateChange(ymd: string) {
@@ -445,6 +492,15 @@ function ClinicApp() {
 
         {/* Content */}
         <main className={`main-content${hideBottomNav ? ' no-bottom-nav' : ''}`}>
+          {!pilotSetupDismissed && userRole === 'owner' && (tab === 'overview' || tab === 'today') && !isPatientOpen && (
+            <PilotSetupChecklist
+              canSignClinical={canSignClinical}
+              hasDoctors={doctorsList.length > 0}
+              onGoDoctors={() => handleTabChange('doctors')}
+              onGoBook={() => handleTabChange('book')}
+              onDismiss={dismissPilotSetup}
+            />
+          )}
           {isPatientOpen ? (
             <PatientDetail
               patient={patientDetail!.patient}

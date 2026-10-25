@@ -41,6 +41,7 @@ export interface Appointment {
   status: AppointmentStatus;
   assignedDoctor?: string;
   assignedDoctorId?: string | null;
+  encounterId?: string | null;
   notes?: string;
   source?: string;
   paymentAmount?: number | null;
@@ -81,6 +82,7 @@ export interface Encounter {
     items?: PrescriptionItemInput[];
   } | null;
   finalizedAt?: string | null;
+  createdAt?: string;
 }
 
 export interface Doctor {
