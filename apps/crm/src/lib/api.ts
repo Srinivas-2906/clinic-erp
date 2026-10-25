@@ -1,5 +1,5 @@
 import { authHeaders, clearToken } from './auth';
-import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, CatalogItem, Doctor, DoctorSession, DoctorTimeOff } from '../types';
+import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, CatalogItem, Doctor, DoctorSession, DoctorTimeOff, Encounter, PrescriptionItemInput, VitalInput } from '../types';
 import { resolveTenantSlug } from './tenant';
 
 const API = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';
@@ -48,7 +48,7 @@ export function fetchPatients(search?: string) {
 }
 
 export function fetchPatient(id: string) {
-  return request<{ patient: Patient; appointments: Appointment[] }>(`/patients/${id}`);
+  return request<{ patient: Patient; appointments: Appointment[]; encounters?: Encounter[] }>(`/patients/${id}`);
 }
 
 export function createPatient(data: Partial<Patient> & { name: string; phone: string }) {
@@ -190,7 +190,127 @@ export function saveDoctorServices(doctorId: string, catalogItemIds: string[]) {
 }
 
 export function fetchMe() {
-  return request<{ user: { id: string; name?: string; email?: string; username?: string; role?: string; isPlatformAdmin?: boolean } }>('/platform/me');
+  return request<{
+    user: {
+      id: string;
+      name?: string;
+      email?: string;
+      username?: string;
+      role?: string;
+      isPlatformAdmin?: boolean;
+      canSignClinical?: boolean;
+      clinicianDoctorId?: string | null;
+    };
+    tenant?: { slug?: string; name?: string };
+  }>('/platform/me');
+}
+
+export function createEncounter(patientId: string, body: Record<string, unknown>) {
+  return request<Encounter>(`/clinic/patients/${encodeURIComponent(patientId)}/encounters`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchEncounter(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}`);
+}
+
+export function updateEncounter(encounterId: string, body: {
+  chiefComplaint?: string;
+  historySummary?: string;
+  clinicalNote?: string;
+  vitals?: VitalInput[];
+  diagnoses?: { description: string; isPrimary?: boolean; code?: string }[];
+  prescriptionItems?: PrescriptionItemInput[];
+}) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function finalizeEncounter(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/finalize`, {
+    method: 'POST',
+  });
+}
+
+export function amendEncounter(encounterId: string, body: {
+  reason: string;
+  patch: { clinicalNote?: string; historySummary?: string };
+}) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/amendments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function regeneratePrescriptionPdf(encounterId: string) {
+  return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/prescription/regenerate`, {
+    method: 'POST',
+  });
+}
+
+export function scheduleEncounterFollowUp(encounterId: string, body: { dueDate: string; instructions?: string; phone?: string }) {
+  return request<{ id: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchPatientAllergies(patientId: string) {
+  return request<{ allergies: { id: string; substance: string; severity?: string; notes?: string }[] }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies`,
+  );
+}
+
+export function addPatientAllergy(patientId: string, body: { substance: string; severity?: string; notes?: string }) {
+  return request<{ id: string; substance: string }>(`/clinic/patients/${encodeURIComponent(patientId)}/allergies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updatePatientAllergy(patientId: string, allergyId: string, body: { substance?: string; severity?: string; notes?: string }) {
+  return request<{ id: string; substance: string }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies/${encodeURIComponent(allergyId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function deletePatientAllergy(patientId: string, allergyId: string) {
+  return request<{ ok: boolean }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/allergies/${encodeURIComponent(allergyId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function openPrescriptionPdf(encounterId: string) {
+  const tenantSlug = resolveTenantSlug();
+  const res = await fetch(`${API}/clinic/encounters/${encodeURIComponent(encounterId)}/prescription.pdf`, {
+    headers: {
+      ...authHeaders(),
+      ...(tenantSlug ? { 'x-tenant-slug': tenantSlug } : {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || 'Could not load PDF');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function fetchPayments(patientId?: string) {

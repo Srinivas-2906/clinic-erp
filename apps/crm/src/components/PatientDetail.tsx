@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, MessageSquare, UserCheck, Clock, FileText, PlusCircle, Phone, Pencil, Banknote, Share2 } from 'lucide-react';
-import type { Appointment, Patient, Payment } from '../types';
+import type { Appointment, Patient, Payment, Encounter } from '../types';
+import { fetchPatientAllergies, addPatientAllergy, updatePatientAllergy, deletePatientAllergy, openPrescriptionPdf, fetchMe, regeneratePrescriptionPdf } from '../lib/api';
+import { EncounterAmendDialog } from './EncounterAmendDialog';
 import { STATUS_LABELS } from '../types';
 import { updatePatient, updateAppointment, fetchPatientPayments } from '../lib/api';
 import { toTelUrl, toWhatsAppUrl } from '../lib/phone';
@@ -32,6 +34,7 @@ type DetailTab = 'overview' | 'history' | 'notes';
 interface Props {
   patient: Patient;
   appointments: Appointment[];
+  encounters?: Encounter[];
   clinicProfile: ClinicProfile;
   onBack: () => void;
   onUpdated: () => void;
@@ -39,7 +42,7 @@ interface Props {
   onBookFollowup?: (patient: Patient) => void;
 }
 
-export function PatientDetail({ patient, appointments, clinicProfile, onBack, onUpdated, onToast, onBookFollowup }: Props) {
+export function PatientDetail({ patient, appointments, encounters = [], clinicProfile, onBack, onUpdated, onToast, onBookFollowup }: Props) {
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [note,    setNote]    = useState('');
   const [saving,  setSaving]  = useState(false);
@@ -47,6 +50,13 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
   const [showPay, setShowPay] = useState(false);
   const [sharePayment, setSharePayment] = useState<Payment | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [allergies, setAllergies] = useState<{ id: string; substance: string; severity?: string }[]>([]);
+  const [allergyInput, setAllergyInput] = useState('');
+  const [allergySeverity, setAllergySeverity] = useState('');
+  const [allergySaving, setAllergySaving] = useState(false);
+  const [editingAllergyId, setEditingAllergyId] = useState<string | null>(null);
+  const [canSignClinical, setCanSignClinical] = useState(false);
+  const [amendEncounter, setAmendEncounter] = useState<Encounter | null>(null);
   const [fg, bg] = ava(patient.name);
   const telUrl = toTelUrl(patient.phone);
   const waUrl = toWhatsAppUrl(patient.phone);
@@ -78,8 +88,59 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
     fetchPatientPayments(patient.id)
       .then((data) => { if (alive) setPayments(data.payments || []); })
       .catch(() => { if (alive) setPayments([]); });
+    fetchPatientAllergies(patient.id)
+      .then((data) => { if (alive) setAllergies(data.allergies || []); })
+      .catch(() => { if (alive) setAllergies([]); });
+    fetchMe()
+      .then((m) => { if (alive) setCanSignClinical(!!m.user?.canSignClinical); })
+      .catch(() => { if (alive) setCanSignClinical(false); });
     return () => { alive = false; };
   }, [patient.id]);
+
+  async function submitAllergy() {
+    const substance = allergyInput.trim();
+    if (!substance) return;
+    setAllergySaving(true);
+    try {
+      if (editingAllergyId) {
+        const row = await updatePatientAllergy(patient.id, editingAllergyId, {
+          substance,
+          severity: allergySeverity.trim() || undefined,
+        });
+        setAllergies((prev) => prev.map((a) => (a.id === editingAllergyId ? { ...a, ...row } : a)));
+        setEditingAllergyId(null);
+        onToast('Allergy updated');
+      } else {
+        const row = await addPatientAllergy(patient.id, {
+          substance,
+          severity: allergySeverity.trim() || undefined,
+        });
+        setAllergies((prev) => [...prev, row]);
+        onToast('Allergy saved');
+      }
+      setAllergyInput('');
+      setAllergySeverity('');
+    } catch {
+      onToast('Could not save allergy', 'err');
+    } finally {
+      setAllergySaving(false);
+    }
+  }
+
+  async function removeAllergy(id: string) {
+    try {
+      await deletePatientAllergy(patient.id, id);
+      setAllergies((prev) => prev.filter((a) => a.id !== id));
+      if (editingAllergyId === id) {
+        setEditingAllergyId(null);
+        setAllergyInput('');
+        setAllergySeverity('');
+      }
+      onToast('Allergy removed');
+    } catch {
+      onToast('Could not remove allergy', 'err');
+    }
+  }
 
   function refreshPayments() {
     onUpdated();
@@ -108,7 +169,7 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
 
   const TABS: { id: DetailTab; label: string }[] = [
     { id: 'overview', label: 'Details' },
-    { id: 'history',  label: `Visits (${appointments.length})` },
+    { id: 'history',  label: `Visits (${appointments.length + encounters.length})` },
     { id: 'notes',    label: `Notes (${(patient.notes||[]).length})` },
   ];
 
@@ -155,6 +216,15 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
           prefillPatientId={patient.id}
           onClose={() => setShowPay(false)}
           onSaved={refreshPayments}
+          onToast={onToast}
+        />
+      )}
+
+      {amendEncounter && (
+        <EncounterAmendDialog
+          encounter={amendEncounter}
+          onClose={() => setAmendEncounter(null)}
+          onSaved={onUpdated}
           onToast={onToast}
         />
       )}
@@ -249,6 +319,69 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
                     <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={() => onBookFollowup(patient)}>
                       <PlusCircle size={13} /> Book again
                     </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Allergies */}
+            <div className="panel">
+              <div className="panel-head">
+                <FileText size={14} color="var(--brand)" />
+                <span className="panel-title">Allergies</span>
+              </div>
+              <div className="panel-body">
+                {allergies.length === 0 ? (
+                  <p className="muted" style={{ marginBottom: 12 }}>No allergies recorded.</p>
+                ) : (
+                  <ul className="allergy-list" style={{ marginBottom: 12 }}>
+                    {allergies.map((a) => (
+                      <li key={a.id} className="allergy-chip allergy-chip-row">
+                        <span>
+                          <strong>{a.substance}</strong>
+                          {a.severity ? <span className="muted"> · {a.severity}</span> : null}
+                        </span>
+                        <span className="allergy-chip-actions">
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                            setEditingAllergyId(a.id);
+                            setAllergyInput(a.substance);
+                            setAllergySeverity(a.severity || '');
+                          }}>Edit</button>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void removeAllergy(a.id)}>Remove</button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="form-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <input
+                    className="form-input"
+                    style={{ flex: '1 1 140px', minWidth: 0 }}
+                    placeholder="Substance"
+                    value={allergyInput}
+                    onChange={(e) => setAllergyInput(e.target.value)}
+                  />
+                  <input
+                    className="form-input"
+                    style={{ flex: '0 1 100px', minWidth: 0 }}
+                    placeholder="Severity"
+                    value={allergySeverity}
+                    onChange={(e) => setAllergySeverity(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={allergySaving || !allergyInput.trim()}
+                    onClick={() => void submitAllergy()}
+                  >
+                    {editingAllergyId ? 'Update' : 'Add'}
+                  </button>
+                  {editingAllergyId && (
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                      setEditingAllergyId(null);
+                      setAllergyInput('');
+                      setAllergySeverity('');
+                    }}>Cancel edit</button>
                   )}
                 </div>
               </div>
@@ -424,9 +557,53 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
               <span className="panel-title">Visit history</span>
             </div>
             <div className="panel-body">
-              {appointments.length === 0 ? (
+              {encounters.length > 0 && (
+                <ul className="mini-appt-list" style={{ marginBottom: 16 }}>
+                  {encounters.map((enc) => (
+                    <li key={enc.id} className="mini-appt-row">
+                      <div>
+                        <div className="mini-appt-date">
+                          {enc.finalizedAt
+                            ? new Date(enc.finalizedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                            : new Date(enc.createdAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium' })}
+                        </div>
+                        <div className="mini-appt-svc">{enc.chiefComplaint || 'Consultation'}</div>
+                        <span className={`tag ${enc.status === 'finalized' ? 'tag-success' : 'tag-warning'}`}>
+                          {enc.status}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                        {enc.status === 'finalized' && canSignClinical && (
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAmendEncounter(enc)}>
+                            Amend
+                          </button>
+                        )}
+                        {enc.status === 'finalized' && enc.prescription?.pdfStorageKey && (
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPrescriptionPdf(enc.id).catch(() => onToast('PDF unavailable', 'err'))}>
+                            Rx PDF
+                          </button>
+                        )}
+                        {enc.status === 'finalized' && canSignClinical && enc.prescription?.items?.length && !enc.prescription?.pdfStorageKey && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => {
+                              regeneratePrescriptionPdf(enc.id)
+                                .then(() => { onToast('PDF regenerated'); onUpdated(); })
+                                .catch(() => onToast('PDF retry failed', 'err'));
+                            }}
+                          >
+                            Retry PDF
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {appointments.length === 0 && encounters.length === 0 ? (
                 <p className="muted">No visits yet.</p>
-              ) : (
+              ) : appointments.length > 0 ? (
                 <ul className="mini-appt-list">
                   {[...appointments].sort((a,b)=>new Date(b.scheduledAt).getTime()-new Date(a.scheduledAt).getTime()).map((a) => (
                     <li key={a.id} className="mini-appt-row">
@@ -455,7 +632,7 @@ export function PatientDetail({ patient, appointments, clinicProfile, onBack, on
                     </li>
                   ))}
                 </ul>
-              )}
+              ) : null}
             </div>
           </div>
         )}

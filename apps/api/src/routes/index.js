@@ -30,6 +30,8 @@ import {
   submitPublicBooking,
 } from '../services/publicBooking.js';
 import { doctorsRouter } from '../modules/providers/doctors.routes.js';
+import { clinicalRouter } from '../modules/clinical/clinical.routes.js';
+import { listEncountersForPatient } from '../modules/clinical/encounters.service.js';
 import { createRateLimiter } from '../utils/rateLimiter.js';
 import {
   isSlugAvailable,
@@ -256,6 +258,7 @@ export function clinicRouter() {
   });
 
   api.use('/clinic/doctors', doctorsRouter());
+  api.use('/clinic', clinicalRouter());
 
   api.get('/patients', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
@@ -266,6 +269,7 @@ export function clinicRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     const timeline = getPatientTimeline(req.params.id, req.user.tenantId);
     if (!timeline) return res.status(404).json({ error: 'Patient not found' });
+    timeline.encounters = listEncountersForPatient(req.params.id, req.user.tenantId);
     res.json(timeline);
   });
 

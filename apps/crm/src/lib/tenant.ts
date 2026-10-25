@@ -49,6 +49,12 @@ function slugFromHostname(host: string): string | null {
 }
 
 export function getTenantLoginDefaults(slug: string | null) {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.includes('.run.app') || /staging/i.test(host)) {
+      return { user: '', pass: '', label: slug || 'Clinic workspace' };
+    }
+  }
   if (slug && TENANT_LOGIN_DEFAULTS[slug]) return TENANT_LOGIN_DEFAULTS[slug];
   return { user: 'Admin', pass: 'Kaana@2024', label: 'Platform admin' };
 }

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "CLINIC_FILES_STORAGE=memory CLINIC_FILES_PREFIX=clinic-files node --watch src/index.js",
     "test": "node --test src/**/*.test.js src/**/**/*.test.js",
     "migrate": "node scripts/migrate-from-kaana-db.js",
     "migrate:prod-download": "bash scripts/download-and-migrate.sh",
@@ -18,6 +18,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "nanoid": "^5.1.11"
+    "nanoid": "^5.1.11",
+    "pdfkit": "^0.17.2"
   }
 }

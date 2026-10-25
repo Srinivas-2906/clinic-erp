@@ -41,10 +41,47 @@ export interface Appointment {
   status: AppointmentStatus;
   assignedDoctor?: string;
   assignedDoctorId?: string | null;
+  encounterId?: string | null;
   notes?: string;
   source?: string;
   paymentAmount?: number | null;
   paymentMethod?: string;
+  createdAt?: string;
+}
+
+export interface VitalInput {
+  code: string;
+  value: string;
+  unit?: string;
+}
+
+export interface PrescriptionItemInput {
+  drugName: string;
+  dose?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
+}
+
+export interface Encounter {
+  id: string;
+  tenantId?: string;
+  patientId: string;
+  doctorId: string;
+  appointmentId?: string | null;
+  status: 'draft' | 'finalized';
+  chiefComplaint?: string;
+  historySummary?: string;
+  clinicalNote?: string;
+  vitals?: { id?: string; code: string; value: string; unit?: string }[];
+  diagnoses?: { id?: string; description: string; code?: string; isPrimary?: boolean }[];
+  prescription?: {
+    id?: string;
+    status?: string;
+    pdfStorageKey?: string;
+    items?: PrescriptionItemInput[];
+  } | null;
+  finalizedAt?: string | null;
   createdAt?: string;
 }
 
