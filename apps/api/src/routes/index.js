@@ -7,7 +7,19 @@ import {
   getPatients, createPatient, updatePatient, getPatientTimeline,
   getAppointments, createAppointment, updateAppointment,
   getTodayStats, getAvailableSlots, getAppointmentsRange,
+  PatientIdentityError,
 } from '../services/clinicStore.js';
+
+function respondPatientIdentityError(err, res) {
+  if (!(err instanceof PatientIdentityError)) return false;
+  const status = err.code === 'PATIENT_AMBIGUOUS' ? 409 : 400;
+  res.status(status).json({
+    error: err.message,
+    code: err.code,
+    candidates: err.details?.candidates,
+  });
+  return true;
+}
 import { createPayment, getPayments, getPaymentsRange, getPaymentSummary, updatePayment } from '../services/clinicPayments.js';
 import { logAudit, queryAuditLog, formatAuditCsv } from '../services/clinicAudit.js';
 import { checkAuditExportRateLimit } from '../services/clinicAuditExport.js';
@@ -133,6 +145,7 @@ router.post('/tenant/:slug/booking', (req, res) => {
     const result = submitPublicBooking(tenant.id, req.body ?? {});
     res.status(201).json(result);
   } catch (err) {
+    if (respondPatientIdentityError(err, res)) return;
     res.status(400).json({ error: err.message || 'Could not submit booking' });
   }
 });
@@ -376,6 +389,7 @@ export function clinicRouter() {
       logAudit(req.user.tenantId, req.user.sub, 'create', 'appointment', appt.id, { service: body.service });
       res.status(201).json(appt);
     } catch (err) {
+      if (respondPatientIdentityError(err, res)) return;
       res.status(400).json({ error: err.message });
     }
   });

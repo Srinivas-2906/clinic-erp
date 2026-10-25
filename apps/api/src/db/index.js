@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { nanoid } from 'nanoid';
 import { getCatalogTemplate } from '../templates/catalogTemplates.js';
 import { migrateTenantsToDoctors } from '../modules/providers/doctorMigration.js';
+import { migratePatientPhoneNonUnique } from '../modules/patients/patientPhoneMigration.js';
 import { initClinicalSchema } from '../modules/clinical/clinicalDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -84,7 +85,6 @@ export function initDatabase() {
       conversation_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(tenant_id, phone_digits),
       FOREIGN KEY (tenant_id) REFERENCES tenants(id)
     );
 
@@ -134,6 +134,7 @@ export function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_patients_tenant ON patients(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_patients_tenant_phone ON patients(tenant_id, phone_digits);
     CREATE INDEX IF NOT EXISTS idx_appointments_tenant ON appointments(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_payments_tenant ON patient_payments(tenant_id);
 
@@ -280,6 +281,7 @@ export function initDatabase() {
 
   initClinicalSchema(db);
 
+  migratePatientPhoneNonUnique(db);
   migrateTenantsToDoctors(db);
 
   syncDentaCareDemo();

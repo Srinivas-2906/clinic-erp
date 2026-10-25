@@ -751,6 +751,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
                         <div className="found-patient-name">{p.name}</div>
                         <div className="found-patient-meta">
                           {p.phone}
+                          {p.age != null && p.age > 0 ? ` · Age ${p.age}` : ''}
                           {p.lastVisit ? ` · Last ${fmtVisitDate(p.lastVisit)}` : ''}
                         </div>
                       </div>
