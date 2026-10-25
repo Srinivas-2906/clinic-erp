@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'patient-identity-'));
 const dbPath = path.join(tmpDir, 'test.db');
@@ -24,9 +25,12 @@ const {
 } = await import('../../services/clinicStore.js');
 const { migratePatientPhoneNonUnique } = await import('./patientPhoneMigration.js');
 const { migrateTenantsToDoctors } = await import('../providers/doctorMigration.js');
+const { identityPolicyForSource } = await import('./patientIdentity.js');
 
 const tenantA = 'tenant-family-a';
 const tenantB = 'tenant-family-b';
+let clinicianUserId;
+let defaultDoctorId;
 
 before(() => {
   initDatabase();
@@ -40,6 +44,14 @@ before(() => {
     VALUES (?, 'family-b', 'Family Clinic B', 'clinic', 'growth', 'active', '{}')
   `).run(tenantB);
   migrateTenantsToDoctors(db);
+  clinicianUserId = 'user-family-clinician';
+  const hash = bcrypt.hashSync('test', 4);
+  db.prepare(`
+    INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_platform_admin)
+    VALUES (?, ?, 'clinician@family-a.test', ?, 'Clinician', 'staff', 0)
+  `).run(clinicianUserId, tenantA, hash);
+  defaultDoctorId = db.prepare('SELECT id FROM doctors WHERE tenant_id = ? LIMIT 1').get(tenantA).id;
+  db.prepare('UPDATE doctors SET user_id = ? WHERE id = ?').run(clinicianUserId, defaultDoctorId);
 });
 
 after(() => {
@@ -134,17 +146,18 @@ describe('WhatsApp / inbound resolution', () => {
     assert.equal(resolved.name, 'WhatsApp Patient');
   });
 
-  it('creates a new family member when name differs on shared phone', () => {
+  it('does not link WhatsApp to existing chart by name+phone alone', () => {
     const phone = '9000022222';
     createPatient(tenantA, { name: 'Existing Member', phone });
-    const added = getOrCreatePatient({
-      tenantId: tenantA,
-      phone,
-      name: 'New Member',
-      source: 'WhatsApp',
-    });
-    assert.equal(added.name, 'New Member');
-    assert.equal(getPatientsByPhone(phone, tenantA).length, 2);
+    assert.throws(
+      () => getOrCreatePatient({
+        tenantId: tenantA,
+        phone,
+        name: 'Existing Member',
+        source: 'WhatsApp',
+      }),
+      (err) => err instanceof PatientIdentityError && err.code === 'PATIENT_AMBIGUOUS',
+    );
   });
 
   it('returns ambiguity when phone matches multiple and name omitted', () => {
@@ -155,15 +168,92 @@ describe('WhatsApp / inbound resolution', () => {
     );
   });
 
-  it('resolves when name uniquely matches one of several shared-phone patients', () => {
+  it('returns ambiguity for WhatsApp when any patient already uses the phone', () => {
+    const phone = '9876501234';
+    assert.throws(
+      () => getOrCreatePatient({ tenantId: tenantA, phone, name: 'Lakshmi Kumar', source: 'WhatsApp' }),
+      (err) => err instanceof PatientIdentityError && err.code === 'PATIENT_AMBIGUOUS',
+    );
+  });
+
+  it('website self-service can disambiguate by unique name among shared phone', () => {
     const phone = '9876501234';
     const picked = getOrCreatePatient({
       tenantId: tenantA,
       phone,
       name: 'Lakshmi Kumar',
-      source: 'WhatsApp',
+      source: 'Website',
     });
     assert.equal(picked.name, 'Lakshmi Kumar');
+  });
+
+  it('blocks rebinding conversation_id to a different patient', () => {
+    createPatient(tenantA, { name: 'Conv A', phone: '9000033331', conversationId: 'conv-dup' });
+    assert.throws(
+      () => createPatient(tenantA, { name: 'Conv B', phone: '9000033332', conversationId: 'conv-dup' }),
+      (err) => err instanceof PatientIdentityError && err.code === 'CONVERSATION_BOUND',
+    );
+  });
+});
+
+describe('parent and child shared phone', () => {
+  it('registers parent and child as separate charts', () => {
+    const phone = '9111222333';
+    const parent = createPatient(tenantA, { name: 'Parent Ali', phone, age: 40 });
+    const child = createPatient(tenantA, { name: 'Child Ali', phone, age: 10 });
+    assert.notEqual(parent.id, child.id);
+    assert.equal(getPatientsByPhone(phone, tenantA).length, 2);
+  });
+});
+
+describe('identical names on shared phone', () => {
+  it('website booking is ambiguous when two charts share name and phone', () => {
+    const phone = '9222333444';
+    createPatient(tenantA, { name: 'Twin Patient', phone });
+    createPatient(tenantA, { name: 'Twin Patient', phone });
+    assert.throws(
+      () => getOrCreatePatient({
+        tenantId: tenantA,
+        phone,
+        name: 'Twin Patient',
+        source: 'Website',
+      }),
+      (err) => err instanceof PatientIdentityError && err.code === 'PATIENT_AMBIGUOUS',
+    );
+  });
+});
+
+describe('separate clinical records per patient id', () => {
+  it('keeps encounters and prescriptions on the correct patient', () => {
+    const phone = '9333444555';
+    const parent = createPatient(tenantA, { name: 'Clinical Parent', phone });
+    const child = createPatient(tenantA, { name: 'Clinical Child', phone });
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO encounters (id, tenant_id, patient_id, doctor_id, appointment_id, status, chief_complaint, created_by, created_at, updated_at)
+      VALUES ('enc-parent', ?, ?, ?, NULL, 'draft', 'Parent tooth', ?, ?, ?),
+             ('enc-child', ?, ?, ?, NULL, 'draft', 'Child checkup', ?, ?, ?)
+    `).run(
+      tenantA, parent.id, defaultDoctorId, clinicianUserId, now, now,
+      tenantA, child.id, defaultDoctorId, clinicianUserId, now, now,
+    );
+    db.prepare(`
+      INSERT INTO prescriptions (id, tenant_id, encounter_id, status, created_at, updated_at)
+      VALUES ('rx-parent', ?, 'enc-parent', 'draft', ?, ?),
+             ('rx-child', ?, 'enc-child', 'draft', ?, ?)
+    `).run(tenantA, now, now, tenantA, now, now);
+
+    const parentEnc = db.prepare(`
+      SELECT e.chief_complaint, p.id AS rx_enc FROM encounters e
+      JOIN prescriptions p ON p.encounter_id = e.id WHERE e.patient_id = ?
+    `).get(parent.id);
+    const childEnc = db.prepare(`
+      SELECT e.chief_complaint FROM encounters e WHERE e.patient_id = ?
+    `).get(child.id);
+    assert.equal(parentEnc.chief_complaint, 'Parent tooth');
+    assert.equal(childEnc.chief_complaint, 'Child checkup');
+    assert.notEqual(parent.id, child.id);
   });
 });
 
@@ -227,7 +317,117 @@ describe('legacy phone uniqueness migration', () => {
     const count = db.prepare('SELECT COUNT(*) AS c FROM patients WHERE tenant_id = ? AND phone_digits = ?').get('t-legacy', '9000000099').c;
     assert.equal(count, 2);
 
+    const second = migratePatientPhoneNonUnique(db);
+    assert.equal(second.migrated, false);
+
     db.close();
     fs.rmSync(legacyDir, { recursive: true, force: true });
+  });
+
+  it('preserves encounters and payments linked to patient ids', () => {
+    const legacyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'patient-legacy-rich-'));
+    const legacyPath = path.join(legacyDir, 'rich.db');
+    const db = new Database(legacyPath);
+    db.pragma('foreign_keys = ON');
+    db.exec(`
+      CREATE TABLE tenants (id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL);
+      INSERT INTO tenants (id, slug, name) VALUES ('t-rich', 'rich', 'Rich');
+      CREATE TABLE patients (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        phone_digits TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        age INTEGER,
+        gender TEXT DEFAULT '',
+        chief_complaint TEXT DEFAULT '',
+        is_returning INTEGER DEFAULT 0,
+        tags TEXT DEFAULT '[]',
+        notes TEXT DEFAULT '[]',
+        last_visit TEXT,
+        source TEXT DEFAULT 'Walk-in',
+        photo_url TEXT DEFAULT '',
+        prescription_url TEXT DEFAULT '',
+        record_urls TEXT DEFAULT '[]',
+        conversation_id TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(tenant_id, phone_digits),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+      );
+      INSERT INTO patients (id, tenant_id, name, phone, phone_digits) VALUES ('pat-rich-1', 't-rich', 'Rich Pat', '+91 91111 11111', '9111111111');
+      CREATE TABLE appointments (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        service TEXT DEFAULT '',
+        scheduled_at TEXT NOT NULL,
+        status TEXT DEFAULT 'requested',
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      );
+      INSERT INTO appointments (id, tenant_id, patient_id, service, scheduled_at) VALUES ('appt-rich-1', 't-rich', 'pat-rich-1', 'Exam', '2030-02-01T10:00:00');
+      CREATE TABLE patient_payments (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        status TEXT DEFAULT 'paid',
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      );
+      INSERT INTO patient_payments (id, tenant_id, patient_id, amount) VALUES ('pay-rich-1', 't-rich', 'pat-rich-1', 500);
+      CREATE TABLE doctors (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO doctors (id, tenant_id, name) VALUES ('doc-rich', 't-rich', 'Dr Rich');
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT DEFAULT 'owner'
+      );
+      INSERT INTO users (id, tenant_id, email, password_hash, name) VALUES ('u-rich', 't-rich', 'u@rich.test', 'x', 'U');
+      CREATE TABLE encounters (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        doctor_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft',
+        chief_complaint TEXT DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      );
+      INSERT INTO encounters (id, tenant_id, patient_id, doctor_id, created_by, chief_complaint)
+        VALUES ('enc-rich-1', 't-rich', 'pat-rich-1', 'doc-rich', 'u-rich', 'Rich complaint');
+    `);
+
+    migratePatientPhoneNonUnique(db);
+    assert.equal(
+      db.prepare('SELECT patient_id FROM encounters WHERE id = ?').get('enc-rich-1').patient_id,
+      'pat-rich-1',
+    );
+    assert.equal(
+      db.prepare('SELECT patient_id FROM patient_payments WHERE id = ?').get('pay-rich-1').patient_id,
+      'pat-rich-1',
+    );
+
+    db.close();
+    fs.rmSync(legacyDir, { recursive: true, force: true });
+  });
+});
+
+describe('identity policy helper', () => {
+  it('uses strict inbound for WhatsApp and self-service for website', () => {
+    assert.equal(identityPolicyForSource('WhatsApp'), 'strict_inbound');
+    assert.equal(identityPolicyForSource('Website'), 'self_service_booking');
   });
 });

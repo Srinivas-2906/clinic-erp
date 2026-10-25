@@ -10,6 +10,8 @@ export class PatientIdentityError extends Error {
   }
 }
 
+/** @typedef {'strict_inbound' | 'self_service_booking'} IdentityPolicy */
+
 export function normalizePatientName(name) {
   return String(name || '')
     .trim()
@@ -22,6 +24,13 @@ export function phoneDigitsOnly(phone) {
   if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
   if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
   return digits;
+}
+
+/** Inbound WhatsApp/SMS must not link charts by name+phone alone (clinical safety). */
+export function identityPolicyForSource(source) {
+  const s = String(source || '').trim().toLowerCase();
+  if (s === 'website' || s === 'web') return 'self_service_booking';
+  return 'strict_inbound';
 }
 
 /** @param {import('better-sqlite3').Database} db */
@@ -43,8 +52,22 @@ export function findPatientByConversationId(db, tenantId, conversationId) {
     .get(tenantId, conversationId);
 }
 
+function ambiguousError(matches) {
+  return new PatientIdentityError(
+    'PATIENT_AMBIGUOUS',
+    'Multiple patients share this phone number, or identity cannot be confirmed automatically. Staff must select the correct patient.',
+    {
+      candidates: matches.map((row) => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+      })),
+    },
+  );
+}
+
 /**
- * Resolve patient for WhatsApp / website / phone-only booking flows.
+ * Resolve patient for automated channels (WhatsApp, website booking).
  * @param {import('better-sqlite3').Database} db
  * @param {{
  *   tenantId: string;
@@ -52,6 +75,7 @@ export function findPatientByConversationId(db, tenantId, conversationId) {
  *   patientName?: string;
  *   conversationId?: string;
  *   source?: string;
+ *   identityPolicy?: IdentityPolicy;
  *   chiefComplaint?: string;
  *   age?: number | null;
  *   createIfMissing?: boolean;
@@ -67,6 +91,7 @@ export function resolvePatientForInbound(opts) {
     patientName,
     conversationId,
     source = 'WhatsApp',
+    identityPolicy = identityPolicyForSource(source),
     chiefComplaint,
     age,
     createIfMissing = true,
@@ -89,6 +114,10 @@ export function resolvePatientForInbound(opts) {
   const matches = listPatientsByPhoneDigits(db, tenantId, phone);
   const nameNorm = patientName ? normalizePatientName(patientName) : '';
 
+  if (identityPolicy === 'strict_inbound' && matches.length > 0) {
+    throw ambiguousError(matches);
+  }
+
   if (matches.length === 0) {
     if (!createIfMissing) {
       throw new PatientIdentityError('PATIENT_NOT_FOUND', 'No patient found for this phone');
@@ -106,7 +135,7 @@ export function resolvePatientForInbound(opts) {
     });
   }
 
-  if (nameNorm.length >= 2) {
+  if (identityPolicy === 'self_service_booking' && nameNorm.length >= 2) {
     const byName = matches.filter((row) => normalizePatientName(row.name) === nameNorm);
     if (byName.length === 1) {
       return patchPatientMetadata(byName[0].id, tenantId, {
@@ -125,17 +154,10 @@ export function resolvePatientForInbound(opts) {
         conversationId,
       });
     }
+    if (byName.length > 1) {
+      throw ambiguousError(byName);
+    }
   }
 
-  throw new PatientIdentityError(
-    'PATIENT_AMBIGUOUS',
-    'Multiple patients share this phone number. Select the correct patient or use a full name that matches one record.',
-    {
-      candidates: matches.map((row) => ({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-      })),
-    },
-  );
+  throw ambiguousError(matches);
 }

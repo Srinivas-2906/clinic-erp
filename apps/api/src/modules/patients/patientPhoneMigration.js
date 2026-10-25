@@ -52,11 +52,35 @@ export function ensurePatientPhoneLookupIndex(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_patients_tenant_phone ON patients(tenant_id, phone_digits)');
 }
 
+function assertNoOrphanPatientReferences(db) {
+  const checks = [
+    ['appointments', 'patient_id'],
+    ['patient_payments', 'patient_id'],
+    ['encounters', 'patient_id'],
+    ['patient_allergies', 'patient_id'],
+    ['follow_ups', 'patient_id'],
+  ];
+  for (const [table, col] of checks) {
+    const exists = db.prepare(
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`,
+    ).get(table);
+    if (!exists) continue;
+    const orphans = db.prepare(`
+      SELECT COUNT(*) AS c FROM ${table} t
+      WHERE NOT EXISTS (SELECT 1 FROM patients p WHERE p.id = t.${col})
+    `).get()?.c ?? 0;
+    if (orphans > 0) {
+      throw new Error(`Refusing patient migration: orphan ${table}.${col} references (${orphans})`);
+    }
+  }
+}
+
 /**
  * @param {import('better-sqlite3').Database} db
  * @returns {{ migrated: boolean; patientCount: number }}
  */
 export function migratePatientPhoneNonUnique(db) {
+  db.exec('DROP TABLE IF EXISTS patients_new');
   ensurePatientPhoneLookupIndex(db);
 
   if (!patientsTableHasPhoneUnique(db)) {
@@ -65,13 +89,7 @@ export function migratePatientPhoneNonUnique(db) {
   }
 
   const beforeIds = db.prepare('SELECT id FROM patients ORDER BY id').all().map((r) => r.id);
-  const apptRefs = db.prepare(`
-    SELECT COUNT(*) AS c FROM appointments a
-    WHERE NOT EXISTS (SELECT 1 FROM patients p WHERE p.id = a.patient_id)
-  `).get()?.c ?? 0;
-  if (apptRefs > 0) {
-    throw new Error('Refusing patient migration: orphan appointment patient references');
-  }
+  assertNoOrphanPatientReferences(db);
 
   db.pragma('foreign_keys = OFF');
   try {

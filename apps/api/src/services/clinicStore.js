@@ -19,6 +19,7 @@ import {
   PatientIdentityError,
   resolvePatientForInbound,
   listPatientsByPhoneDigits,
+  findPatientByConversationId,
 } from '../modules/patients/patientIdentity.js';
 
 export { PatientIdentityError };
@@ -135,6 +136,17 @@ export function getClinicHours(tenantId) {
 function insertPatientRow(tenantId, data) {
   const digits = phoneDigits(data.phone);
   if (!digits) throw new Error('Phone required');
+  const db = getDb();
+  if (data.conversationId) {
+    const bound = findPatientByConversationId(db, tenantId, data.conversationId);
+    if (bound) {
+      throw new PatientIdentityError(
+        'CONVERSATION_BOUND',
+        'This conversation is already linked to another patient',
+        { patientId: bound.id },
+      );
+    }
+  }
   const id = nanoid(12);
   getDb().prepare(`
     INSERT INTO patients (id, tenant_id, name, phone, phone_digits, email, age, gender, chief_complaint, is_returning, tags, notes, source, photo_url, prescription_url, record_urls, conversation_id)
@@ -178,6 +190,14 @@ function patchPatientMetadata(id, tenantId, patch) {
     vals.push(patch.age);
   }
   if (patch.conversationId) {
+    const bound = findPatientByConversationId(db, tenantId, patch.conversationId);
+    if (bound && bound.id !== id) {
+      throw new PatientIdentityError(
+        'CONVERSATION_BOUND',
+        'This conversation is already linked to another patient',
+        { patientId: bound.id },
+      );
+    }
     updates.push('conversation_id = ?');
     vals.push(patch.conversationId);
   }
