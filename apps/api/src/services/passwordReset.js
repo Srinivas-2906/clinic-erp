@@ -70,7 +70,10 @@ export function requestPasswordReset(tenantId, emailRaw) {
   }).catch(() => {});
 
   const out = genericSuccess();
-  if (process.env.CLINIC_PASSWORD_RESET_EXPOSE_TOKEN === '1') {
+  const allowDevExpose = process.env.CLINIC_PASSWORD_RESET_EXPOSE_TOKEN === '1'
+    && process.env.NODE_ENV !== 'production'
+    && process.env.CLINIC_ALLOW_RESET_TOKEN_EXPOSE === '1';
+  if (allowDevExpose) {
     out.resetUrl = resetUrl;
     out.devToken = rawToken;
   }

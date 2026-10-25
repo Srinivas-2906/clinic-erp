@@ -29,7 +29,6 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [businessName, setBusinessName] = useState('');
   const [mode, setMode] = useState<'login' | 'request' | 'forgot'>('login');
-  const [requestPurpose, setRequestPurpose] = useState<'access' | 'password'>('access');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
   const [requestName, setRequestName] = useState('');
@@ -246,7 +245,7 @@ export function LoginGate({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               className="login-switch-mode"
-              onClick={() => { setMode('request'); setRequestPurpose('access'); setError(''); setRequestSent(false); }}
+              onClick={() => { setMode('request'); setError(''); setRequestSent(false); }}
             >
               <UserPlus size={14} /> Need access? Request
             </button>

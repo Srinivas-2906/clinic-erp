@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab } from '../helpers/navigation';
-import { continueBookAfterTreatment, pickFirstBookSlot } from '../helpers/booking';
+import { continueBookAfterTreatment, pickFirstBookSlot, ensureBookableScheduleDate } from '../helpers/booking';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 
 const API = process.env.E2E_API_URL || 'https://clinic-api-staging-339065153036.asia-south1.run.app';
@@ -140,15 +140,14 @@ test.describe('Staging pilot journey (real UI)', () => {
     await expect(page.locator('.login-screen')).toBeVisible({ timeout: 15_000 });
   });
 
-  test('scheduled booking path', async ({ authedPage: page }) => {
+  test('scheduled booking → check-in → consult', async ({ authedPage: page }) => {
     test.skip(!process.env.E2E_STAGING, 'Set E2E_STAGING=1 for staging browser QA');
-    test.skip(true, 'Staging slot picker varies by calendar load; walk-in path covers reception booking');
     const phone = uniquePhone();
     const name = `Sched ${Date.now().toString().slice(-5)}`;
     await goToTab(page, 'book');
     await page.getByRole('tab', { name: /schedule/i }).click();
     await page.locator('#book-search').fill(phone);
-    await page.waitForTimeout(1200);
+    await expect(page.getByRole('button', { name: /register new patient/i })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: /register new patient/i }).click();
     await page.getByPlaceholder('Patient name').fill(name);
     await page.getByPlaceholder('10-digit mobile').fill(phone);
@@ -156,9 +155,30 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.getByRole('button', { name: 'Next' }).click();
     await page.locator('.form-select').first().selectOption({ index: 0 });
     await continueBookAfterTreatment(page, 'schedule');
+    await ensureBookableScheduleDate(page);
     await pickFirstBookSlot(page);
     await page.getByRole('button', { name: 'Review' }).click();
     await page.getByRole('button', { name: /book appointment/i }).click();
     await expect(page.locator('.book-view, .today-view, .overview-view')).toBeVisible({ timeout: 20_000 });
+
+    await goToTab(page, 'today');
+    await dismissPilotBanner(page);
+    await page.getByRole('button', { name: 'Refresh' }).first().click();
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
+    const card = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
+    const advance = card.locator('button.board-card-advance, button.action-done').first();
+    const t0 = await advance.innerText();
+    if (/confirm/i.test(t0)) await advance.click();
+    await page.waitForTimeout(600);
+    const card2 = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
+    const adv2 = card2.locator('button.board-card-advance, button.action-done').first();
+    if (/arrived/i.test(await adv2.innerText())) await adv2.click();
+    await page.waitForTimeout(600);
+    const card3 = page.locator('.appt-card, .board-card').filter({ hasText: name }).first();
+    await card3.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 25_000 });
+    await page.locator('#consult-complaint').fill('Scheduled visit QA');
+    await page.getByRole('button', { name: /save draft/i }).click();
+    await expect(page.getByText(/consultation saved/i)).toBeVisible({ timeout: 15_000 });
   });
 });

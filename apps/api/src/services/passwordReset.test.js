@@ -6,6 +6,8 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 
 process.env.CLINIC_PASSWORD_RESET_EXPOSE_TOKEN = '1';
+process.env.CLINIC_ALLOW_RESET_TOKEN_EXPOSE = '1';
+process.env.NODE_ENV = 'test';
 process.env.CLINIC_EMAIL_PROVIDER = 'console';
 
 const tmpDb = path.join(os.tmpdir(), `pwd-reset-${Date.now()}.db`);

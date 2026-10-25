@@ -27,7 +27,12 @@ export async function deliverMail({ to, subject, text }) {
   if (!to) return { delivered: false, reason: 'no_recipient' };
 
   if (PROVIDER === 'console' || PROVIDER === 'log') {
-    console.info('[clinic-email:console]', JSON.stringify({ to, subject, preview: text.slice(0, 200) }));
+    console.info('[clinic-email:console]', JSON.stringify({
+      to,
+      subject,
+      bodyBytes: text.length,
+      note: 'Reset link omitted from logs',
+    }));
     return { delivered: true, provider: 'console' };
   }
 
