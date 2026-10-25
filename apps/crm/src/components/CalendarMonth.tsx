@@ -76,6 +76,7 @@ export function CalendarMonth({ year, month, selectedDate, counts, onSelectDate,
               key={ymd}
               type="button"
               role="gridcell"
+              data-ymd={ymd}
               className={[
                 'calendar-cell',
                 isToday ? 'calendar-cell-today' : '',
