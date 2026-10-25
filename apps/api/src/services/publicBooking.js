@@ -1,5 +1,5 @@
 import { getCatalogItems } from '../db/index.js';
-import { createAppointment, getAvailableSlots } from './clinicStore.js';
+import { createAppointment, getAvailableSlots, PatientIdentityError } from './clinicStore.js';
 import { findSlotOption } from '../modules/scheduling/slotEngine.js';
 import { logAudit } from './clinicAudit.js';
 import { createRateLimiter } from '../utils/rateLimiter.js';
@@ -109,17 +109,27 @@ export function submitPublicBooking(tenantId, body) {
     assignedDoctorId = match.doctorId;
   }
 
-  const appt = createAppointment(tenantId, {
-    phone,
-    patientName: name,
-    service,
-    scheduledAt,
-    notes: notes || undefined,
-    status: 'requested',
-    source: 'Website',
-    chiefComplaint: service,
-    assignedDoctorId: slot ? assignedDoctorId : undefined,
-  });
+  let appt;
+  try {
+    appt = createAppointment(tenantId, {
+      phone,
+      patientName: name,
+      service,
+      scheduledAt,
+      notes: notes || undefined,
+      status: 'requested',
+      source: 'Website',
+      chiefComplaint: service,
+      assignedDoctorId: slot ? assignedDoctorId : undefined,
+    });
+  } catch (err) {
+    if (err instanceof PatientIdentityError && err.code === 'PATIENT_AMBIGUOUS') {
+      throw new Error(
+        'More than one patient is registered with this phone number. Please call the clinic to complete your booking.',
+      );
+    }
+    throw err;
+  }
 
   logAudit(tenantId, null, 'create', 'appointment', appt.id, {
     source: 'website-booking',

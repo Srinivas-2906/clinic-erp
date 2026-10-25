@@ -145,8 +145,9 @@ function initTargetSchema(target) {
       record_urls TEXT DEFAULT '[]',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(tenant_id, phone_digits)
+      FOREIGN KEY (tenant_id) REFERENCES tenants(id)
     );
+    CREATE INDEX IF NOT EXISTS idx_patients_tenant_phone ON patients(tenant_id, phone_digits);
     CREATE TABLE IF NOT EXISTS appointments (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,

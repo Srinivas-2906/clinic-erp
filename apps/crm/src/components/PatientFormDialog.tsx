@@ -124,6 +124,11 @@ export function PatientFormDialog({ patient, onClose, onSaved, onToast }: Props)
         : await createPatient(payload as { name: string; phone: string });
 
       onToast(isEdit ? 'Patient updated' : 'Patient added');
+      const shared = (saved as Patient & { sharedPhonePatients?: { id: string; name: string }[] }).sharedPhonePatients;
+      if (!isEdit && shared?.length) {
+        const names = shared.map((p) => p.name).slice(0, 3).join(', ');
+        onToast(`Same phone as: ${names}${shared.length > 3 ? '…' : ''}. Each person keeps a separate chart.`, 'ok');
+      }
       onSaved(saved);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not save patient';

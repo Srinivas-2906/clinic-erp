@@ -15,6 +15,13 @@ import {
   scheduleRecallReminder,
   clearAppointmentReminders,
 } from './reminders/index.js';
+import {
+  PatientIdentityError,
+  resolvePatientForInbound,
+  listPatientsByPhoneDigits,
+} from '../modules/patients/patientIdentity.js';
+
+export { PatientIdentityError };
 
 function formatPhone(phone) {
   const digits = String(phone).replace(/\D/g, '');
@@ -125,67 +132,13 @@ export function getClinicHours(tenantId) {
   return sessions[0] ?? DEFAULT_HOURS;
 }
 
-export function getOrCreatePatient({ phone, name, tenantId, source = 'WhatsApp', chiefComplaint, age, conversationId }) {
-  const db = getDb();
-  const digits = phoneDigits(phone);
-  let row = db.prepare('SELECT * FROM patients WHERE tenant_id = ? AND phone_digits = ?').get(tenantId, digits);
-  if (row) {
-    const updates = [];
-    const vals = [];
-    if (name && name !== 'WhatsApp User' && name !== 'WhatsApp Lead') {
-      updates.push('name = ?');
-      vals.push(name);
-    }
-    if (chiefComplaint) {
-      updates.push('chief_complaint = ?');
-      vals.push(chiefComplaint);
-    }
-    if (age != null) {
-      updates.push('age = ?');
-      vals.push(age);
-    }
-    if (conversationId) {
-      updates.push('conversation_id = ?');
-      vals.push(conversationId);
-    }
-    if (updates.length) {
-      updates.push("updated_at = datetime('now')");
-      vals.push(row.id);
-      db.prepare(`UPDATE patients SET ${updates.join(', ')} WHERE id = ?`).run(...vals);
-      row = db.prepare('SELECT * FROM patients WHERE id = ?').get(row.id);
-    }
-    return rowToPatient(row);
-  }
-
-  const id = nanoid(12);
-  db.prepare(`
-    INSERT INTO patients (id, tenant_id, name, phone, phone_digits, chief_complaint, age, source, conversation_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    tenantId,
-    name || 'New Patient',
-    formatPhone(phone),
-    digits,
-    chiefComplaint || '',
-    age ?? null,
-    source,
-    conversationId || null,
-  );
-  row = db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
-  return rowToPatient(row);
-}
-
-export function createPatient(tenantId, data) {
+function insertPatientRow(tenantId, data) {
   const digits = phoneDigits(data.phone);
   if (!digits) throw new Error('Phone required');
-  const existing = getDb().prepare('SELECT id FROM patients WHERE tenant_id = ? AND phone_digits = ?').get(tenantId, digits);
-  if (existing) return updatePatient(existing.id, tenantId, data);
-
   const id = nanoid(12);
   getDb().prepare(`
-    INSERT INTO patients (id, tenant_id, name, phone, phone_digits, email, age, gender, chief_complaint, is_returning, tags, notes, source, photo_url, prescription_url, record_urls)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO patients (id, tenant_id, name, phone, phone_digits, email, age, gender, chief_complaint, is_returning, tags, notes, source, photo_url, prescription_url, record_urls, conversation_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     tenantId,
@@ -203,8 +156,63 @@ export function createPatient(tenantId, data) {
     data.photoUrl || '',
     data.prescriptionUrl || '',
     JSON.stringify(Array.isArray(data.recordUrls) ? data.recordUrls : []),
+    data.conversationId || null,
   );
   return rowToPatient(getDb().prepare('SELECT * FROM patients WHERE id = ?').get(id));
+}
+
+/** Inbound channels: update metadata only — never rename an existing chart from phone alone. */
+function patchPatientMetadata(id, tenantId, patch) {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM patients WHERE id = ? AND tenant_id = ?').get(id, tenantId);
+  if (!row) return null;
+
+  const updates = [];
+  const vals = [];
+  if (patch.chiefComplaint) {
+    updates.push('chief_complaint = ?');
+    vals.push(patch.chiefComplaint);
+  }
+  if (patch.age != null) {
+    updates.push('age = ?');
+    vals.push(patch.age);
+  }
+  if (patch.conversationId) {
+    updates.push('conversation_id = ?');
+    vals.push(patch.conversationId);
+  }
+  if (updates.length) {
+    updates.push("updated_at = datetime('now')");
+    vals.push(id);
+    db.prepare(`UPDATE patients SET ${updates.join(', ')} WHERE id = ?`).run(...vals);
+  }
+  return rowToPatient(db.prepare('SELECT * FROM patients WHERE id = ?').get(id));
+}
+
+export function getOrCreatePatient({ phone, name, tenantId, source = 'WhatsApp', chiefComplaint, age, conversationId }) {
+  return resolvePatientForInbound({
+    db: getDb(),
+    tenantId,
+    phone,
+    patientName: name,
+    conversationId,
+    source,
+    chiefComplaint,
+    age,
+    createIfMissing: true,
+    insertPatient: insertPatientRow,
+    patchPatientMetadata,
+  });
+}
+
+/** Explicit desk registration — always creates a new patient row (never overwrites by phone). */
+export function createPatient(tenantId, data) {
+  const patient = insertPatientRow(tenantId, data);
+  const others = listPatientsByPhoneDigits(getDb(), tenantId, data.phone).filter((row) => row.id !== patient.id);
+  if (others.length) {
+    patient.sharedPhonePatients = others.map((row) => ({ id: row.id, name: row.name }));
+  }
+  return patient;
 }
 
 export function updatePatient(id, tenantId, patch) {
@@ -303,22 +311,30 @@ export function getPatientById(id, tenantId) {
   return rowToPatient(row);
 }
 
+export function getPatientsByPhone(phone, tenantId) {
+  return listPatientsByPhoneDigits(getDb(), tenantId, phone).map(rowToPatient);
+}
+
+/** @deprecated Prefer getPatientsByPhone — returns first match only. */
 export function getPatientByPhone(phone, tenantId) {
-  const digits = phoneDigits(phone);
-  const row = getDb().prepare('SELECT * FROM patients WHERE tenant_id = ? AND phone_digits = ?').get(tenantId, digits);
-  return rowToPatient(row);
+  return getPatientsByPhone(phone, tenantId)[0] ?? null;
 }
 
 export function createAppointment(tenantId, data) {
   const db = getDb();
-  let patient = data.patientId
-    ? getPatientById(data.patientId, tenantId)
-    : data.phone
-      ? getOrCreatePatient({ phone: data.phone, name: data.patientName, tenantId, source: data.source || 'WhatsApp', chiefComplaint: data.service })
-      : null;
-
-  if (!patient && data.patientName) {
-    patient = createPatient(tenantId, { name: data.patientName, phone: data.phone || '', source: data.source || 'Walk-in' });
+  let patient = null;
+  if (data.patientId) {
+    patient = getPatientById(data.patientId, tenantId);
+    if (!patient) throw new Error('Patient not found');
+  } else if (data.phone || data.patientName) {
+    patient = getOrCreatePatient({
+      phone: data.phone,
+      name: data.patientName,
+      tenantId,
+      source: data.source || 'WhatsApp',
+      chiefComplaint: data.service || data.chiefComplaint,
+      conversationId: data.conversationId,
+    });
   }
   if (!patient) throw new Error('Patient required');
 
