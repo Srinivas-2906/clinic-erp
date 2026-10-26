@@ -1,5 +1,7 @@
 import { nanoid } from 'nanoid';
 import { getDb } from '../db/index.js';
+import { assertCapability, canManageFinancials, canRecordPayments } from '../modules/identity/rolePolicy.js';
+import { applyPaymentToInvoice } from './patientInvoices.js';
 
 function rowToPayment(row) {
   return {
@@ -13,15 +15,28 @@ function rowToPayment(row) {
     reference: row.reference || '',
     notes: row.notes || '',
     status: row.status,
+    kind: row.kind || 'payment',
+    invoiceId: row.invoice_id || null,
+    relatedPaymentId: row.related_payment_id || null,
     createdAt: row.created_at,
   };
 }
 
-export function createPayment(tenantId, data) {
+export function createPayment(tenantId, user, data) {
+  assertCapability(user, canRecordPayments, 'Owner or receptionist required to record payments');
+  const db = getDb();
+  if (data.idempotencyKey) {
+    const existing = db.prepare(`
+      SELECT id FROM patient_payments WHERE tenant_id = ? AND idempotency_key = ?
+    `).get(tenantId, data.idempotencyKey);
+    if (existing) return getPaymentById(existing.id, tenantId);
+  }
   const id = nanoid(12);
-  getDb().prepare(`
-    INSERT INTO patient_payments (id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  db.prepare(`
+    INSERT INTO patient_payments (
+      id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
+      invoice_id, kind, idempotency_key
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'payment', ?)
   `).run(
     id,
     tenantId,
@@ -32,8 +47,14 @@ export function createPayment(tenantId, data) {
     data.reference || '',
     data.notes || '',
     data.status || 'paid',
+    data.invoiceId || null,
+    data.idempotencyKey || null,
   );
-  return getPaymentById(id, tenantId);
+  const payment = getPaymentById(id, tenantId);
+  if (data.invoiceId) {
+    applyPaymentToInvoice(tenantId, user, data.invoiceId, payment);
+  }
+  return payment;
 }
 
 export function getPaymentById(id, tenantId) {
@@ -106,7 +127,11 @@ export function getPaymentSummary(tenantId) {
   return { todayTotal, monthTotal, dueCount };
 }
 
-export function updatePayment(id, tenantId, patch = {}) {
+export function updatePayment(id, tenantId, user, patch = {}) {
+  const sensitive = patch.amount != null || patch.status != null || patch.kind != null;
+  if (sensitive) {
+    assertCapability(user, canManageFinancials, 'Owner required to adjust payment amounts or status');
+  }
   const fields = [];
   const params = [];
 

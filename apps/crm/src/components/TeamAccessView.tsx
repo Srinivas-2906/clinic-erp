@@ -17,6 +17,7 @@ export function TeamAccessView({ onToast }: Props) {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<{ email: string; url: string } | null>(null);
+  const [approveRole, setApproveRole] = useState<'receptionist' | 'doctor'>('receptionist');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,9 +38,11 @@ export function TeamAccessView({ onToast }: Props) {
   async function handleApprove(id: string) {
     setBusyId(id);
     try {
-      const result = await approveAccessRequest(id);
+      const result = await approveAccessRequest(id, { role: approveRole });
       setInviteLink({ email: result.user.email, url: result.setPasswordUrl });
-      onToast(`Approved ${result.user.email}. Share the link with them.`);
+      onToast(result.emailDelivery === 'queued'
+        ? `Approved ${result.user.email}. Invite email queued; copy link if needed.`
+        : `Approved ${result.user.email}. Share the setup link.`);
       await load();
     } catch (err) {
       onToast(err instanceof Error ? err.message : 'Could not approve', 'err');
@@ -82,6 +85,13 @@ export function TeamAccessView({ onToast }: Props) {
           </p>
         </div>
         <div className="team-access-filters">
+          <label className="team-role-select">
+            Role on approve
+            <select value={approveRole} onChange={(e) => setApproveRole(e.target.value as 'receptionist' | 'doctor')}>
+              <option value="receptionist">Receptionist</option>
+              <option value="doctor">Doctor</option>
+            </select>
+          </label>
           <button
             type="button"
             className={`team-filter-btn${filter === 'pending' ? ' active' : ''}`}

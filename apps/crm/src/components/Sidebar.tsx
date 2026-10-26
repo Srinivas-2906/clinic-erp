@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield, Settings } from 'lucide-react';
 import { logout } from '../lib/auth';
 import type { TabId } from '../types';
 
@@ -14,6 +14,7 @@ const NAV_ITEMS: { id: TabId; label: string; Icon: React.ElementType }[] = [
 const OWNER_ITEMS: { id: TabId; label: string; Icon: React.ElementType }[] = [
   { id: 'doctors', label: 'Doctors', Icon: Stethoscope },
   { id: 'team',    label: 'Team',    Icon: UserCog },
+  { id: 'settings', label: 'Settings', Icon: Settings },
   { id: 'audit',   label: 'Activity', Icon: Shield },
 ];
 

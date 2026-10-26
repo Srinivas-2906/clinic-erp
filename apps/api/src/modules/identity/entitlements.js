@@ -53,7 +53,7 @@ export function countActiveDoctors(tenantId) {
 
 export function countStaffUsers(tenantId) {
   const row = getDb().prepare(
-    `SELECT COUNT(*) AS c FROM users WHERE tenant_id = ? AND role = 'staff'`,
+    `SELECT COUNT(*) AS c FROM users WHERE tenant_id = ? AND role IN ('staff', 'receptionist', 'doctor')`,
   ).get(tenantId);
   return row?.c ?? 0;
 }

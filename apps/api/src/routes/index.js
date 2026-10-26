@@ -21,6 +21,19 @@ function respondPatientIdentityError(err, res) {
   return true;
 }
 import { createPayment, getPayments, getPaymentsRange, getPaymentSummary, updatePayment } from '../services/clinicPayments.js';
+import {
+  createInvoice,
+  listInvoices,
+  getInvoiceById,
+  voidInvoice,
+  createRefund,
+} from '../services/patientInvoices.js';
+import { getClinicSettings, updateClinicSettings } from '../services/clinicSettings.js';
+import {
+  assertCapability,
+  canManagePatients,
+  canManageAppointments,
+} from '../modules/identity/rolePolicy.js';
 import { logAudit, queryAuditLog, formatAuditCsv } from '../services/clinicAudit.js';
 import { checkAuditExportRateLimit } from '../services/clinicAuditExport.js';
 import { getTenantEntitlements, canExportAudit } from '../modules/identity/entitlements.js';
@@ -326,6 +339,11 @@ export function clinicRouter() {
 
   api.post('/patients', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      assertCapability(req.user, canManagePatients, 'Not allowed to register patients');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message });
+    }
     const { name, phone, email, age, gender, chiefComplaint, isReturning, source, photoUrl, prescriptionUrl, recordUrls } = req.body ?? {};
     if (!name || !phone) return res.status(400).json({ error: 'Name and phone required' });
     try {
@@ -341,6 +359,11 @@ export function clinicRouter() {
 
   api.patch('/patients/:id', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      assertCapability(req.user, canManagePatients, 'Not allowed to update patients');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message });
+    }
     const patient = updatePatient(req.params.id, req.user.tenantId, req.body ?? {});
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     logAudit(req.user.tenantId, req.user.sub, 'update', 'patient', patient.id, req.body ?? {});
@@ -382,6 +405,11 @@ export function clinicRouter() {
 
   api.post('/appointments', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      assertCapability(req.user, canManageAppointments, 'Not allowed to book appointments');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message });
+    }
     const body = req.body ?? {};
     if (!body.scheduledAt) return res.status(400).json({ error: 'scheduledAt required' });
     try {
@@ -396,6 +424,11 @@ export function clinicRouter() {
 
   api.patch('/appointments/:id', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      assertCapability(req.user, canManageAppointments, 'Not allowed to update appointments');
+    } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message });
+    }
     const appt = updateAppointment(req.params.id, req.user.tenantId, req.body ?? {});
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
     logAudit(req.user.tenantId, req.user.sub, 'update', 'appointment', appt.id, req.body ?? {});
@@ -425,17 +458,104 @@ export function clinicRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     const { patientId, appointmentId, amount, method, reference, notes, status } = req.body ?? {};
     if (!patientId || amount == null) return res.status(400).json({ error: 'patientId and amount required' });
-    const payment = createPayment(req.user.tenantId, { patientId, appointmentId, amount: Number(amount), method, reference, notes, status });
-    logAudit(req.user.tenantId, req.user.sub, 'create', 'payment', payment.id, { amount });
-    res.status(201).json(payment);
+    try {
+      const payment = createPayment(req.user.tenantId, req.user, {
+        patientId,
+        appointmentId,
+        amount: Number(amount),
+        method,
+        reference,
+        notes,
+        status,
+        invoiceId: req.body?.invoiceId,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      logAudit(req.user.tenantId, req.user.sub, 'create', 'payment', payment.id, { amount });
+      res.status(201).json(payment);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not record payment' });
+    }
+  });
+
+  api.post('/clinic/payments/:id/refund', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const row = createRefund(req.user.tenantId, req.user, {
+        paymentId: req.params.id,
+        amount: req.body?.amount != null ? Number(req.body.amount) : undefined,
+        notes: req.body?.notes,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.status(201).json(row);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not refund' });
+    }
   });
 
   api.patch('/clinic/payments/:id', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
-    const payment = updatePayment(req.params.id, req.user.tenantId, req.body ?? {});
-    if (!payment) return res.status(404).json({ error: 'Payment not found' });
-    logAudit(req.user.tenantId, req.user.sub, 'update', 'payment', payment.id, req.body ?? {});
-    res.json(payment);
+    try {
+      const payment = updatePayment(req.params.id, req.user.tenantId, req.user, req.body ?? {});
+      if (!payment) return res.status(404).json({ error: 'Payment not found' });
+      logAudit(req.user.tenantId, req.user.sub, 'update', 'payment', payment.id, req.body ?? {});
+      res.json(payment);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not update payment' });
+    }
+  });
+
+  api.get('/clinic/invoices', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    res.json({
+      invoices: listInvoices(req.user.tenantId, {
+        patientId: req.query.patientId,
+        status: req.query.status,
+      }),
+    });
+  });
+
+  api.get('/clinic/invoices/:id', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    const inv = getInvoiceById(req.params.id, req.user.tenantId);
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+    res.json(inv);
+  });
+
+  api.post('/clinic/invoices', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const inv = createInvoice(req.user.tenantId, req.user, req.body ?? {});
+      res.status(201).json(inv);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not create invoice' });
+    }
+  });
+
+  api.post('/clinic/invoices/:id/void', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const inv = voidInvoice(req.user.tenantId, req.user, req.params.id, { reason: req.body?.reason });
+      res.json(inv);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not void invoice' });
+    }
+  });
+
+  api.get('/clinic/settings', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    const settings = getClinicSettings(req.user.tenantId);
+    if (!settings) return res.status(404).json({ error: 'Tenant not found' });
+    res.json(settings);
+  });
+
+  api.patch('/clinic/settings', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const settings = updateClinicSettings(req.user.tenantId, req.user, req.body ?? {});
+      res.json(settings);
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message || 'Could not update settings' });
+    }
   });
 
   api.post('/clinic/uploads', authMiddleware, requireLiveTenant, async (req, res) => {

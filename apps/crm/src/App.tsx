@@ -15,6 +15,7 @@ import { GlobalSearchDialog } from './components/GlobalSearchDialog';
 import { TeamAccessView } from './components/TeamAccessView';
 import { DoctorsView } from './components/DoctorsView';
 import { AuditView } from './components/AuditView';
+import { ClinicSettingsView } from './components/ClinicSettingsView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
 import { PilotSetupChecklist } from './components/PilotSetupChecklist';
 import { useDoctors } from './hooks/useDoctors';
@@ -29,7 +30,7 @@ import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment, En
 import './styles.css';
 
 const ROUTE_TABS = new Set<TabId>([
-  'overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team', 'audit',
+  'overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team', 'audit', 'settings',
 ]);
 
 function readAppRoute() {
@@ -60,6 +61,7 @@ const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
   doctors:   { title: 'Doctors',   sub: 'Manage clinic doctors' },
   team:      { title: 'Team',      sub: 'Approve staff login' },
   audit:     { title: 'Activity',  sub: 'Owner audit trail' },
+  settings:  { title: 'Settings',  sub: 'Clinic profile and timezone' },
 };
 
 function ClinicApp() {
@@ -591,6 +593,12 @@ function ClinicApp() {
               <AuditView />
             ) : (
               <div className="doctors-empty">Only the clinic owner can view the activity log.</div>
+            )
+          ) : tab === 'settings' ? (
+            userRole === 'owner' ? (
+              <ClinicSettingsView onToast={toast} />
+            ) : (
+              <div className="doctors-empty">Only the clinic owner can change clinic settings.</div>
             )
           ) : (
             <BookView

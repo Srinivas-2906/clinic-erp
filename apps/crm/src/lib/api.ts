@@ -384,16 +384,34 @@ export function fetchAccessRequests(status?: string) {
   return request<{ requests: import('../types').AccessRequest[] }>(`/clinic/access-requests${q}`);
 }
 
-export function approveAccessRequest(id: string) {
+export function approveAccessRequest(id: string, body?: { role?: string; note?: string }) {
   return request<{
     request: import('../types').AccessRequest;
     user: { id: string; email: string; name: string; role: string };
     setPasswordUrl: string;
     expiresInDays: number;
+    emailDelivery?: string;
   }>(`/clinic/access-requests/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(body || {}),
+  });
+}
+
+export function fetchClinicSettings() {
+  return request<{
+    tenantId: string;
+    name: string;
+    slug: string;
+    settings: { timezone?: string; phone?: string; email?: string; address?: string };
+  }>('/clinic/settings');
+}
+
+export function updateClinicSettings(patch: Record<string, string>) {
+  return request<Awaited<ReturnType<typeof fetchClinicSettings>>>('/clinic/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 }
 

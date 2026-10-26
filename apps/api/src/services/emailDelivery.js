@@ -12,6 +12,20 @@ function resolveProvider() {
   return process.env.NODE_ENV === 'production' ? '' : 'console';
 }
 
+export async function deliverStaffInviteEmail({ to, name, setPasswordUrl, clinicName, role, expiresDays }) {
+  const subject = `You're invited to ${clinicName || 'Clinic Desk'}`;
+  const text = [
+    `Hello${name ? ` ${name}` : ''},`,
+    '',
+    `You have been invited as ${role || 'staff'} at ${clinicName || 'the clinic'}.`,
+    `Set your password within ${expiresDays} days (single use):`,
+    setPasswordUrl,
+    '',
+    'If you were not expecting this, contact the clinic owner.',
+  ].join('\n');
+  return deliverMail({ to, subject, text });
+}
+
 export async function deliverPasswordResetEmail({ to, name, resetUrl, expiresMinutes }) {
   const subject = 'Reset your Clinic Desk password';
   const text = [

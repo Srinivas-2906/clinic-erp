@@ -2,6 +2,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDb, tenantToClient } from '../db/index.js';
 import { resolveClinicianDoctorId } from '../modules/clinical/clinicalPermissions.js';
+import {
+  normalizeRole,
+  canManagePatients,
+  canManageAppointments,
+  canRecordPayments,
+  canManageFinancials,
+  canManageClinicSettings,
+} from '../modules/identity/rolePolicy.js';
 import { getTenantBySlug } from '../tenantContext.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'clinic-dev-secret-change-in-production';
@@ -125,9 +133,17 @@ export function getUserProfile(userId) {
       email: user.email,
       name: user.name,
       role: user.role,
+      effectiveRole: normalizeRole(user.role),
       isPlatformAdmin: !!user.is_platform_admin,
       clinicianDoctorId,
       canSignClinical: !!clinicianDoctorId,
+      capabilities: {
+        managePatients: canManagePatients({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+        manageAppointments: canManageAppointments({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+        recordPayments: canRecordPayments({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+        manageFinancials: canManageFinancials({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+        manageSettings: canManageClinicSettings({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+      },
     },
     tenant: tenant ? tenantToClient(tenant) : null,
   };

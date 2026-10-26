@@ -4,6 +4,7 @@ import { getPatientById } from '../../services/clinicStore.js';
 import { assertDoctorBelongsToTenant, getDoctorById } from '../providers/doctors.service.js';
 import { logAudit } from '../../services/clinicAudit.js';
 import { requireClinician, resolveClinicianDoctorId } from './clinicalPermissions.js';
+import { assertCapability, canStartConsultation } from '../identity/rolePolicy.js';
 import { buildPrescriptionPdfBuffer } from './prescriptionPdf.js';
 import { saveBinaryUpload, deleteBinaryUpload } from '../../services/uploads.js';
 import { enqueueReminder } from '../../services/reminders/index.js';
@@ -195,6 +196,7 @@ function validatePrescriptionItems(items) {
 }
 
 export function createEncounter(tenantId, user, input = {}) {
+  assertCapability(user, canStartConsultation, 'Not allowed to start consultations');
   const patientId = String(input.patientId || '').trim();
   if (!patientId) throw new Error('patientId required');
   const patient = getPatientById(patientId, tenantId);

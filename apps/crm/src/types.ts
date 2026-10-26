@@ -159,7 +159,7 @@ export interface PaymentSummary {
   dueCount: number;
 }
 
-export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'audit';
+export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'audit' | 'settings';
 
 export interface AccessRequest {
   id: string;

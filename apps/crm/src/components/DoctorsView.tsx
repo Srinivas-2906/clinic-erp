@@ -6,6 +6,7 @@ import { summarizeSchedule } from '../lib/scheduleUtils';
 import { DoctorFormDialog } from './DoctorFormDialog';
 import { DoctorScheduleEditor } from './DoctorScheduleEditor';
 import { DoctorTimeOffPanel } from './DoctorTimeOffPanel';
+import { DoctorServicesEditor } from './DoctorServicesEditor';
 
 interface Props {
   onToast: (text: string, type?: 'ok' | 'err') => void;
@@ -43,7 +44,7 @@ function DoctorSchedulePanel({
       </div>
       <div className="doctor-panel-section">
         <h4>Services</h4>
-        <p className="doctor-panel-muted">All clinic services unless restricted. Service assignment coming soon.</p>
+        <DoctorServicesEditor doctorId={doctor.id} onToast={onToast} />
       </div>
     </div>
   );

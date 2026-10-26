@@ -4,6 +4,8 @@ import { nanoid } from 'nanoid';
 import { getDb } from '../db/index.js';
 import { createRateLimiter } from '../utils/rateLimiter.js';
 import { assertCanAddStaff } from '../modules/identity/entitlements.js';
+import { isAssignableStaffRole, normalizeRole, ROLES } from '../modules/identity/rolePolicy.js';
+import { deliverStaffInviteEmail } from './emailDelivery.js';
 
 const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 7);
 
@@ -115,7 +117,7 @@ export function buildSetPasswordUrl(token) {
   return `${base}/?set-password=${encodeURIComponent(token)}`;
 }
 
-export function approveAccessRequest(requestId, tenantId, reviewerId, { note } = {}) {
+export function approveAccessRequest(requestId, tenantId, reviewerId, { note, role: requestedRole } = {}) {
   const db = getDb();
   const row = db.prepare('SELECT * FROM access_requests WHERE id = ? AND tenant_id = ?').get(requestId, tenantId);
   if (!row) throw new Error('Request not found');
@@ -132,11 +134,20 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note } =
   const userId = `user-${nanoid(10)}`;
   const placeholderHash = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 10);
   const displayName = String(row.name || email.split('@')[0]).trim() || 'Staff';
+  let assignRole = normalizeRole(requestedRole || ROLES.RECEPTIONIST);
+  if (!isAssignableStaffRole(assignRole)) {
+    assignRole = ROLES.RECEPTIONIST;
+  }
 
   db.prepare(`
     INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
-    VALUES (?, ?, NULL, ?, ?, ?, 'staff', 0)
-  `).run(userId, tenantId, email, placeholderHash, displayName);
+    VALUES (?, ?, NULL, ?, ?, ?, ?, 0)
+  `).run(userId, tenantId, email, placeholderHash, displayName, assignRole);
+
+  db.prepare(`
+    UPDATE user_invite_tokens SET used_at = datetime('now')
+    WHERE user_id = ? AND used_at IS NULL
+  `).run(userId);
 
   const rawToken = createInviteTokenForUser(userId);
   const now = new Date().toISOString();
@@ -149,12 +160,28 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note } =
 
   const request = rowToRequest(db.prepare('SELECT * FROM access_requests WHERE id = ?').get(requestId));
   const setPasswordUrl = buildSetPasswordUrl(rawToken);
+  const tenant = db.prepare(`SELECT name FROM tenants WHERE id = ?`).get(tenantId);
+  void deliverStaffInviteEmail({
+    to: email,
+    name: displayName,
+    setPasswordUrl,
+    clinicName: tenant?.name || 'Clinic',
+    role: assignRole,
+    expiresDays: INVITE_EXPIRY_DAYS,
+  }).then((result) => {
+    if (result && !result.delivered) {
+      console.warn('[staff-invite] email not delivered', { reason: result.reason || 'unknown' });
+    }
+  }).catch((err) => {
+    console.error('[staff-invite] email delivery error', err?.message || err);
+  });
 
   return {
     request,
-    user: { id: userId, email, name: displayName, role: 'staff' },
+    user: { id: userId, email, name: displayName, role: assignRole },
     setPasswordUrl,
     expiresInDays: INVITE_EXPIRY_DAYS,
+    emailDelivery: 'queued',
   };
 }
 
