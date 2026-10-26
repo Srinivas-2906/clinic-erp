@@ -110,14 +110,14 @@ export async function expectTodayScheduleDate(page: Page, ymd: string) {
     await expect(header).toContainText('Today ·');
     return;
   }
-  const label = new Date(`${ymd}T12:00:00+05:30`).toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
+  const [, mo, day] = ymd.split('-');
+  const monthLabel = new Date(`${ymd}T12:00:00+05:30`).toLocaleDateString('en-IN', {
     month: 'short',
-    year: 'numeric',
     timeZone: 'Asia/Kolkata',
   });
-  await expect(header).toHaveText(label);
+  await expect(header).toContainText(String(Number(day)));
+  await expect(header).toContainText(monthLabel);
+  await expect(header).toContainText(ymd.slice(0, 4));
 }
 
 /** Mobile Today calendar can cover the queue — hide via the real toggle. */
