@@ -57,8 +57,10 @@ test.describe('Multi-doctor booking UI', () => {
     await expect(slotSelect).toBeEnabled({ timeout: 10_000 });
     const options = await slotSelect.locator('option').allTextContents();
     const validSlot = options.find((o) => /AM|PM/i.test(o));
-    test.skip(!validSlot, 'No slots available for any-available booking');
-
+    if (!validSlot) {
+      test.skip(true, 'No slots available for any-available booking');
+      return;
+    }
     await slotSelect.selectOption({ index: options.indexOf(validSlot) });
     await page.getByRole('button', { name: 'Review' }).click();
 

@@ -90,7 +90,7 @@ function ClinicApp() {
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<Awaited<ReturnType<typeof fetchClinicReport>> | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(clinicTodayYmd);
   const [scheduleAppts, setScheduleAppts] = useState<Appointment[]>([]);
@@ -472,7 +472,10 @@ function ClinicApp() {
               <button
                 type="button"
                 className="icon-btn"
-                onClick={() => { tab === 'today' ? void refreshSchedule() : void loadToday(); }}
+                onClick={() => {
+                  if (tab === 'today') void refreshSchedule();
+                  else void loadToday();
+                }}
                 aria-label="Refresh"
               >
                 <RefreshCw size={15} />

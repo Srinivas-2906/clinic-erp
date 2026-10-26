@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen, closeBlockingModalsIfOpen } from '../helpers/navigation';
 import { advanceQueueToConsult, reopenConsultation } from '../helpers/queue';
 import { expectPatientVisible } from '../helpers/patients';
+import { selectPaymentPatientByName } from '../helpers/payments';
 import {
   continueBookAfterTreatment,
   pickFirstBookSlot,
@@ -131,10 +132,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await goToTab(page, 'payments');
     await page.getByRole('button', { name: '+ Add' }).click();
     await expect(page.getByRole('heading', { name: 'Record payment' })).toBeVisible();
-    const patientSelect = page.locator('.modal-overlay select').first();
-    await patientSelect.selectOption({ label: new RegExp(UNIQUE.slice(0, 12)) }).catch(async () => {
-      await patientSelect.selectOption({ index: 1 });
-    });
+    await selectPaymentPatientByName(page, UNIQUE);
     await page.locator('input[inputmode="numeric"], input[type="number"]').first().fill('100');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.locator('.modal-overlay')).toHaveCount(0, { timeout: 15_000 });

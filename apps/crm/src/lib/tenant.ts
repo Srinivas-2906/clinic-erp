@@ -64,7 +64,7 @@ export function resolveTenantSlug(): string | null {
   const qp = params.get('tenant') || params.get('workspace');
   if (qp) return qp.trim();
 
-  const env = (import.meta as any).env?.VITE_TENANT_SLUG as string | undefined;
+  const env = import.meta.env.VITE_TENANT_SLUG;
   if (env && typeof env === 'string' && env.trim()) return env.trim();
 
   const host = window.location.hostname;

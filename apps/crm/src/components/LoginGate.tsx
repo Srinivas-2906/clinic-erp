@@ -12,8 +12,8 @@ import {
 import { resolveTenantSlug, getTenantLoginDefaults } from '../lib/tenant';
 
 const API_BASE = (() => {
-  const api = (import.meta as any).env?.VITE_CLINIC_API as string | undefined
-    || (import.meta as any).env?.VITE_WHATSAPP_API as string | undefined
+  const api = import.meta.env.VITE_CLINIC_API
+    || import.meta.env.VITE_WHATSAPP_API
     || '/api';
   return api.replace(/\/api$/, '') || '';
 })();
