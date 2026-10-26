@@ -76,8 +76,24 @@ export async function selectTodayCalendarDate(page: Page, ymd: string) {
     }
     return false;
   }
-  if (await tryNav('next')) return;
-  if (await tryNav('prev')) return;
+  if (await tryNav('next')) {
+    await collapseTodayCalendarIfOpen(page);
+    return;
+  }
+  if (await tryNav('prev')) {
+    await collapseTodayCalendarIfOpen(page);
+    return;
+  }
   await target.click({ timeout: 10_000 });
   await page.waitForTimeout(600);
+  await collapseTodayCalendarIfOpen(page);
+}
+
+/** Mobile Today calendar can cover the queue — hide via the real toggle. */
+export async function collapseTodayCalendarIfOpen(page: Page) {
+  const hide = page.getByRole('button', { name: /Hide calendar/i });
+  if (await hide.isVisible().catch(() => false)) {
+    await hide.click();
+    await page.waitForTimeout(300);
+  }
 }

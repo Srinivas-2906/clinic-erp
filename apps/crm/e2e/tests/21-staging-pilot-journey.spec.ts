@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen } from '../helpers/navigation';
+import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen, closeBlockingModalsIfOpen } from '../helpers/navigation';
 import { advanceQueueToConsult, reopenConsultation } from '../helpers/queue';
 import { expectPatientVisible } from '../helpers/patients';
 import {
@@ -87,6 +87,7 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await closeBlockingModalsIfOpen(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
 
@@ -172,6 +173,7 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await closeBlockingModalsIfOpen(page);
     await selectTodayCalendarDate(page, bookDate);
     await expect(page.locator(`button.calendar-cell-selected[data-ymd="${bookDate}"]`)).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Refresh' }).first().click();
