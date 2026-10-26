@@ -110,7 +110,7 @@ export async function expectTodayScheduleDate(page: Page, ymd: string) {
     await expect(header).toContainText('Today ·');
     return;
   }
-  const [, mo, day] = ymd.split('-');
+  const day = ymd.split('-')[2];
   const monthLabel = new Date(`${ymd}T12:00:00+05:30`).toLocaleDateString('en-IN', {
     month: 'short',
     timeZone: 'Asia/Kolkata',
