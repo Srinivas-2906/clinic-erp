@@ -7,6 +7,7 @@ import {
   pickFirstBookSlot,
   ensureBookableScheduleDate,
   selectTodayCalendarDate,
+  expectTodayScheduleDate,
 } from '../helpers/booking';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 
@@ -175,7 +176,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await dismissPilotBanner(page);
     await closeBlockingModalsIfOpen(page);
     await selectTodayCalendarDate(page, bookDate);
-    await expect(page.locator(`button.calendar-cell-selected[data-ymd="${bookDate}"]`)).toBeVisible({ timeout: 10_000 });
+    await expectTodayScheduleDate(page, bookDate);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
     await advanceQueueToConsult(page, name);
