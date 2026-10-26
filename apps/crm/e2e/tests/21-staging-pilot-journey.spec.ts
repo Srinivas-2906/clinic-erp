@@ -1,12 +1,14 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen } from '../helpers/navigation';
+import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen, closeBlockingModalsIfOpen } from '../helpers/navigation';
 import { advanceQueueToConsult, reopenConsultation } from '../helpers/queue';
 import { expectPatientVisible } from '../helpers/patients';
+import { selectPaymentPatientByName } from '../helpers/payments';
 import {
   continueBookAfterTreatment,
   pickFirstBookSlot,
   ensureBookableScheduleDate,
   selectTodayCalendarDate,
+  expectTodayScheduleDate,
 } from '../helpers/booking';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 
@@ -87,6 +89,7 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await closeBlockingModalsIfOpen(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
 
@@ -129,10 +132,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await goToTab(page, 'payments');
     await page.getByRole('button', { name: '+ Add' }).click();
     await expect(page.getByRole('heading', { name: 'Record payment' })).toBeVisible();
-    const patientSelect = page.locator('.modal-overlay select').first();
-    await patientSelect.selectOption({ label: new RegExp(UNIQUE.slice(0, 12)) }).catch(async () => {
-      await patientSelect.selectOption({ index: 1 });
-    });
+    await selectPaymentPatientByName(page, UNIQUE);
     await page.locator('input[inputmode="numeric"], input[type="number"]').first().fill('100');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.locator('.modal-overlay')).toHaveCount(0, { timeout: 15_000 });
@@ -172,8 +172,9 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await closeBlockingModalsIfOpen(page);
     await selectTodayCalendarDate(page, bookDate);
-    await expect(page.locator(`button.calendar-cell-selected[data-ymd="${bookDate}"]`)).toBeVisible({ timeout: 10_000 });
+    await expectTodayScheduleDate(page, bookDate);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
     await advanceQueueToConsult(page, name);

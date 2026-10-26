@@ -76,8 +76,55 @@ export async function selectTodayCalendarDate(page: Page, ymd: string) {
     }
     return false;
   }
-  if (await tryNav('next')) return;
-  if (await tryNav('prev')) return;
+  if (await tryNav('next')) {
+    await assertCalendarDateSelected(page, ymd);
+    await collapseTodayCalendarIfOpen(page);
+    return;
+  }
+  if (await tryNav('prev')) {
+    await assertCalendarDateSelected(page, ymd);
+    await collapseTodayCalendarIfOpen(page);
+    return;
+  }
   await target.click({ timeout: 10_000 });
   await page.waitForTimeout(600);
+  await assertCalendarDateSelected(page, ymd);
+  await collapseTodayCalendarIfOpen(page);
+}
+
+async function assertCalendarDateSelected(page: Page, ymd: string) {
+  const selected = page.locator(`button.calendar-cell-selected[data-ymd="${ymd}"]`);
+  await expect(selected).toBeVisible({ timeout: 10_000 });
+}
+
+/** After calendar pick (often collapsed on mobile), verify schedule date via grid or page header. */
+export async function expectTodayScheduleDate(page: Page, ymd: string) {
+  const selected = page.locator(`button.calendar-cell-selected[data-ymd="${ymd}"]`);
+  if (await selected.isVisible().catch(() => false)) {
+    await expect(selected).toBeVisible();
+    return;
+  }
+  const header = page.locator('.today-view h1.page-title');
+  await expect(header).toBeVisible({ timeout: 10_000 });
+  if (ymd === clinicYmd()) {
+    await expect(header).toContainText('Today ·');
+    return;
+  }
+  const day = ymd.split('-')[2];
+  const monthLabel = new Date(`${ymd}T12:00:00+05:30`).toLocaleDateString('en-IN', {
+    month: 'short',
+    timeZone: 'Asia/Kolkata',
+  });
+  await expect(header).toContainText(String(Number(day)));
+  await expect(header).toContainText(monthLabel);
+  await expect(header).toContainText(ymd.slice(0, 4));
+}
+
+/** Mobile Today calendar can cover the queue — hide via the real toggle. */
+export async function collapseTodayCalendarIfOpen(page: Page) {
+  const hide = page.getByRole('button', { name: /Hide calendar/i });
+  if (await hide.isVisible().catch(() => false)) {
+    await hide.click();
+    await page.waitForTimeout(300);
+  }
 }

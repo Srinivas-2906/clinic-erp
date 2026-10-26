@@ -31,6 +31,37 @@ export async function closeConsultModalIfOpen(page: Page) {
   }
 }
 
+async function dismissVisibleModalOverlays(page: Page, skipConsult: boolean) {
+  for (let i = 0; i < 4; i++) {
+    const overlay = page.locator('.modal-overlay').first();
+    if (!(await overlay.isVisible().catch(() => false))) return;
+    if (skipConsult) {
+      const isConsult = await overlay.locator('#consult-complaint').isVisible().catch(() => false)
+        || await overlay.getByText('Loading consultation…').isVisible().catch(() => false);
+      if (isConsult) return;
+    }
+    const close = overlay.locator('button.modal-close, button[aria-label="Close"]').first();
+    if (await close.isVisible().catch(() => false)) {
+      await close.click();
+      await page.waitForTimeout(250);
+      continue;
+    }
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+  }
+}
+
+/** Dismiss sheet dialogs (actions, complete visit, search) via supported Close / Escape. */
+export async function closeBlockingModalsIfOpen(page: Page) {
+  await closeConsultModalIfOpen(page);
+  await dismissVisibleModalOverlays(page, false);
+}
+
+/** Close blocking overlays but leave an opening consultation sheet alone. */
+export async function closeNonConsultModalsIfOpen(page: Page) {
+  await dismissVisibleModalOverlays(page, true);
+}
+
 async function dismissMobileKeyboard(page: Page) {
   await page.evaluate(() => {
     const el = document.activeElement;
