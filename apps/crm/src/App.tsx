@@ -366,7 +366,8 @@ function ClinicApp() {
   const pageInfo = PAGE_TITLES[tab];
   const isPatientOpen = Boolean(selectedId && patientDetail);
   const keyboardOpen = useKeyboardOpen();
-  const hideBottomNav = isPatientOpen || keyboardOpen;
+  /** Keep bottom nav visible while typing — users must switch tabs without dismissing the keyboard first. */
+  const hideBottomNav = isPatientOpen;
   const initials = clinicName.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'AD';
 
   return (
