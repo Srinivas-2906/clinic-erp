@@ -6,6 +6,7 @@ import { createRateLimiter } from '../utils/rateLimiter.js';
 import { assertCanAddStaff } from '../modules/identity/entitlements.js';
 import { isAssignableStaffRole, normalizeRole, ROLES } from '../modules/identity/rolePolicy.js';
 import { deliverStaffInviteEmail } from './emailDelivery.js';
+import { linkInvitedDoctorUser } from '../modules/providers/doctors.service.js';
 
 const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 7);
 
@@ -117,7 +118,7 @@ export function buildSetPasswordUrl(token) {
   return `${base}/?set-password=${encodeURIComponent(token)}`;
 }
 
-export function approveAccessRequest(requestId, tenantId, reviewerId, { note, role: requestedRole } = {}) {
+export function approveAccessRequest(requestId, tenantId, reviewerId, { note, role: requestedRole, doctorId } = {}) {
   const db = getDb();
   const row = db.prepare('SELECT * FROM access_requests WHERE id = ? AND tenant_id = ?').get(requestId, tenantId);
   if (!row) throw new Error('Request not found');
@@ -143,6 +144,15 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note, ro
     INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
     VALUES (?, ?, NULL, ?, ?, ?, ?, 0)
   `).run(userId, tenantId, email, placeholderHash, displayName, assignRole);
+
+  let linkedDoctorId = null;
+  if (assignRole === ROLES.DOCTOR) {
+    linkedDoctorId = linkInvitedDoctorUser(tenantId, userId, {
+      name: displayName,
+      email,
+      doctorId: doctorId || null,
+    });
+  }
 
   db.prepare(`
     UPDATE user_invite_tokens SET used_at = datetime('now')
@@ -178,7 +188,7 @@ export function approveAccessRequest(requestId, tenantId, reviewerId, { note, ro
 
   return {
     request,
-    user: { id: userId, email, name: displayName, role: assignRole },
+    user: { id: userId, email, name: displayName, role: assignRole, clinicianDoctorId: linkedDoctorId },
     setPasswordUrl,
     expiresInDays: INVITE_EXPIRY_DAYS,
     emailDelivery: 'queued',

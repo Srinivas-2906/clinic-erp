@@ -141,19 +141,38 @@ export function createInvoice(tenantId, user, data = {}) {
   return getInvoiceById(id, tenantId);
 }
 
+function getInvoiceBalanceDue(inv) {
+  return roundMoney(Math.max(0, roundMoney(inv.total) - roundMoney(inv.amount_paid)));
+}
+
+function sumRefundedForPayment(db, paymentId, tenantId) {
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(ABS(amount)), 0) AS s FROM patient_payments
+    WHERE tenant_id = ? AND related_payment_id = ? AND kind = 'refund'
+  `).get(tenantId, paymentId);
+  return roundMoney(row?.s ?? 0);
+}
+
 export function applyPaymentToInvoice(tenantId, user, invoiceId, paymentRow) {
   const db = getDb();
-  const inv = db.prepare(`SELECT * FROM patient_invoices WHERE id = ? AND tenant_id = ?`).get(invoiceId, tenantId);
-  if (!inv) throw new Error('Invoice not found');
-  if (inv.status === INVOICE_STATUS.VOID) throw new Error('Cannot pay a void invoice');
-  const amount = roundMoney(paymentRow.amount);
-  if (amount <= 0) throw new Error('Payment amount must be positive');
-  const newPaid = roundMoney(inv.amount_paid + amount);
-  db.prepare(`
-    UPDATE patient_invoices SET amount_paid = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?
-  `).run(newPaid, invoiceId, tenantId);
-  recomputeInvoiceTotals(db, invoiceId, tenantId);
-  logAudit(tenantId, user.sub, 'payment_applied', 'invoice', invoiceId, { paymentId: paymentRow.id, amount });
+  const apply = db.transaction(() => {
+    const inv = db.prepare(`SELECT * FROM patient_invoices WHERE id = ? AND tenant_id = ?`).get(invoiceId, tenantId);
+    if (!inv) throw new Error('Invoice not found');
+    if (inv.status === INVOICE_STATUS.VOID) throw new Error('Cannot pay a void invoice');
+    const amount = roundMoney(paymentRow.amount);
+    if (amount <= 0) throw new Error('Payment amount must be positive');
+    const balanceDue = getInvoiceBalanceDue(inv);
+    if (amount > balanceDue + 0.001) {
+      throw new Error(`Payment exceeds balance due (₹${balanceDue})`);
+    }
+    const newPaid = roundMoney(inv.amount_paid + amount);
+    db.prepare(`
+      UPDATE patient_invoices SET amount_paid = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?
+    `).run(newPaid, invoiceId, tenantId);
+    recomputeInvoiceTotals(db, invoiceId, tenantId);
+  });
+  apply();
+  logAudit(tenantId, user.sub, 'payment_applied', 'invoice', invoiceId, { paymentId: paymentRow.id, amount: paymentRow.amount });
 }
 
 export function voidInvoice(tenantId, user, invoiceId, { reason } = {}) {
@@ -177,17 +196,26 @@ export function createRefund(tenantId, user, { paymentId, amount, notes, idempot
     SELECT * FROM patient_payments WHERE id = ? AND tenant_id = ? AND kind = 'payment'
   `).get(paymentId, tenantId);
   if (!original) throw new Error('Original payment not found');
+  if (original.amount <= 0) throw new Error('Cannot refund a non-positive payment');
   if (idempotencyKey) {
     const dup = db.prepare(`
       SELECT id FROM patient_payments WHERE tenant_id = ? AND idempotency_key = ?
     `).get(tenantId, idempotencyKey);
-    if (dup) return db.prepare(`SELECT * FROM patient_payments WHERE id = ?`).get(dup.id);
+    if (dup) {
+      return db.prepare(`
+        SELECT pp.*, p.name AS patient_name FROM patient_payments pp
+        JOIN patients p ON p.id = pp.patient_id WHERE pp.id = ?
+      `).get(dup.id);
+    }
   }
-  const refundAmount = roundMoney(amount ?? original.amount);
-  if (refundAmount <= 0 || refundAmount > roundMoney(original.amount)) {
-    throw new Error('Invalid refund amount');
+  const alreadyRefunded = sumRefundedForPayment(db, paymentId, tenantId);
+  const refundable = roundMoney(original.amount - alreadyRefunded);
+  const refundAmount = roundMoney(amount ?? refundable);
+  if (refundAmount <= 0 || refundAmount > refundable + 0.001) {
+    throw new Error(`Invalid refund amount (refundable ₹${refundable})`);
   }
   const id = nanoid(12);
+  const runRefund = db.transaction(() => {
   db.prepare(`
     INSERT INTO patient_payments (
       id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
@@ -215,11 +243,29 @@ export function createRefund(tenantId, user, { paymentId, amount, notes, idempot
       recomputeInvoiceTotals(db, original.invoice_id, tenantId);
     }
   }
-  logAudit(tenantId, user.sub, 'refund', 'payment', id, { relatedPaymentId: paymentId, amount: refundAmount });
+  });
+  runRefund();
+  logAudit(tenantId, user.sub, 'refund', 'payment', id, {
+    relatedPaymentId: paymentId,
+    amount: refundAmount,
+    note: 'ledger_refund_not_gateway',
+  });
   return db.prepare(`
     SELECT pp.*, p.name AS patient_name FROM patient_payments pp
     JOIN patients p ON p.id = pp.patient_id WHERE pp.id = ?
   `).get(id);
+}
+
+export function getInvoiceFinancialSummary(tenantId) {
+  const db = getDb();
+  const outstanding = roundMoney(db.prepare(`
+    SELECT COALESCE(SUM(total - amount_paid), 0) AS s FROM patient_invoices
+    WHERE tenant_id = ? AND status IN ('open', 'partial')
+  `).get(tenantId)?.s ?? 0);
+  const openCount = db.prepare(`
+    SELECT COUNT(*) AS c FROM patient_invoices WHERE tenant_id = ? AND status IN ('open', 'partial')
+  `).get(tenantId)?.c ?? 0;
+  return { outstandingBalance: outstanding, openInvoiceCount: openCount };
 }
 
 export { INVOICE_STATUS };

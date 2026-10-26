@@ -10,10 +10,19 @@ const TABS: { id: TabId; label: string; Icon: React.ElementType }[] = [
   { id: 'reports',   label: 'Reports',  Icon: BarChart3 },
 ];
 
-export function BottomNav({ active, onChange }: { active: TabId; onChange: (t: TabId) => void }) {
+export function BottomNav({
+  active,
+  onChange,
+  showPaymentsNav = true,
+}: {
+  active: TabId;
+  onChange: (t: TabId) => void;
+  showPaymentsNav?: boolean;
+}) {
+  const tabs = showPaymentsNav ? TABS : TABS.filter((t) => t.id !== 'payments');
   return (
     <nav className="bottom-nav">
-      {TABS.map(({ id, label, Icon }) => (
+      {tabs.map(({ id, label, Icon }) => (
         <button
           key={id}
           type="button"

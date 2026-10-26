@@ -150,6 +150,9 @@ export interface Payment {
   reference?: string;
   notes?: string;
   status: string;
+  kind?: 'payment' | 'refund' | string;
+  invoiceId?: string | null;
+  relatedPaymentId?: string | null;
   createdAt?: string;
 }
 
@@ -157,6 +160,42 @@ export interface PaymentSummary {
   todayTotal: number;
   monthTotal: number;
   dueCount: number;
+  outstandingBalance?: number;
+  openInvoiceCount?: number;
+}
+
+export interface InvoiceLineItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount?: number;
+  catalogItemId?: string | null;
+}
+
+export type InvoiceStatus = 'open' | 'partial' | 'paid' | 'void';
+
+export interface PatientInvoice {
+  id: string;
+  patientId: string;
+  appointmentId?: string | null;
+  encounterId?: string | null;
+  status: InvoiceStatus;
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  currency?: string;
+  notes?: string;
+  createdAt?: string;
+  lineItems: InvoiceLineItem[];
+}
+
+export interface UserCapabilities {
+  managePatients?: boolean;
+  manageAppointments?: boolean;
+  recordPayments?: boolean;
+  manageFinancials?: boolean;
+  manageSettings?: boolean;
 }
 
 export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'audit' | 'settings';

@@ -21,7 +21,9 @@ import { PilotSetupChecklist } from './components/PilotSetupChecklist';
 import { useDoctors } from './hooks/useDoctors';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
-import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
+import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchInvoices, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
+import { capsFromMe } from './lib/permissions';
+import type { PatientInvoice, UserCapabilities } from './types';
 import { resolveClinicProfile, type ClinicProfile } from './lib/clinicBranding';
 import { formatApptDayLabel, formatApptTime, isApptToday, clinicTodayYmd, apptDayKey, monthStartYmd, monthEndYmd } from './lib/appointmentDisplay';
 import { logout } from './lib/auth';
@@ -83,6 +85,13 @@ function ClinicApp() {
   const [showSearch,    setShowSearch]    = useState(false);
   const [displayName,   setDisplayName]   = useState<string>('');
   const [userRole,      setUserRole]      = useState<string>('');
+  const [userCaps, setUserCaps] = useState<Required<UserCapabilities>>({
+    managePatients: true,
+    manageAppointments: true,
+    recordPayments: true,
+    manageFinancials: false,
+    manageSettings: false,
+  });
   const [canSignClinical, setCanSignClinical] = useState(false);
   const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
     () => localStorage.getItem('pilot-setup-dismissed') === '1',
@@ -90,6 +99,7 @@ function ClinicApp() {
   const { data: doctorsList = [] } = useDoctors(false);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
   const [payments,      setPayments]      = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
   const [report, setReport] = useState<Awaited<ReturnType<typeof fetchClinicReport>> | null>(null);
@@ -159,9 +169,10 @@ function ClinicApp() {
 
   const loadPayments = useCallback(async () => {
     try {
-      const data = await fetchPayments();
+      const [data, invData] = await Promise.all([fetchPayments(), fetchInvoices()]);
       setPayments(data.payments || []);
       setPaymentSummary(data.summary || { todayTotal: 0, monthTotal: 0, dueCount: 0 });
+      setInvoices(invData.invoices || []);
     } catch (e) {
       toastApiError(e);
     }
@@ -179,6 +190,7 @@ function ClinicApp() {
       const n = m?.user?.name || m?.user?.username || m?.user?.email || '';
       if (n) setDisplayName(n);
       if (m?.user?.role) setUserRole(m.user.role);
+      setUserCaps(capsFromMe(m?.user?.role || '', m?.user?.capabilities, m?.user?.isPlatformAdmin));
       setCanSignClinical(!!m?.user?.canSignClinical);
     }).catch(() => {});
   }, [loadPatients]);
@@ -383,7 +395,8 @@ function ClinicApp() {
         brandName={`${clinicEmoji} ${clinicName}`}
         brandSub="Clinic desk"
         userInitials={initials}
-        showOwnerNav={userRole === 'owner'}
+        showOwnerNav={userCaps.manageSettings}
+        showPaymentsNav={userCaps.recordPayments}
       />
 
       <div className={`clinic-main${isPatientOpen ? ' patient-detail-open' : ''}`}>
@@ -438,7 +451,7 @@ function ClinicApp() {
                     <button type="button" className="user-menu-item" onClick={logout}>
                       <LogOut size={14} /> Log out
                     </button>
-                    {userRole === 'owner' && (
+                    {userCaps.manageSettings && (
                       <>
                         <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); handleTabChange('doctors'); }}>
                           Doctors
@@ -558,14 +571,22 @@ function ClinicApp() {
               onPaymentRecorded={() => { loadPatients(); loadPayments(); }}
             />
           ) : tab === 'payments' ? (
-            <PaymentsView
-              summary={paymentSummary}
-              payments={payments}
-              patients={patients}
-              clinicProfile={clinicProfile}
-              onRecorded={() => { loadPayments(); void loadToday(); loadPatients(); }}
-              onOpenPatient={handleOpenPatient}
-            />
+            userCaps.recordPayments ? (
+              <PaymentsView
+                summary={paymentSummary}
+                payments={payments}
+                invoices={invoices}
+                patients={patients}
+                clinicProfile={clinicProfile}
+                canRecordPayments={userCaps.recordPayments}
+                canManageFinancials={userCaps.manageFinancials}
+                onRecorded={() => { loadPayments(); void loadToday(); loadPatients(); }}
+                onOpenPatient={handleOpenPatient}
+                onToast={toast}
+              />
+            ) : (
+              <div className="doctors-empty">Billing is handled by front desk staff.</div>
+            )
           ) : tab === 'reports' ? (
             <ReportsView
               appliedFrom={reportRange?.from}
@@ -581,21 +602,25 @@ function ClinicApp() {
               onToast={toast}
             />
           ) : tab === 'doctors' ? (
-            userRole === 'owner' ? (
+            userCaps.manageSettings ? (
               <DoctorsView onToast={toast} />
             ) : (
               <div className="doctors-empty">Only the clinic owner can manage doctors.</div>
             )
           ) : tab === 'team' ? (
-            <TeamAccessView onToast={toast} />
+            userCaps.manageSettings ? (
+              <TeamAccessView onToast={toast} />
+            ) : (
+              <div className="doctors-empty">Only the clinic owner can manage team access.</div>
+            )
           ) : tab === 'audit' ? (
-            userRole === 'owner' ? (
+            userCaps.manageSettings ? (
               <AuditView />
             ) : (
               <div className="doctors-empty">Only the clinic owner can view the activity log.</div>
             )
           ) : tab === 'settings' ? (
-            userRole === 'owner' ? (
+            userCaps.manageSettings ? (
               <ClinicSettingsView onToast={toast} />
             ) : (
               <div className="doctors-empty">Only the clinic owner can change clinic settings.</div>
@@ -611,7 +636,9 @@ function ClinicApp() {
         </main>
 
         {/* Mobile bottom nav */}
-        {!hideBottomNav && <BottomNav active={tab} onChange={handleTabChange} />}
+        {!hideBottomNav && (
+          <BottomNav active={tab} onChange={handleTabChange} showPaymentsNav={userCaps.recordPayments} />
+        )}
       </div>
 
       {/* Toast notifications */}

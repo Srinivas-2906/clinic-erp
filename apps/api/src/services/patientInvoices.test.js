@@ -10,7 +10,7 @@ process.env.DATABASE_PATH = tmpDb;
 process.env.SKIP_DEMO_SEED = '1';
 
 const { initDatabase, getDb } = await import('../db/index.js');
-const { createInvoice, createRefund } = await import('./patientInvoices.js');
+const { createInvoice, createRefund, voidInvoice, applyPaymentToInvoice } = await import('./patientInvoices.js');
 const { createPayment } = await import('./clinicPayments.js');
 
 const owner = { sub: 'u-owner', tenantId: 't1', role: 'owner', isPlatformAdmin: false };
@@ -71,5 +71,52 @@ describe('patientInvoices', () => {
       idempotencyKey: 'pay-refund-2',
     });
     assert.throws(() => createRefund('t1', receptionist, { paymentId: pay.id }));
+  });
+
+  it('rejects overpayment against invoice', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'X', unitPrice: 100, quantity: 1 }],
+    });
+    assert.throws(() => createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 150,
+      invoiceId: inv.id,
+      idempotencyKey: 'pay-over',
+    }), /balance due/i);
+  });
+
+  it('caps cumulative refunds', () => {
+    const pay = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 100,
+      idempotencyKey: 'pay-cap-ref',
+    });
+    createRefund('t1', owner, { paymentId: pay.id, amount: 60, idempotencyKey: 'ref-cap-1' });
+    assert.throws(() => createRefund('t1', owner, { paymentId: pay.id, amount: 50 }), /refundable/i);
+  });
+
+  it('idempotent payment returns same row', () => {
+    const a = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 25,
+      idempotencyKey: 'idem-pay-1',
+    });
+    const b = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 25,
+      idempotencyKey: 'idem-pay-1',
+    });
+    assert.equal(a.id, b.id);
+  });
+
+  it('cannot pay void invoice', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Y', unitPrice: 50, quantity: 1 }],
+    });
+    voidInvoice('t1', owner, inv.id, { reason: 'test' });
+    const fakePay = { id: 'fake', amount: 10 };
+    assert.throws(() => applyPaymentToInvoice('t1', receptionist, inv.id, fakePay), /void/i);
   });
 });

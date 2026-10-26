@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { getDb } from '../db/index.js';
 import { assertCapability, canManageFinancials, canRecordPayments } from '../modules/identity/rolePolicy.js';
-import { applyPaymentToInvoice } from './patientInvoices.js';
+import { applyPaymentToInvoice, getInvoiceFinancialSummary } from './patientInvoices.js';
 
 function rowToPayment(row) {
   return {
@@ -18,6 +18,7 @@ function rowToPayment(row) {
     kind: row.kind || 'payment',
     invoiceId: row.invoice_id || null,
     relatedPaymentId: row.related_payment_id || null,
+    idempotencyKey: row.idempotency_key || null,
     createdAt: row.created_at,
   };
 }
@@ -32,29 +33,32 @@ export function createPayment(tenantId, user, data) {
     if (existing) return getPaymentById(existing.id, tenantId);
   }
   const id = nanoid(12);
-  db.prepare(`
-    INSERT INTO patient_payments (
-      id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
-      invoice_id, kind, idempotency_key
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'payment', ?)
-  `).run(
-    id,
-    tenantId,
-    data.patientId,
-    data.appointmentId || null,
-    data.amount,
-    data.method || 'cash',
-    data.reference || '',
-    data.notes || '',
-    data.status || 'paid',
-    data.invoiceId || null,
-    data.idempotencyKey || null,
-  );
-  const payment = getPaymentById(id, tenantId);
-  if (data.invoiceId) {
-    applyPaymentToInvoice(tenantId, user, data.invoiceId, payment);
-  }
-  return payment;
+  const run = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO patient_payments (
+        id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
+        invoice_id, kind, idempotency_key
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'payment', ?)
+    `).run(
+      id,
+      tenantId,
+      data.patientId,
+      data.appointmentId || null,
+      data.amount,
+      data.method || 'cash',
+      data.reference || '',
+      data.notes || '',
+      data.status || 'paid',
+      data.invoiceId || null,
+      data.idempotencyKey || null,
+    );
+    const payment = getPaymentById(id, tenantId);
+    if (data.invoiceId) {
+      applyPaymentToInvoice(tenantId, user, data.invoiceId, payment);
+    }
+    return payment;
+  });
+  return run();
 }
 
 export function getPaymentById(id, tenantId) {
@@ -124,7 +128,14 @@ export function getPaymentSummary(tenantId) {
   const dueCount = db.prepare(`
     SELECT COUNT(*) AS c FROM patient_payments WHERE tenant_id = ? AND status = 'due'
   `).get(tenantId)?.c ?? 0;
-  return { todayTotal, monthTotal, dueCount };
+  const invoiceStats = getInvoiceFinancialSummary(tenantId);
+  return {
+    todayTotal,
+    monthTotal,
+    dueCount,
+    outstandingBalance: invoiceStats.outstandingBalance,
+    openInvoiceCount: invoiceStats.openInvoiceCount,
+  };
 }
 
 export function updatePayment(id, tenantId, user, patch = {}) {

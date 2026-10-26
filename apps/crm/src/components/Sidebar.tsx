@@ -27,10 +27,12 @@ interface Props {
   brandSub: string;
   userInitials: string;
   showOwnerNav?: boolean;
+  showPaymentsNav?: boolean;
 }
 
-export function Sidebar({ active, collapsed, onChange, onToggle, brandName, brandSub, userInitials, showOwnerNav }: Props) {
-  const navItems = showOwnerNav ? [...NAV_ITEMS, ...OWNER_ITEMS] : NAV_ITEMS;
+export function Sidebar({ active, collapsed, onChange, onToggle, brandName, brandSub, userInitials, showOwnerNav, showPaymentsNav = true }: Props) {
+  const baseNav = showPaymentsNav ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.id !== 'payments');
+  const navItems = showOwnerNav ? [...baseNav, ...OWNER_ITEMS] : baseNav;
   return (
     <aside className={`clinic-sidebar${collapsed ? ' collapsed' : ''}`}>
 

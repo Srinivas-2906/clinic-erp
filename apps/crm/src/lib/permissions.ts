@@ -1,7 +1,34 @@
+import type { UserCapabilities } from '../types';
+
 /** Mirror backend permission helpers for UI gating. */
 
 function effectiveRole(role: string) {
   return role === 'staff' ? 'receptionist' : role;
+}
+
+export function capsFromMe(
+  role: string,
+  capabilities?: UserCapabilities,
+  isPlatformAdmin?: boolean,
+): Required<UserCapabilities> {
+  if (capabilities) {
+    return {
+      managePatients: !!capabilities.managePatients,
+      manageAppointments: !!capabilities.manageAppointments,
+      recordPayments: !!capabilities.recordPayments,
+      manageFinancials: !!capabilities.manageFinancials,
+      manageSettings: !!capabilities.manageSettings,
+    };
+  }
+  const r = effectiveRole(role);
+  const owner = r === 'owner' && !isPlatformAdmin;
+  return {
+    managePatients: owner || r === 'receptionist' || r === 'doctor',
+    manageAppointments: owner || r === 'receptionist' || r === 'doctor',
+    recordPayments: owner || r === 'receptionist',
+    manageFinancials: owner,
+    manageSettings: owner,
+  };
 }
 
 export function canManageDoctors(role: string, isPlatformAdmin?: boolean) {

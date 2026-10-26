@@ -4414,6 +4414,12 @@ body.modal-open .clinic-app {
   .modal-overlay { align-items: center; padding: 20px; }
   .modal-sheet   { width: 100%; max-width: 480px; border-radius: var(--radius-lg); max-height: 88vh; }
   .modal-sheet-tall { max-height: 92vh; }
+  .invoice-line-row { display: grid; grid-template-columns: 1fr 64px 88px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .invoice-catalog-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .invoice-detail-lines { list-style: none; padding: 0; margin: 12px 0; }
+  .invoice-detail-lines li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border, #eee); }
+  .invoice-detail-totals { text-align: right; margin-top: 12px; }
+  .page-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .consultation-body { max-height: 60vh; overflow-y: auto; }
   .modal-handle  { display: none; }
 
