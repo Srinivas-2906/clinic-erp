@@ -99,6 +99,7 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await closeConsultModalIfOpen(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
+    await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
     await advanceQueueToConsult(page, UNIQUE);
     await expect.poll(() => page.locator('#consult-complaint').inputValue(), { timeout: 20_000 })
       .toBe('Staging browser QA complaint');

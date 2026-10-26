@@ -4,15 +4,9 @@ function localYmd(d: Date) {
   return d.toLocaleDateString('en-CA');
 }
 
-function patientCard(page: Page, patientLabel: string) {
-  return page.locator('.appt-card, .board-card').filter({ hasText: patientLabel }).first();
-}
-
-/** Queue advance control only — excludes phone/WhatsApp icon buttons on the card. */
-function queueActionButton(card: ReturnType<typeof patientCard>) {
-  return card.locator(
-    'button.board-card-advance, button.action-done, button.action-btn.action-confirm, button.action-btn.action-arrived, button.action-btn.action-done',
-  ).filter({ hasText: /^(Consult|Confirm|Arrived)$/i });
+function cardForPatient(page: Page, patientLabel: string) {
+  const nameMatch = page.getByRole('button', { name: patientLabel, exact: true });
+  return page.locator('.appt-card, .board-card').filter({ has: nameMatch });
 }
 
 async function dismissToasts(page: Page) {
@@ -23,30 +17,48 @@ async function dismissToasts(page: Page) {
   }
 }
 
+async function waitTodayListSettled(page: Page) {
+  await page.getByText('Loading…').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {});
+  await page.waitForTimeout(350);
+}
+
 /** Advance Today queue until Consult opens (list + board layouts). */
 export async function advanceQueueToConsult(page: Page, patientLabel: string) {
   await dismissToasts(page);
-  for (let i = 0; i < 5; i++) {
-    const card = patientCard(page, patientLabel);
-    await expect(card).toBeVisible({ timeout: 20_000 });
-    await card.scrollIntoViewIfNeeded();
+  await waitTodayListSettled(page);
 
-    const consult = card.getByRole('button', { name: /^Consult$/i });
-    if (await consult.isVisible().catch(() => false)) {
-      await consult.click();
-      return;
-    }
+  for (let i = 0; i < 6; i++) {
+    let clickedConsult = false;
 
-    const btn = queueActionButton(card);
-    await expect(btn).toBeVisible({ timeout: 10_000 });
-    const label = (await btn.innerText()).trim();
-    if (/^Confirm$/i.test(label) || /^Arrived$/i.test(label)) {
-      await btn.click();
-      await page.waitForTimeout(800);
-      continue;
-    }
-    break;
+    await expect(async () => {
+      const card = cardForPatient(page, patientLabel);
+      await expect(card.first()).toBeVisible({ timeout: 5000 });
+
+      const consult = card.first().getByRole('button', { name: /^Consult$/i });
+      if (await consult.isVisible().catch(() => false)) {
+        await consult.click({ timeout: 5000 });
+        clickedConsult = true;
+        return;
+      }
+
+      const confirm = card.first().getByRole('button', { name: /^Confirm$/i });
+      const arrived = card.first().getByRole('button', { name: /^Arrived$/i });
+      if (await confirm.isVisible().catch(() => false)) {
+        await confirm.click({ timeout: 5000 });
+        return;
+      }
+      if (await arrived.isVisible().catch(() => false)) {
+        await arrived.click({ timeout: 5000 });
+        return;
+      }
+
+      throw new Error(`No queue action on card for ${patientLabel}`);
+    }).toPass({ timeout: 25_000 });
+
+    if (clickedConsult) return;
+    await waitTodayListSettled(page);
   }
+
   throw new Error(`Could not reach Consult for ${patientLabel}`);
 }
 
