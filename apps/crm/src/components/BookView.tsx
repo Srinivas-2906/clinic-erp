@@ -37,6 +37,7 @@ import {
   sanitizeAge,
   sanitizePhoneDigits,
 } from '../lib/patientInput';
+import { clinicNowIsoLocal } from '../lib/appointmentDisplay';
 
 const PALETTES: [string, string][] = [
   ['#1565C0', '#e3f0fd'], ['#0369a1', '#e0f2fe'], ['#7c3aed', '#f5f3ff'],
@@ -63,15 +64,6 @@ function fmtVisitDate(iso?: string | null) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function nowIsoLocal(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day}T${h}:${min}:00`;
-}
 
 function formatWhen(iso: string) {
   return new Date(iso).toLocaleString('en-IN', {
@@ -562,7 +554,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
 
     let scheduledAt: string;
     if (mode === 'walkin') {
-      scheduledAt = nowIsoLocal();
+      scheduledAt = clinicNowIsoLocal();
     } else {
       const time = selectedSlot?.time || parseSlotLabel(slot);
       if (!time) {
