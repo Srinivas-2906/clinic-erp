@@ -31,6 +31,15 @@ export async function closeConsultModalIfOpen(page: Page) {
   }
 }
 
+async function dismissMobileKeyboard(page: Page) {
+  await page.evaluate(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement) el.blur();
+  }).catch(() => {});
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(150);
+}
+
 export async function goToTab(page: Page, tab: TabId) {
   await closeConsultModalIfOpen(page);
   await closePatientDetailIfOpen(page);
@@ -39,6 +48,7 @@ export async function goToTab(page: Page, tab: TabId) {
   if (await sidebar.isVisible()) {
     await sidebar.getByRole('button', { name: label }).click();
   } else {
+    await dismissMobileKeyboard(page);
     const nav = page.locator('.bottom-nav');
     await nav.waitFor({ state: 'visible', timeout: 10_000 });
     await nav.getByRole('button', { name: label, exact: true }).click();
