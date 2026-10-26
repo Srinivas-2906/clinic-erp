@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab, closePatientDetailIfOpen, closeConsultModalIfOpen } from '../helpers/navigation';
-import { advanceQueueToConsult } from '../helpers/queue';
+import { advanceQueueToConsult, reopenConsultation } from '../helpers/queue';
+import { expectPatientVisible } from '../helpers/patients';
 import {
   continueBookAfterTreatment,
   pickFirstBookSlot,
@@ -99,7 +100,8 @@ test.describe('Staging pilot journey (real UI)', () => {
 
     await closeConsultModalIfOpen(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
-    await advanceQueueToConsult(page, UNIQUE);
+    await expect(page.getByText(UNIQUE).first()).toBeVisible({ timeout: 25_000 });
+    await reopenConsultation(page, UNIQUE);
     await expect.poll(() => page.locator('#consult-complaint').inputValue(), { timeout: 20_000 })
       .toBe('Staging browser QA complaint');
 
@@ -110,13 +112,8 @@ test.describe('Staging pilot journey (real UI)', () => {
     await page.keyboard.press('Escape');
     await goToTab(page, 'overview');
     await goToTab(page, 'patients');
-    const patientSearch = page.locator('#patients-search');
-    if (await patientSearch.isVisible().catch(() => false)) {
-      await patientSearch.fill(phone.slice(-6));
-    }
-    const patientCard = page.locator('.patient-card, .patient-list-row').filter({ hasText: UNIQUE });
-    await expect(patientCard.first()).toBeVisible({ timeout: 30_000 });
-    await patientCard.first().click();
+    const patientCard = await expectPatientVisible(page, UNIQUE, phone);
+    await patientCard.click();
     await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 20_000 });
     await page.locator('.detail-tab').filter({ hasText: /^Visits/i }).click();
     await expect(page.getByText(/finalized|visit/i).first()).toBeVisible({ timeout: 15_000 });
@@ -176,6 +173,7 @@ test.describe('Staging pilot journey (real UI)', () => {
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
     await selectTodayCalendarDate(page, bookDate);
+    await expect(page.locator(`button.calendar-cell-selected[data-ymd="${bookDate}"]`)).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 25_000 });
     await advanceQueueToConsult(page, name);
