@@ -11,6 +11,7 @@ dist/
 apps/api/data/
 apps/api/uploads/
 apps/api/.tools/
+.restore-drill/
 
 # E2E artifacts
 apps/crm/e2e/test-results/

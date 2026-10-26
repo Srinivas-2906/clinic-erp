@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 process.env.CLINIC_PASSWORD_RESET_EXPOSE_TOKEN = '1';
 process.env.CLINIC_ALLOW_RESET_TOKEN_EXPOSE = '1';
@@ -19,6 +20,8 @@ const {
   requestPasswordReset,
   validateResetToken,
   completePasswordReset,
+  buildResetPasswordUrl,
+  checkForgotPasswordRateLimit,
 } = await import('./passwordReset.js');
 const { loginUser, verifyToken } = await import('../middleware/auth.js');
 
@@ -69,5 +72,39 @@ describe('passwordReset', () => {
     const payload = verifyToken(before.token);
     const row = getDb().prepare('SELECT session_version FROM users WHERE id = ?').get('u1');
     assert.notEqual(payload.sv ?? 0, row.session_version);
+  });
+
+  it('buildResetPasswordUrl uses CLINIC_CRM_URL and query param', () => {
+    process.env.CLINIC_CRM_URL = 'https://kaana-clinic-staging.example.run.app';
+    const url = buildResetPasswordUrl('tok_en_abc');
+    assert.equal(url, 'https://kaana-clinic-staging.example.run.app/?reset-password=tok_en_abc');
+  });
+
+  it('rejects expired and reused tokens', () => {
+    const req = requestPasswordReset('t1', 'staff@test.invalid');
+    const token = req.devToken;
+    const db = getDb();
+    db.prepare(`
+      UPDATE password_reset_tokens SET expires_at = '2000-01-01T00:00:00.000Z'
+      WHERE token_hash = ?
+    `).run(crypto.createHash('sha256').update(token).digest('hex'));
+    const expired = validateResetToken(token);
+    assert.equal(expired.valid, false);
+    assert.match(expired.error, /expired/i);
+
+    const req2 = requestPasswordReset('t1', 'staff@test.invalid');
+    const token2 = req2.devToken;
+    completePasswordReset(token2, 'AnotherPass1');
+    const reused = validateResetToken(token2);
+    assert.equal(reused.valid, false);
+    assert.match(reused.error, /already been used/i);
+  });
+
+  it('rate limits forgot-password by client ip', () => {
+    const req = { headers: {}, ip: '203.0.113.99', socket: {} };
+    for (let i = 0; i < 5; i += 1) {
+      assert.equal(checkForgotPasswordRateLimit(req), true, `attempt ${i + 1}`);
+    }
+    assert.equal(checkForgotPasswordRateLimit(req), false);
   });
 });

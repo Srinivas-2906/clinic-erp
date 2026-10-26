@@ -67,7 +67,13 @@ export function requestPasswordReset(tenantId, emailRaw) {
     name: user.name,
     resetUrl,
     expiresMinutes: RESET_EXPIRY_MINUTES,
-  }).catch(() => {});
+  }).then((result) => {
+    if (result && !result.delivered) {
+      console.warn('[password-reset] email not delivered', { reason: result.reason || 'unknown' });
+    }
+  }).catch((err) => {
+    console.error('[password-reset] email delivery error', err?.message || err);
+  });
 
   const out = genericSuccess();
   const allowDevExpose = process.env.CLINIC_PASSWORD_RESET_EXPOSE_TOKEN === '1'
