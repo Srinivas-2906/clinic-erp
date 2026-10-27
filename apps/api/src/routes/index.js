@@ -73,6 +73,9 @@ import {
   isPublicSignupEnabled,
   requireProvisioningAuth,
 } from '../modules/platform/provisioningAuth.js';
+import { processDueReminders } from '../services/reminders/index.js';
+import { buildTenantExportBundle } from '../services/tenantExport.js';
+import { getPaymentGatewayConfig } from '../modules/billing/paymentGateway.js';
 import { requireTenantWrite } from '../middleware/requireTenantWrite.js';
 import { assertSubscriptionTransition } from '../modules/identity/subscription.js';
 import { normalizePlanId } from '../modules/identity/plans.js';
@@ -255,6 +258,21 @@ router.post('/internal/tenants', requireProvisioningAuth, (req, res) => {
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || 'Provision failed', code: err.code });
   }
+});
+
+router.get('/internal/tenants', requireProvisioningAuth, (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 200, 500);
+  const rows = getDb().prepare(`
+    SELECT id, slug, name, plan, status, subscription_status, trial_ends_at, created_at
+    FROM tenants ORDER BY datetime(created_at) DESC LIMIT ?
+  `).all(limit);
+  res.json({ tenants: rows });
+});
+
+router.post('/internal/process-reminders', requireProvisioningAuth, (req, res) => {
+  const limit = Math.min(Number(req.body?.limit) || 50, 200);
+  const results = processDueReminders({ limit });
+  res.json({ processed: results.length, results });
 });
 
 router.patch('/internal/tenants/:tenantId', requireProvisioningAuth, (req, res) => {
@@ -623,6 +641,20 @@ export function clinicRouter() {
     } catch (err) {
       res.status(err.status || 403).json({ error: err.message || 'Forbidden' });
     }
+  });
+
+  api.get('/clinic/export', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const bundle = buildTenantExportBundle(req.user.tenantId, req.user);
+      res.json(bundle);
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message || 'Export failed' });
+    }
+  });
+
+  api.get('/clinic/billing/gateway', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
+    res.json(getPaymentGatewayConfig());
   });
 
   api.get('/clinic/audit/export', authMiddleware, requireLiveTenant, (req, res) => {

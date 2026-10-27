@@ -60,6 +60,14 @@ export function enqueueReminder({
 }) {
   const db = getDb();
   initReminderInfrastructure(db);
+  if (appointmentId) {
+    const dup = db.prepare(`
+      SELECT id FROM reminder_jobs
+      WHERE tenant_id = ? AND appointment_id = ? AND kind = ? AND status IN ('pending', 'processing')
+      LIMIT 1
+    `).get(tenantId, appointmentId, kind);
+    if (dup) return dup.id;
+  }
   const id = nanoid(12);
   const when = scheduledAt || new Date().toISOString();
   db.prepare(`

@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run test:api
+      - name: Billing API smoke
+        run: node apps/api/scripts/billing-api-smoke.js
 
   crm-unit-tests:
     name: CRM unit tests

@@ -34,6 +34,8 @@ Default staging env (from `cloudbuild.staging.yaml`):
 
 After deploy, set `PUBLIC_URL` on API service (build step updates this).
 
+**Reminder delivery (scale-to-zero):** The API still runs an optional in-process poller (`REMINDER_POLL_MS`). For reliable delivery, schedule Cloud Scheduler (or similar) to `POST /api/platform/internal/process-reminders` with header `x-clinic-provisioning-key` and set `DISABLE_REMINDER_WORKER=1` on Cloud Run when the external job is active. Keep `REMINDER_DELIVERY_ENABLED=0` until comms are approved.
+
 ---
 
 ## 3. Post-deploy verification

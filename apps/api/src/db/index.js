@@ -332,6 +332,7 @@ export function tenantToClient(row) {
     subscriptionStatus: row.subscription_status || 'active',
     trialEndsAt: row.trial_ends_at || null,
     isLive: row.status === 'active',
+    timezone: s.timezone || 'Asia/Kolkata',
   };
 }
 

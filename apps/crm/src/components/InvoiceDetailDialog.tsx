@@ -25,6 +25,7 @@ interface Props {
   onClose: () => void;
   onRecordPayment: (invoice: PatientInvoice) => void;
   onVoid: (invoice: PatientInvoice) => void;
+  onRefreshInvoice?: (id: string) => Promise<PatientInvoice | null>;
 }
 
 export function InvoiceDetailDialog({
@@ -36,6 +37,7 @@ export function InvoiceDetailDialog({
   onClose,
   onRecordPayment,
   onVoid,
+  onRefreshInvoice,
 }: Props) {
   useScrollLock(true);
 
@@ -71,7 +73,14 @@ export function InvoiceDetailDialog({
           {invoice.notes?.trim() && <p className="muted">Note: {invoice.notes.trim()}</p>}
         </div>
         <div className="modal-footer">
-          <button type="button" className="btn btn-ghost" onClick={() => openInvoicePrintWindow(invoice, patientName, clinicProfile)}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={async () => {
+              const fresh = onRefreshInvoice ? await onRefreshInvoice(invoice.id) : invoice;
+              openInvoicePrintWindow(fresh || invoice, patientName, clinicProfile);
+            }}
+          >
             <Printer size={16} /> Print
           </button>
           {canVoid && (

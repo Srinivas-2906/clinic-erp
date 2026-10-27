@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Banknote, ChevronRight, FileText, Pencil, RotateCcw, Share2 } from 'lucide-react';
 import type { Payment, PaymentSummary, Patient, PatientInvoice } from '../types';
 import type { ClinicProfile } from '../lib/clinicBranding';
-import { voidInvoice } from '../lib/api';
+import { voidInvoice, fetchInvoice } from '../lib/api';
 import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SharePaymentDialog } from './SharePaymentDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
@@ -196,6 +196,13 @@ export function PaymentsView({
           onClose={() => setDetailInvoice(null)}
           onRecordPayment={(inv) => { setDetailInvoice(null); setPayAgainstInvoice(inv); }}
           onVoid={handleVoidInvoice}
+          onRefreshInvoice={async (id) => {
+            try {
+              return await fetchInvoice(id);
+            } catch {
+              return null;
+            }
+          }}
         />
       )}
 

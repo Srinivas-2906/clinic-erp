@@ -26,6 +26,7 @@ import { capsFromMe } from './lib/permissions';
 import type { PatientInvoice, UserCapabilities } from './types';
 import { resolveClinicProfile, type ClinicProfile } from './lib/clinicBranding';
 import { formatApptDayLabel, formatApptTime, isApptToday, clinicTodayYmd, apptDayKey, monthStartYmd, monthEndYmd } from './lib/appointmentDisplay';
+import { setClinicTimezone } from './lib/clinicTimezone';
 import { logout } from './lib/auth';
 import { isDenseMode, setDenseMode } from './lib/denseMode';
 import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment, Encounter } from './types';
@@ -182,6 +183,9 @@ function ClinicApp() {
   useEffect(() => {
     loadPatients();
     fetchClient().then((c) => {
+      if (c && 'timezone' in c && typeof c.timezone === 'string') {
+        setClinicTimezone(c.timezone);
+      }
       const profile = resolveClinicProfile(c);
       setClinicProfile(profile);
       if (profile.name) setClinicName(profile.name);

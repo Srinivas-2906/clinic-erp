@@ -119,6 +119,7 @@ export function fetchClient() {
     city?: string;
     doctorName?: string;
     doctors?: Pick<Doctor, 'id' | 'name' | 'displayName' | 'specialty' | 'appointmentColor' | 'isActive'>[];
+    timezone?: string;
   }>('/client');
 }
 

@@ -29,14 +29,25 @@ export type EncounterSummary = {
   createdAt?: string;
 };
 
+export type MeCapabilities = {
+  managePatients?: boolean;
+  manageAppointments?: boolean;
+  recordPayments?: boolean;
+  manageFinancials?: boolean;
+  manageSettings?: boolean;
+  viewReports?: boolean;
+};
+
 export type MeResponse = {
   user: {
     id: string;
     email?: string;
     name?: string;
     role?: string;
+    effectiveRole?: string;
     canSignClinical?: boolean;
     clinicianDoctorId?: string | null;
+    capabilities?: MeCapabilities;
   };
   tenant?: { slug?: string; name?: string };
 };

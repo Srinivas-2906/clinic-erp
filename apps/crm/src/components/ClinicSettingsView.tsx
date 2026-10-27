@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchClinicSettings, updateClinicSettings } from '../lib/api';
+import { setClinicTimezone } from '../lib/clinicTimezone';
 
 interface Props {
   onToast: (text: string, type?: 'ok' | 'err') => void;
@@ -19,7 +20,9 @@ export function ClinicSettingsView({ onToast }: Props) {
       try {
         const data = await fetchClinicSettings();
         setName(data.name || '');
-        setTimezone(data.settings?.timezone || 'Asia/Kolkata');
+        const tz = data.settings?.timezone || 'Asia/Kolkata';
+        setTimezone(tz);
+        setClinicTimezone(tz);
         setPhone(data.settings?.phone || '');
         setEmail(data.settings?.email || '');
         setAddress(data.settings?.address || '');
@@ -36,6 +39,7 @@ export function ClinicSettingsView({ onToast }: Props) {
     setSaving(true);
     try {
       await updateClinicSettings({ name, timezone, phone, email, address });
+      setClinicTimezone(timezone);
       onToast('Clinic settings saved');
     } catch (err) {
       onToast(err instanceof Error ? err.message : 'Could not save', 'err');
