@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   email: '',
   address: '',
   website: '',
+  appointmentRemindersEnabled: true,
 };
 
 export function parseTenantSettings(raw) {
@@ -52,6 +53,9 @@ export function updateClinicSettings(tenantId, user, patch = {}) {
     if (patch[key] !== undefined) {
       next[key] = String(patch[key] ?? '').trim();
     }
+  }
+  if (patch.appointmentRemindersEnabled !== undefined) {
+    next.appointmentRemindersEnabled = !!patch.appointmentRemindersEnabled;
   }
   if (patch.name !== undefined) {
     const name = String(patch.name || '').trim();

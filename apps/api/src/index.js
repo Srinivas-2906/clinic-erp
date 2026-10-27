@@ -11,7 +11,9 @@ initDatabase();
 initReminderInfrastructure();
 
 const REMINDER_POLL_MS = Number(process.env.REMINDER_POLL_MS || 30_000);
-if (process.env.DISABLE_REMINDER_WORKER !== '1') {
+const useInProcessReminderWorker = process.env.DISABLE_REMINDER_WORKER !== '1'
+  && process.env.REMINDER_EXTERNAL_SCHEDULER !== '1';
+if (useInProcessReminderWorker) {
   setInterval(() => {
     try {
       processDueReminders();

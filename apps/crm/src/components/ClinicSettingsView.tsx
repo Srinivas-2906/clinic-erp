@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchClinicSettings, updateClinicSettings } from '../lib/api';
 import { setClinicTimezone } from '../lib/clinicTimezone';
+import { PlanUsagePanel } from './PlanUsagePanel';
 
 interface Props {
   onToast: (text: string, type?: 'ok' | 'err') => void;
@@ -51,6 +52,8 @@ export function ClinicSettingsView({ onToast }: Props) {
   if (loading) return <p className="section-muted">Loading clinic settings…</p>;
 
   return (
+    <>
+    <PlanUsagePanel onToast={onToast} />
     <form className="settings-form" onSubmit={(e) => void handleSubmit(e)}>
       <div className="login-field">
         <label className="login-label" htmlFor="clinicName">Clinic name</label>
@@ -74,5 +77,6 @@ export function ClinicSettingsView({ onToast }: Props) {
       </div>
       <button type="submit" className="login-submit" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
     </form>
+    </>
   );
 }
