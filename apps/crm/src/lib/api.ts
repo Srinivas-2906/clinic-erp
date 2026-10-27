@@ -480,10 +480,44 @@ export function fetchEntitlements() {
   return request<{
     planId: string;
     planLabel: string;
+    status?: string;
+    subscriptionStatus?: string;
+    subscription?: {
+      status: string;
+      trialEndsAt?: string | null;
+      canWrite?: boolean;
+    };
     limits: { maxDoctors: number | null; maxStaff: number | null };
     usage: { doctors: number; staff: number };
     features: { auditExport: boolean; multiBranch: boolean };
   }>('/clinic/entitlements');
+}
+
+export function getPaymentGatewayConfig() {
+  return request<{ provider: string | null; configured: boolean; note?: string }>('/clinic/billing/gateway');
+}
+
+export async function downloadTenantExport() {
+  const tenantSlug = resolveTenantSlug();
+  const API = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';
+  const res = await fetch(`${API}/clinic/export`, {
+    headers: {
+      ...authHeaders(),
+      ...(tenantSlug ? { 'x-tenant-slug': tenantSlug } : {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || 'Export failed');
+  }
+  const data = await res.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `clinic-export-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function fetchAuditLog(params: {

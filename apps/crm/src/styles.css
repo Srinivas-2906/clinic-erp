@@ -5781,3 +5781,111 @@ html.dense .header-stat-chip { padding: 3px 8px; }
     display: inline-flex;
   }
 }
+
+/* Platform administration ( /platform — operators only ) */
+.platform-admin,
+.platform-admin-login {
+  min-height: 100vh;
+  background: var(--bg, #f4f6f8);
+  color: var(--text, #1a1a1a);
+}
+.platform-admin-login {
+  max-width: 400px;
+  margin: 48px auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+}
+.platform-admin-login .login-input {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.platform-tenant-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg-muted, #f8fafc);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.platform-tenant-row.active {
+  border-color: var(--brand, #2563eb);
+  background: #eff6ff;
+}
+.platform-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.platform-admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  background: #fff;
+}
+.platform-admin-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.platform-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 16px;
+  padding: 16px 24px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.platform-admin-list,
+.platform-admin-detail {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 16px;
+}
+.platform-admin-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg-muted, #f8fafc);
+  cursor: pointer;
+}
+.platform-admin-row.is-selected {
+  border-color: var(--brand, #2563eb);
+  background: #eff6ff;
+}
+.platform-admin-meta {
+  font-size: 0.8125rem;
+  color: var(--muted, #64748b);
+  margin-top: 4px;
+}
+.platform-admin-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.platform-admin-error {
+  color: #b91c1c;
+  margin: 8px 0;
+  font-size: 0.875rem;
+}
+@media (max-width: 900px) {
+  .platform-admin-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -11,6 +11,7 @@ import {
 } from '../modules/scheduling/slotEngine.js';
 
 import { getTenantTimezone } from './clinicSettings.js';
+import { scheduleAppointmentConfirmation } from './notificationAutomation.js';
 import {
   scheduleAppointmentReminders,
   scheduleRecallReminder,
@@ -454,7 +455,13 @@ export function updateAppointment(id, tenantId, patch) {
     scheduleRecallReminder(tenantId, existing.patient_id, patient?.name || 'Patient');
   }
 
-  if (patch.status === 'confirmed' || patch.scheduledAt) {
+  if (patch.status === 'cancelled' || patch.status === 'no_show') {
+    clearAppointmentReminders(tenantId, id);
+  } else if (patch.status === 'confirmed') {
+    scheduleAppointmentReminders(tenantId, id);
+    scheduleAppointmentConfirmation(tenantId, id);
+  } else if (patch.scheduledAt) {
+    clearAppointmentReminders(tenantId, id);
     scheduleAppointmentReminders(tenantId, id);
   }
 

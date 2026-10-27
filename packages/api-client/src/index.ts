@@ -47,6 +47,12 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
       request<unknown[]>(`/api/patients${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     patient: (id: string) =>
       request<{ patient: unknown; appointments: unknown[]; encounters?: unknown[] }>(`/api/patients/${id}`),
+    updateAppointment: (id: string, patch: { status?: string; scheduledAt?: string }) =>
+      request<unknown>(`/api/appointments/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }),
   };
 }
 

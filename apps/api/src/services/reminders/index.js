@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/index.js';
 import { createMockReminderProvider } from './mockProvider.js';
+import { deliverReminderAsEmail } from './emailDeliveryHandler.js';
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
@@ -163,15 +164,29 @@ function processOneReminder(row) {
   }
 
   try {
-    const payload = JSON.parse(row.payload || '{}');
-    prov.send({
-      tenantId: row.tenant_id,
-      appointmentId: row.appointment_id,
-      kind: row.kind,
-      channel: row.channel,
-      recipient: row.recipient,
-      payload,
-    });
+    const emailKinds = new Set([
+      'appointment_confirmation',
+      'payment_receipt',
+      'outstanding_invoices_digest',
+      'subscription_expiry_notice',
+      'daily_ops_summary',
+    ]);
+    if (emailKinds.has(row.kind) || row.recipient?.includes('@')) {
+      const result = deliverReminderAsEmail(row);
+      if (result?.delivered === false && result?.reason === 'no_recipient') {
+        throw new Error('No recipient for notification');
+      }
+    } else {
+      const payload = JSON.parse(row.payload || '{}');
+      prov.send({
+        tenantId: row.tenant_id,
+        appointmentId: row.appointment_id,
+        kind: row.kind,
+        channel: row.channel,
+        recipient: row.recipient,
+        payload,
+      });
+    }
     db.prepare(`
       UPDATE reminder_jobs
       SET status = 'delivered', delivered_at = datetime('now'), updated_at = datetime('now')
