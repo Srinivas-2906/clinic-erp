@@ -91,6 +91,7 @@ function ClinicApp() {
     recordPayments: true,
     manageFinancials: false,
     manageSettings: false,
+    viewReports: true,
   });
   const [canSignClinical, setCanSignClinical] = useState(false);
   const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
@@ -397,6 +398,7 @@ function ClinicApp() {
         userInitials={initials}
         showOwnerNav={userCaps.manageSettings}
         showPaymentsNav={userCaps.recordPayments}
+        showReportsNav={userCaps.viewReports}
       />
 
       <div className={`clinic-main${isPatientOpen ? ' patient-detail-open' : ''}`}>
@@ -530,6 +532,7 @@ function ClinicApp() {
               onUpdated={() => loadPatientDetail(selectedId!)}
               onToast={toast}
               onBookFollowup={handleBookFollowup}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'overview' ? (
             <OverviewTab
@@ -543,6 +546,7 @@ function ClinicApp() {
               onOpenPatient={handleOpenPatient}
               onToast={toast}
               onRefresh={() => { void loadToday(); }}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'today' ? (
             <TodayView
@@ -561,6 +565,7 @@ function ClinicApp() {
               onOpenPatient={handleOpenPatient}
               onGoToBook={() => handleTabChange('book')}
               onToast={toast}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'patients' ? (
             <PatientsView
@@ -569,6 +574,7 @@ function ClinicApp() {
               onToast={toast}
               onPatientSaved={loadPatients}
               onPaymentRecorded={() => { loadPatients(); loadPayments(); }}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'payments' ? (
             userCaps.recordPayments ? (
@@ -588,6 +594,7 @@ function ClinicApp() {
               <div className="doctors-empty">Billing is handled by front desk staff.</div>
             )
           ) : tab === 'reports' ? (
+            userCaps.viewReports ? (
             <ReportsView
               appliedFrom={reportRange?.from}
               appliedTo={reportRange?.to}
@@ -601,6 +608,9 @@ function ClinicApp() {
               onGoToToday={() => handleTabChange('today')}
               onToast={toast}
             />
+            ) : (
+              <div className="doctors-empty">Reports are available to front desk and owner accounts.</div>
+            )
           ) : tab === 'doctors' ? (
             userCaps.manageSettings ? (
               <DoctorsView onToast={toast} />
@@ -637,7 +647,12 @@ function ClinicApp() {
 
         {/* Mobile bottom nav */}
         {!hideBottomNav && (
-          <BottomNav active={tab} onChange={handleTabChange} showPaymentsNav={userCaps.recordPayments} />
+          <BottomNav
+            active={tab}
+            onChange={handleTabChange}
+            showPaymentsNav={userCaps.recordPayments}
+            showReportsNav={userCaps.viewReports}
+          />
         )}
       </div>
 

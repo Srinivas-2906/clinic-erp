@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { getDb } from '../db/index.js';
 import { assertCapability, canManageFinancials, canRecordPayments } from '../modules/identity/rolePolicy.js';
-import { applyPaymentToInvoice, getInvoiceFinancialSummary } from './patientInvoices.js';
+import { applyPaymentToInvoiceInTx, getInvoiceFinancialSummary } from './patientInvoices.js';
 
 function rowToPayment(row) {
   return {
@@ -23,6 +23,22 @@ function rowToPayment(row) {
   };
 }
 
+function assertInvoicePayable(db, tenantId, invoiceId, patientId) {
+  const inv = db.prepare(`SELECT * FROM patient_invoices WHERE id = ? AND tenant_id = ?`).get(invoiceId, tenantId);
+  if (!inv) {
+    const err = new Error('Invoice not found');
+    err.status = 404;
+    throw err;
+  }
+  if (inv.patient_id !== patientId) {
+    throw new Error('Invoice belongs to a different patient');
+  }
+  if (inv.status === 'void') {
+    throw new Error('Cannot pay a void invoice');
+  }
+  return inv;
+}
+
 export function createPayment(tenantId, user, data) {
   assertCapability(user, canRecordPayments, 'Owner or receptionist required to record payments');
   const db = getDb();
@@ -34,6 +50,9 @@ export function createPayment(tenantId, user, data) {
   }
   const id = nanoid(12);
   const run = db.transaction(() => {
+    if (data.invoiceId) {
+      assertInvoicePayable(db, tenantId, data.invoiceId, data.patientId);
+    }
     db.prepare(`
       INSERT INTO patient_payments (
         id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
@@ -52,11 +71,16 @@ export function createPayment(tenantId, user, data) {
       data.invoiceId || null,
       data.idempotencyKey || null,
     );
-    const payment = getPaymentById(id, tenantId);
+    const paymentRow = db.prepare(`
+      SELECT pp.*, p.name AS patient_name
+      FROM patient_payments pp
+      JOIN patients p ON p.id = pp.patient_id
+      WHERE pp.id = ? AND pp.tenant_id = ?
+    `).get(id, tenantId);
     if (data.invoiceId) {
-      applyPaymentToInvoice(tenantId, user, data.invoiceId, payment);
+      applyPaymentToInvoiceInTx(db, tenantId, data.invoiceId, paymentRow);
     }
-    return payment;
+    return rowToPayment(paymentRow);
   });
   return run();
 }
@@ -139,10 +163,20 @@ export function getPaymentSummary(tenantId) {
 }
 
 export function updatePayment(id, tenantId, user, patch = {}) {
+  const existing = getPaymentById(id, tenantId);
+  if (!existing) return null;
+
   const sensitive = patch.amount != null || patch.status != null || patch.kind != null;
   if (sensitive) {
     assertCapability(user, canManageFinancials, 'Owner required to adjust payment amounts or status');
   }
+  if (patch.amount != null && existing.invoiceId) {
+    throw new Error('Cannot change amount on invoice-linked payment; use refund and a new payment');
+  }
+  if (existing.kind === 'refund' && patch.amount != null) {
+    throw new Error('Cannot edit refund amounts');
+  }
+
   const fields = [];
   const params = [];
 

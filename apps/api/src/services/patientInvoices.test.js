@@ -10,7 +10,13 @@ process.env.DATABASE_PATH = tmpDb;
 process.env.SKIP_DEMO_SEED = '1';
 
 const { initDatabase, getDb } = await import('../db/index.js');
-const { createInvoice, createRefund, voidInvoice, applyPaymentToInvoice } = await import('./patientInvoices.js');
+const {
+  createInvoice,
+  createRefund,
+  voidInvoice,
+  applyPaymentToInvoice,
+  getInvoiceById,
+} = await import('./patientInvoices.js');
 const { createPayment } = await import('./clinicPayments.js');
 
 const owner = { sub: 'u-owner', tenantId: 't1', role: 'owner', isPlatformAdmin: false };
@@ -116,7 +122,100 @@ describe('patientInvoices', () => {
       lineItems: [{ description: 'Y', unitPrice: 50, quantity: 1 }],
     });
     voidInvoice('t1', owner, inv.id, { reason: 'test' });
-    const fakePay = { id: 'fake', amount: 10 };
+    const fakePay = { id: 'fake', amount: 10, patient_id: 'p1' };
     assert.throws(() => applyPaymentToInvoice('t1', receptionist, inv.id, fakePay), /void/i);
+  });
+
+  it('partial then full payment leaves zero balance', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Svc', unitPrice: 300, quantity: 1 }],
+    });
+    createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 100,
+      invoiceId: inv.id,
+      idempotencyKey: 'partial-1',
+    });
+    createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 200,
+      invoiceId: inv.id,
+      idempotencyKey: 'partial-2',
+    });
+    const updated = getInvoiceById(inv.id, 't1');
+    assert.equal(updated.status, 'paid');
+    assert.equal(updated.balanceDue, 0);
+  });
+
+  it('refund after partial payment restores invoice balance', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Svc', unitPrice: 200, quantity: 1 }],
+    });
+    const pay = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 80,
+      invoiceId: inv.id,
+      idempotencyKey: 'ref-part-pay',
+    });
+    createRefund('t1', owner, { paymentId: pay.id, amount: 30, idempotencyKey: 'ref-part-ref' });
+    const updated = getInvoiceById(inv.id, 't1');
+    assert.equal(updated.amountPaid, 50);
+    assert.equal(updated.balanceDue, 150);
+    assert.equal(updated.status, 'partial');
+  });
+
+  it('refund after full payment reopens invoice', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Svc', unitPrice: 150, quantity: 1 }],
+    });
+    const pay = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 150,
+      invoiceId: inv.id,
+      idempotencyKey: 'full-pay',
+    });
+    createRefund('t1', owner, { paymentId: pay.id, amount: 150, idempotencyKey: 'full-ref' });
+    const updated = getInvoiceById(inv.id, 't1');
+    assert.equal(updated.amountPaid, 0);
+    assert.equal(updated.balanceDue, 150);
+    assert.equal(updated.status, 'open');
+  });
+
+  it('does not expose invoice across tenants', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Z', unitPrice: 10, quantity: 1 }],
+    });
+    assert.equal(getInvoiceById(inv.id, 't-other'), null);
+  });
+
+  it('rejects payment with wrong patient for invoice', () => {
+    getDb().prepare(`
+      INSERT INTO patients (id, tenant_id, name, phone, phone_digits) VALUES ('p2', 't1', 'Other', '8888888888', '8888888888')
+    `).run();
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Z', unitPrice: 10, quantity: 1 }],
+    });
+    assert.throws(() => createPayment('t1', receptionist, {
+      patientId: 'p2',
+      amount: 10,
+      invoiceId: inv.id,
+      idempotencyKey: 'wrong-patient',
+    }), /different patient/i);
+  });
+
+  it('refund idempotency returns same refund row', () => {
+    const pay = createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 40,
+      idempotencyKey: 'idem-ref-pay',
+    });
+    const a = createRefund('t1', owner, { paymentId: pay.id, amount: 10, idempotencyKey: 'idem-ref' });
+    const b = createRefund('t1', owner, { paymentId: pay.id, amount: 10, idempotencyKey: 'idem-ref' });
+    assert.equal(a.id, b.id);
   });
 });

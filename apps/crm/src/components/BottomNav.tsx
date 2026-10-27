@@ -14,12 +14,16 @@ export function BottomNav({
   active,
   onChange,
   showPaymentsNav = true,
+  showReportsNav = true,
 }: {
   active: TabId;
   onChange: (t: TabId) => void;
   showPaymentsNav?: boolean;
+  showReportsNav?: boolean;
 }) {
-  const tabs = showPaymentsNav ? TABS : TABS.filter((t) => t.id !== 'payments');
+  let tabs = TABS;
+  if (!showPaymentsNav) tabs = tabs.filter((t) => t.id !== 'payments');
+  if (!showReportsNav) tabs = tabs.filter((t) => t.id !== 'reports');
   return (
     <nav className="bottom-nav">
       {tabs.map(({ id, label, Icon }) => (

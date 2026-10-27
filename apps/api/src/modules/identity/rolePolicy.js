@@ -73,6 +73,11 @@ export function canManageFinancials(user) {
   return isOwner(user);
 }
 
+export function canViewReports(user) {
+  const r = effectiveRole(user);
+  return r === ROLES.OWNER || r === ROLES.RECEPTIONIST;
+}
+
 /** Open consult / create draft — desk or clinician; finalize still requires clinician link. */
 export function canStartConsultation(user) {
   return canUseFrontDesk(user);

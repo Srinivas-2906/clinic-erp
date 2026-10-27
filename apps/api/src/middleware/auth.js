@@ -9,6 +9,7 @@ import {
   canRecordPayments,
   canManageFinancials,
   canManageClinicSettings,
+  canViewReports,
 } from '../modules/identity/rolePolicy.js';
 import { getTenantBySlug } from '../tenantContext.js';
 
@@ -143,6 +144,7 @@ export function getUserProfile(userId) {
         recordPayments: canRecordPayments({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
         manageFinancials: canManageFinancials({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
         manageSettings: canManageClinicSettings({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
+        viewReports: canViewReports({ tenantId: user.tenant_id, role: user.role, isPlatformAdmin: !!user.is_platform_admin }),
       },
     },
     tenant: tenant ? tenantToClient(tenant) : null,

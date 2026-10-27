@@ -18,6 +18,7 @@ export function capsFromMe(
       recordPayments: !!capabilities.recordPayments,
       manageFinancials: !!capabilities.manageFinancials,
       manageSettings: !!capabilities.manageSettings,
+      viewReports: capabilities.viewReports ?? canViewReports(role, isPlatformAdmin),
     };
   }
   const r = effectiveRole(role);
@@ -28,6 +29,7 @@ export function capsFromMe(
     recordPayments: owner || r === 'receptionist',
     manageFinancials: owner,
     manageSettings: owner,
+    viewReports: canViewReports(role, isPlatformAdmin),
   };
 }
 
@@ -51,4 +53,10 @@ export function canRecordPayments(role: string, isPlatformAdmin?: boolean) {
 
 export function canManageFinancials(role: string, isPlatformAdmin?: boolean) {
   return role === 'owner' && !isPlatformAdmin;
+}
+
+export function canViewReports(role: string, isPlatformAdmin?: boolean) {
+  if (isPlatformAdmin) return false;
+  const r = effectiveRole(role);
+  return r === 'owner' || r === 'receptionist';
 }

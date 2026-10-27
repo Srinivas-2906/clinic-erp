@@ -10,6 +10,7 @@ import {
   formatSlotLabel,
 } from '../modules/scheduling/slotEngine.js';
 
+import { getTenantTimezone } from './clinicSettings.js';
 import {
   scheduleAppointmentReminders,
   scheduleRecallReminder,
@@ -526,12 +527,13 @@ export function getAppointmentsRange(tenantId, { from, to, status, patientId, li
   return getDb().prepare(sql).all(...params).map(rowToAppointment);
 }
 
-function clinicTodayDate() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+function clinicTodayDate(tenantId) {
+  const tz = tenantId ? getTenantTimezone(tenantId) : 'Asia/Kolkata';
+  return new Date().toLocaleDateString('en-CA', { timeZone: tz });
 }
 
 export function getTodayStats(tenantId) {
-  const today = clinicTodayDate();
+  const today = clinicTodayDate(tenantId);
   const db = getDb();
   const appointments = getAppointments(tenantId, { date: today });
   const upcomingLater = getDb().prepare(`

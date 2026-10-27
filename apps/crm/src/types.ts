@@ -196,6 +196,7 @@ export interface UserCapabilities {
   recordPayments?: boolean;
   manageFinancials?: boolean;
   manageSettings?: boolean;
+  viewReports?: boolean;
 }
 
 export type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'audit' | 'settings';

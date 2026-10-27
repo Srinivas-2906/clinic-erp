@@ -140,9 +140,15 @@ export function linkInvitedDoctorUser(tenantId, userId, { name, email, doctorId 
 
   const em = String(email || '').trim().toLowerCase();
   if (em) {
-    const byEmail = db.prepare(`
+    const emailMatches = db.prepare(`
       SELECT id, user_id FROM doctors WHERE tenant_id = ? AND lower(trim(email)) = ?
-    `).get(tenantId, em);
+    `).all(tenantId, em);
+    if (emailMatches.length > 1) {
+      const err = new Error('Multiple doctor profiles share this email; select a profile explicitly when approving');
+      err.status = 409;
+      throw err;
+    }
+    const byEmail = emailMatches[0];
     if (byEmail) {
       if (byEmail.user_id && byEmail.user_id !== userId) {
         const err = new Error('A doctor profile with this email is linked to another account');

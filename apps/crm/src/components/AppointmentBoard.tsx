@@ -55,6 +55,7 @@ interface Props {
   onRefresh: () => void;
   onOpenPatient: (patientId: string) => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
+  canRecordPayments?: boolean;
 }
 
 function BoardCard({
@@ -151,6 +152,7 @@ export function AppointmentBoard({
   onRefresh,
   onOpenPatient,
   onToast,
+  canRecordPayments = true,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
@@ -237,6 +239,7 @@ export function AppointmentBoard({
           onClose={() => setCompleteAppt(null)}
           onDone={() => { setCompleteAppt(null); onRefresh(); }}
           onToast={onToast}
+          canRecordPayments={canRecordPayments}
         />
       )}
 

@@ -40,9 +40,10 @@ interface Props {
   onUpdated: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onBookFollowup?: (patient: Patient) => void;
+  canRecordPayments?: boolean;
 }
 
-export function PatientDetail({ patient, appointments, encounters = [], clinicProfile, onBack, onUpdated, onToast, onBookFollowup }: Props) {
+export function PatientDetail({ patient, appointments, encounters = [], clinicProfile, onBack, onUpdated, onToast, onBookFollowup, canRecordPayments = true }: Props) {
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [note,    setNote]    = useState('');
   const [saving,  setSaving]  = useState(false);
@@ -392,9 +393,11 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
               <div className="panel-head">
                 <Banknote size={14} color="var(--brand)" />
                 <span className="panel-title">Payments</span>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowPay(true)}>
-                  + Record
-                </button>
+                {canRecordPayments && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowPay(true)}>
+                    + Record
+                  </button>
+                )}
               </div>
               <div className="panel-body">
                 <div className="patient-payment-summary">

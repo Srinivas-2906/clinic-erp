@@ -4,6 +4,7 @@ import {
   normalizeRole,
   canRecordPayments,
   canManageFinancials,
+  canViewReports,
   ROLES,
 } from './rolePolicy.js';
 
@@ -19,6 +20,7 @@ describe('rolePolicy', () => {
     const user = { tenantId: 't1', role: 'doctor', isPlatformAdmin: false };
     assert.equal(canRecordPayments(user), false);
     assert.equal(canManageFinancials(user), false);
+    assert.equal(canViewReports(user), false);
   });
 
   it('owner can manage financials', () => {

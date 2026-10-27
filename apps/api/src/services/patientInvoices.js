@@ -153,25 +153,32 @@ function sumRefundedForPayment(db, paymentId, tenantId) {
   return roundMoney(row?.s ?? 0);
 }
 
+/** Apply payment inside an existing transaction (no nested db.transaction). */
+export function applyPaymentToInvoiceInTx(db, tenantId, invoiceId, paymentRow) {
+  const inv = db.prepare(`SELECT * FROM patient_invoices WHERE id = ? AND tenant_id = ?`).get(invoiceId, tenantId);
+  if (!inv) throw new Error('Invoice not found');
+  if (inv.status === INVOICE_STATUS.VOID) throw new Error('Cannot pay a void invoice');
+  if (paymentRow.patient_id && paymentRow.patient_id !== inv.patient_id) {
+    throw new Error('Payment patient does not match invoice');
+  }
+  const amount = roundMoney(paymentRow.amount);
+  if (amount <= 0) throw new Error('Payment amount must be positive');
+  const balanceDue = getInvoiceBalanceDue(inv);
+  if (amount > balanceDue + 0.001) {
+    throw new Error(`Payment exceeds balance due (₹${balanceDue})`);
+  }
+  const newPaid = roundMoney(inv.amount_paid + amount);
+  db.prepare(`
+    UPDATE patient_invoices SET amount_paid = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?
+  `).run(newPaid, invoiceId, tenantId);
+  recomputeInvoiceTotals(db, invoiceId, tenantId);
+}
+
 export function applyPaymentToInvoice(tenantId, user, invoiceId, paymentRow) {
   const db = getDb();
-  const apply = db.transaction(() => {
-    const inv = db.prepare(`SELECT * FROM patient_invoices WHERE id = ? AND tenant_id = ?`).get(invoiceId, tenantId);
-    if (!inv) throw new Error('Invoice not found');
-    if (inv.status === INVOICE_STATUS.VOID) throw new Error('Cannot pay a void invoice');
-    const amount = roundMoney(paymentRow.amount);
-    if (amount <= 0) throw new Error('Payment amount must be positive');
-    const balanceDue = getInvoiceBalanceDue(inv);
-    if (amount > balanceDue + 0.001) {
-      throw new Error(`Payment exceeds balance due (₹${balanceDue})`);
-    }
-    const newPaid = roundMoney(inv.amount_paid + amount);
-    db.prepare(`
-      UPDATE patient_invoices SET amount_paid = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?
-    `).run(newPaid, invoiceId, tenantId);
-    recomputeInvoiceTotals(db, invoiceId, tenantId);
-  });
-  apply();
+  db.transaction(() => {
+    applyPaymentToInvoiceInTx(db, tenantId, invoiceId, paymentRow);
+  })();
   logAudit(tenantId, user.sub, 'payment_applied', 'invoice', invoiceId, { paymentId: paymentRow.id, amount: paymentRow.amount });
 }
 
@@ -197,6 +204,8 @@ export function createRefund(tenantId, user, { paymentId, amount, notes, idempot
   `).get(paymentId, tenantId);
   if (!original) throw new Error('Original payment not found');
   if (original.amount <= 0) throw new Error('Cannot refund a non-positive payment');
+  const id = nanoid(12);
+  const runRefund = db.transaction(() => {
   if (idempotencyKey) {
     const dup = db.prepare(`
       SELECT id FROM patient_payments WHERE tenant_id = ? AND idempotency_key = ?
@@ -214,8 +223,6 @@ export function createRefund(tenantId, user, { paymentId, amount, notes, idempot
   if (refundAmount <= 0 || refundAmount > refundable + 0.001) {
     throw new Error(`Invalid refund amount (refundable ₹${refundable})`);
   }
-  const id = nanoid(12);
-  const runRefund = db.transaction(() => {
   db.prepare(`
     INSERT INTO patient_payments (
       id, tenant_id, patient_id, appointment_id, amount, method, reference, notes, status,
@@ -243,17 +250,18 @@ export function createRefund(tenantId, user, { paymentId, amount, notes, idempot
       recomputeInvoiceTotals(db, original.invoice_id, tenantId);
     }
   }
-  });
-  runRefund();
-  logAudit(tenantId, user.sub, 'refund', 'payment', id, {
-    relatedPaymentId: paymentId,
-    amount: refundAmount,
-    note: 'ledger_refund_not_gateway',
-  });
   return db.prepare(`
     SELECT pp.*, p.name AS patient_name FROM patient_payments pp
     JOIN patients p ON p.id = pp.patient_id WHERE pp.id = ?
   `).get(id);
+  });
+  const result = runRefund();
+  logAudit(tenantId, user.sub, 'refund', 'payment', result.id, {
+    relatedPaymentId: paymentId,
+    amount: Math.abs(result.amount),
+    note: 'ledger_refund_not_gateway',
+  });
+  return result;
 }
 
 export function getInvoiceFinancialSummary(tenantId) {

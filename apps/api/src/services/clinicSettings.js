@@ -19,6 +19,12 @@ export function parseTenantSettings(raw) {
   }
 }
 
+export function getTenantTimezone(tenantId) {
+  const row = getDb().prepare(`SELECT settings FROM tenants WHERE id = ?`).get(tenantId);
+  if (!row) return DEFAULT_SETTINGS.timezone;
+  return parseTenantSettings(row.settings).timezone || DEFAULT_SETTINGS.timezone;
+}
+
 export function getClinicSettings(tenantId) {
   const row = getDb().prepare(`SELECT id, name, slug, settings FROM tenants WHERE id = ?`).get(tenantId);
   if (!row) return null;
