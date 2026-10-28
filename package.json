@@ -14,6 +14,12 @@
     "build": "npm run build --workspace=apps/crm",
     "test:api": "npm test --workspace=apps/api",
     "test:e2e": "npm run test:e2e --workspace=apps/crm",
-    "seed:e2e": "npm run seed:e2e --workspace=apps/api"
+    "test:e2e:smoke": "npm run test:e2e:smoke --workspace=apps/crm",
+    "test:e2e:full": "npm run test:e2e:full --workspace=apps/crm",
+    "seed:e2e": "npm run seed:e2e --workspace=apps/api",
+    "seed:e2e:local": "npm run seed:e2e:local --workspace=apps/api",
+    "verify:local": "bash scripts/verify-local.sh verify",
+    "verify:local:smoke": "bash scripts/verify-local.sh smoke",
+    "verify:local:full": "bash scripts/verify-local.sh full"
   }
 }

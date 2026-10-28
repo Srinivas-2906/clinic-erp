@@ -1,0 +1,15 @@
+appId: host.exp.exponent
+---
+# Run with Expo dev client / Expo Go pointed at local Metro.
+# Set MAESTRO_CLINIC_EMAIL / MAESTRO_CLINIC_PASSWORD in env or replace below.
+- launchApp
+- tapOn:
+    text: "Email"
+    optional: true
+- inputText: "${MAESTRO_CLINIC_EMAIL}"
+- tapOn:
+    text: "Password"
+    optional: true
+- inputText: "${MAESTRO_CLINIC_PASSWORD}"
+- tapOn: "Sign in"
+- assertVisible: "Today"

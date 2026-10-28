@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 import { captureStep } from '../helpers/screenshot';
 
-test.describe('Authentication', () => {
+test.describe('Authentication @smoke', () => {
   test('shows login screen and demo hint', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.login-screen')).toBeVisible();

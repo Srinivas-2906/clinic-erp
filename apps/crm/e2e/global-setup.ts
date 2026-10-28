@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.join(__dirname, '../../api');
+const repoRoot = path.join(__dirname, '../../..');
+const e2eDbPath =
+  process.env.DATABASE_PATH || path.join(repoRoot, 'apps/api/data/e2e/clinic.db');
 const screenshotDir = path.join(__dirname, 'screenshots');
 const reportDir = path.join(__dirname, 'report');
 
@@ -17,10 +20,19 @@ export default async function globalSetup() {
     return;
   }
 
-  console.log('\n[e2e] Seeding E2E test credentials…');
-  execSync('node scripts/seed-e2e-user.js', {
+  if (process.env.E2E_RESET_DB !== '0') {
+    execSync('node scripts/reset-e2e-database.js', {
+      cwd: apiRoot,
+      stdio: 'inherit',
+      env: { ...process.env, DATABASE_PATH: e2eDbPath },
+    });
+  }
+
+  const seedScript = process.env.E2E_SEED_SCRIPT || 'scripts/seed-e2e-local.js';
+  console.log(`\n[e2e] Seeding fixtures (${seedScript}) on ${e2eDbPath}…`);
+  execSync(`node ${seedScript}`, {
     cwd: apiRoot,
     stdio: 'inherit',
-    env: { ...process.env },
+    env: { ...process.env, DATABASE_PATH: e2eDbPath },
   });
 }

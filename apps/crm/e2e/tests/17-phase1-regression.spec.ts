@@ -7,7 +7,7 @@ function uniquePhone() {
 }
 
 test.describe('Phase 1 regression smoke', () => {
-  test('core tabs load after login', async ({ authedPage: page }) => {
+  test('core tabs load after login @smoke', async ({ authedPage: page }) => {
     for (const tab of ['overview', 'today', 'patients', 'book', 'doctors'] as const) {
       await goToTab(page, tab);
       await expect(page.locator('.clinic-app')).toBeVisible();

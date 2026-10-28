@@ -4,7 +4,7 @@ import { captureStep } from '../helpers/screenshot';
 
 const TABS = ['overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team'] as const;
 
-test.describe('Navigation — all main tabs', () => {
+test.describe('Navigation — all main tabs @smoke', () => {
   test('loads every section with screenshot', async ({ authedPage: page }) => {
     for (const tab of TABS) {
       await goToTab(page, tab);
