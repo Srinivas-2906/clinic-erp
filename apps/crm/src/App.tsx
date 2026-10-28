@@ -15,21 +15,25 @@ import { GlobalSearchDialog } from './components/GlobalSearchDialog';
 import { TeamAccessView } from './components/TeamAccessView';
 import { DoctorsView } from './components/DoctorsView';
 import { AuditView } from './components/AuditView';
+import { ClinicSettingsView } from './components/ClinicSettingsView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
 import { PilotSetupChecklist } from './components/PilotSetupChecklist';
 import { useDoctors } from './hooks/useDoctors';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
-import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
+import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchInvoices, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
+import { capsFromMe } from './lib/permissions';
+import type { PatientInvoice, UserCapabilities } from './types';
 import { resolveClinicProfile, type ClinicProfile } from './lib/clinicBranding';
 import { formatApptDayLabel, formatApptTime, isApptToday, clinicTodayYmd, apptDayKey, monthStartYmd, monthEndYmd } from './lib/appointmentDisplay';
+import { setClinicTimezone } from './lib/clinicTimezone';
 import { logout } from './lib/auth';
 import { isDenseMode, setDenseMode } from './lib/denseMode';
 import type { Patient, TabId, ToastMsg, Payment, PaymentSummary, Appointment, Encounter } from './types';
 import './styles.css';
 
 const ROUTE_TABS = new Set<TabId>([
-  'overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team', 'audit',
+  'overview', 'today', 'patients', 'book', 'payments', 'reports', 'doctors', 'team', 'audit', 'settings',
 ]);
 
 function readAppRoute() {
@@ -60,6 +64,7 @@ const PAGE_TITLES: Record<TabId, { title: string; sub: string }> = {
   doctors:   { title: 'Doctors',   sub: 'Manage clinic doctors' },
   team:      { title: 'Team',      sub: 'Approve staff login' },
   audit:     { title: 'Activity',  sub: 'Owner audit trail' },
+  settings:  { title: 'Settings',  sub: 'Clinic profile and timezone' },
 };
 
 function ClinicApp() {
@@ -81,6 +86,14 @@ function ClinicApp() {
   const [showSearch,    setShowSearch]    = useState(false);
   const [displayName,   setDisplayName]   = useState<string>('');
   const [userRole,      setUserRole]      = useState<string>('');
+  const [userCaps, setUserCaps] = useState<Required<UserCapabilities>>({
+    managePatients: true,
+    manageAppointments: true,
+    recordPayments: true,
+    manageFinancials: false,
+    manageSettings: false,
+    viewReports: true,
+  });
   const [canSignClinical, setCanSignClinical] = useState(false);
   const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
     () => localStorage.getItem('pilot-setup-dismissed') === '1',
@@ -88,6 +101,7 @@ function ClinicApp() {
   const { data: doctorsList = [] } = useDoctors(false);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
   const [payments,      setPayments]      = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
   const [report, setReport] = useState<Awaited<ReturnType<typeof fetchClinicReport>> | null>(null);
@@ -157,9 +171,10 @@ function ClinicApp() {
 
   const loadPayments = useCallback(async () => {
     try {
-      const data = await fetchPayments();
+      const [data, invData] = await Promise.all([fetchPayments(), fetchInvoices()]);
       setPayments(data.payments || []);
       setPaymentSummary(data.summary || { todayTotal: 0, monthTotal: 0, dueCount: 0 });
+      setInvoices(invData.invoices || []);
     } catch (e) {
       toastApiError(e);
     }
@@ -168,6 +183,9 @@ function ClinicApp() {
   useEffect(() => {
     loadPatients();
     fetchClient().then((c) => {
+      if (c && 'timezone' in c && typeof c.timezone === 'string') {
+        setClinicTimezone(c.timezone);
+      }
       const profile = resolveClinicProfile(c);
       setClinicProfile(profile);
       if (profile.name) setClinicName(profile.name);
@@ -177,6 +195,7 @@ function ClinicApp() {
       const n = m?.user?.name || m?.user?.username || m?.user?.email || '';
       if (n) setDisplayName(n);
       if (m?.user?.role) setUserRole(m.user.role);
+      setUserCaps(capsFromMe(m?.user?.role || '', m?.user?.capabilities, m?.user?.isPlatformAdmin));
       setCanSignClinical(!!m?.user?.canSignClinical);
     }).catch(() => {});
   }, [loadPatients]);
@@ -381,7 +400,9 @@ function ClinicApp() {
         brandName={`${clinicEmoji} ${clinicName}`}
         brandSub="Clinic desk"
         userInitials={initials}
-        showOwnerNav={userRole === 'owner'}
+        showOwnerNav={userCaps.manageSettings}
+        showPaymentsNav={userCaps.recordPayments}
+        showReportsNav={userCaps.viewReports}
       />
 
       <div className={`clinic-main${isPatientOpen ? ' patient-detail-open' : ''}`}>
@@ -436,7 +457,7 @@ function ClinicApp() {
                     <button type="button" className="user-menu-item" onClick={logout}>
                       <LogOut size={14} /> Log out
                     </button>
-                    {userRole === 'owner' && (
+                    {userCaps.manageSettings && (
                       <>
                         <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); handleTabChange('doctors'); }}>
                           Doctors
@@ -515,6 +536,7 @@ function ClinicApp() {
               onUpdated={() => loadPatientDetail(selectedId!)}
               onToast={toast}
               onBookFollowup={handleBookFollowup}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'overview' ? (
             <OverviewTab
@@ -528,6 +550,7 @@ function ClinicApp() {
               onOpenPatient={handleOpenPatient}
               onToast={toast}
               onRefresh={() => { void loadToday(); }}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'today' ? (
             <TodayView
@@ -546,6 +569,7 @@ function ClinicApp() {
               onOpenPatient={handleOpenPatient}
               onGoToBook={() => handleTabChange('book')}
               onToast={toast}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'patients' ? (
             <PatientsView
@@ -554,17 +578,27 @@ function ClinicApp() {
               onToast={toast}
               onPatientSaved={loadPatients}
               onPaymentRecorded={() => { loadPatients(); loadPayments(); }}
+              canRecordPayments={userCaps.recordPayments}
             />
           ) : tab === 'payments' ? (
-            <PaymentsView
-              summary={paymentSummary}
-              payments={payments}
-              patients={patients}
-              clinicProfile={clinicProfile}
-              onRecorded={() => { loadPayments(); void loadToday(); loadPatients(); }}
-              onOpenPatient={handleOpenPatient}
-            />
+            userCaps.recordPayments ? (
+              <PaymentsView
+                summary={paymentSummary}
+                payments={payments}
+                invoices={invoices}
+                patients={patients}
+                clinicProfile={clinicProfile}
+                canRecordPayments={userCaps.recordPayments}
+                canManageFinancials={userCaps.manageFinancials}
+                onRecorded={() => { loadPayments(); void loadToday(); loadPatients(); }}
+                onOpenPatient={handleOpenPatient}
+                onToast={toast}
+              />
+            ) : (
+              <div className="doctors-empty">Billing is handled by front desk staff.</div>
+            )
           ) : tab === 'reports' ? (
+            userCaps.viewReports ? (
             <ReportsView
               appliedFrom={reportRange?.from}
               appliedTo={reportRange?.to}
@@ -578,19 +612,32 @@ function ClinicApp() {
               onGoToToday={() => handleTabChange('today')}
               onToast={toast}
             />
+            ) : (
+              <div className="doctors-empty">Reports are available to front desk and owner accounts.</div>
+            )
           ) : tab === 'doctors' ? (
-            userRole === 'owner' ? (
+            userCaps.manageSettings ? (
               <DoctorsView onToast={toast} />
             ) : (
               <div className="doctors-empty">Only the clinic owner can manage doctors.</div>
             )
           ) : tab === 'team' ? (
-            <TeamAccessView onToast={toast} />
+            userCaps.manageSettings ? (
+              <TeamAccessView onToast={toast} />
+            ) : (
+              <div className="doctors-empty">Only the clinic owner can manage team access.</div>
+            )
           ) : tab === 'audit' ? (
-            userRole === 'owner' ? (
+            userCaps.manageSettings ? (
               <AuditView />
             ) : (
               <div className="doctors-empty">Only the clinic owner can view the activity log.</div>
+            )
+          ) : tab === 'settings' ? (
+            userCaps.manageSettings ? (
+              <ClinicSettingsView onToast={toast} />
+            ) : (
+              <div className="doctors-empty">Only the clinic owner can change clinic settings.</div>
             )
           ) : (
             <BookView
@@ -603,7 +650,14 @@ function ClinicApp() {
         </main>
 
         {/* Mobile bottom nav */}
-        {!hideBottomNav && <BottomNav active={tab} onChange={handleTabChange} />}
+        {!hideBottomNav && (
+          <BottomNav
+            active={tab}
+            onChange={handleTabChange}
+            showPaymentsNav={userCaps.recordPayments}
+            showReportsNav={userCaps.viewReports}
+          />
+        )}
       </div>
 
       {/* Toast notifications */}

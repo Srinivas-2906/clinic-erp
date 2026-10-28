@@ -49,6 +49,7 @@ interface Props {
   onOpenPatient: (id: string) => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onRefresh: () => void;
+  canRecordPayments?: boolean;
 }
 
 export function OverviewTab({
@@ -62,6 +63,7 @@ export function OverviewTab({
   onOpenPatient,
   onToast,
   onRefresh,
+  canRecordPayments = true,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const { data: doctorsList = [] } = useDoctors(false);
@@ -330,6 +332,7 @@ export function OverviewTab({
           onClose={() => setCompleteAppt(null)}
           onDone={() => { setCompleteAppt(null); onRefresh(); }}
           onToast={onToast}
+          canRecordPayments={canRecordPayments}
         />
       )}
     </div>

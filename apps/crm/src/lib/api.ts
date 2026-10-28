@@ -1,5 +1,5 @@
 import { authHeaders, clearToken } from './auth';
-import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, CatalogItem, Doctor, DoctorSession, DoctorTimeOff, Encounter, PrescriptionItemInput, VitalInput } from '../types';
+import type { Appointment, Patient, TodayStats, Payment, PaymentSummary, PatientInvoice, CatalogItem, Doctor, DoctorSession, DoctorTimeOff, Encounter, PrescriptionItemInput, VitalInput } from '../types';
 import { resolveTenantSlug } from './tenant';
 
 const API = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';
@@ -119,6 +119,7 @@ export function fetchClient() {
     city?: string;
     doctorName?: string;
     doctors?: Pick<Doctor, 'id' | 'name' | 'displayName' | 'specialty' | 'appointmentColor' | 'isActive'>[];
+    timezone?: string;
   }>('/client');
 }
 
@@ -197,9 +198,17 @@ export function fetchMe() {
       email?: string;
       username?: string;
       role?: string;
+      effectiveRole?: string;
       isPlatformAdmin?: boolean;
       canSignClinical?: boolean;
       clinicianDoctorId?: string | null;
+      capabilities?: {
+        managePatients?: boolean;
+        manageAppointments?: boolean;
+        recordPayments?: boolean;
+        manageFinancials?: boolean;
+        manageSettings?: boolean;
+      };
     };
     tenant?: { slug?: string; name?: string };
   }>('/platform/me');
@@ -363,11 +372,55 @@ export function recordPayment(data: {
   reference?: string;
   notes?: string;
   appointmentId?: string;
+  invoiceId?: string;
+  idempotencyKey?: string;
 }) {
   return request<Payment>('/clinic/payments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
+  });
+}
+
+export function fetchInvoices(options?: { patientId?: string; status?: string }) {
+  const params = new URLSearchParams();
+  if (options?.patientId) params.set('patientId', options.patientId);
+  if (options?.status) params.set('status', options.status);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  return request<{ invoices: PatientInvoice[] }>(`/clinic/invoices${q}`);
+}
+
+export function fetchInvoice(id: string) {
+  return request<PatientInvoice>(`/clinic/invoices/${encodeURIComponent(id)}`);
+}
+
+export function createInvoice(data: {
+  patientId: string;
+  appointmentId?: string;
+  encounterId?: string;
+  notes?: string;
+  lineItems: { description: string; quantity?: number; unitPrice: number; catalogItemId?: string }[];
+}) {
+  return request<PatientInvoice>('/clinic/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export function voidInvoice(id: string, reason?: string) {
+  return request<PatientInvoice>(`/clinic/invoices/${encodeURIComponent(id)}/void`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || '' }),
+  });
+}
+
+export function refundPayment(paymentId: string, body?: { amount?: number; notes?: string; idempotencyKey?: string }) {
+  return request<Payment>(`/clinic/payments/${encodeURIComponent(paymentId)}/refund`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
   });
 }
 
@@ -384,16 +437,34 @@ export function fetchAccessRequests(status?: string) {
   return request<{ requests: import('../types').AccessRequest[] }>(`/clinic/access-requests${q}`);
 }
 
-export function approveAccessRequest(id: string) {
+export function approveAccessRequest(id: string, body?: { role?: string; note?: string; doctorId?: string }) {
   return request<{
     request: import('../types').AccessRequest;
     user: { id: string; email: string; name: string; role: string };
     setPasswordUrl: string;
     expiresInDays: number;
+    emailDelivery?: string;
   }>(`/clinic/access-requests/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(body || {}),
+  });
+}
+
+export function fetchClinicSettings() {
+  return request<{
+    tenantId: string;
+    name: string;
+    slug: string;
+    settings: { timezone?: string; phone?: string; email?: string; address?: string };
+  }>('/clinic/settings');
+}
+
+export function updateClinicSettings(patch: Record<string, string>) {
+  return request<Awaited<ReturnType<typeof fetchClinicSettings>>>('/clinic/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
   });
 }
 

@@ -8,6 +8,7 @@ import { getCatalogTemplate } from '../templates/catalogTemplates.js';
 import { migrateTenantsToDoctors } from '../modules/providers/doctorMigration.js';
 import { migratePatientPhoneNonUnique } from '../modules/patients/patientPhoneMigration.js';
 import { initClinicalSchema } from '../modules/clinical/clinicalDb.js';
+import { initFinanceSchema } from '../modules/finance/financeDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
@@ -280,6 +281,7 @@ export function initDatabase() {
   `).run();
 
   initClinicalSchema(db);
+  initFinanceSchema(db);
 
   migratePatientPhoneNonUnique(db);
   migrateTenantsToDoctors(db);
@@ -330,6 +332,7 @@ export function tenantToClient(row) {
     subscriptionStatus: row.subscription_status || 'active',
     trialEndsAt: row.trial_ends_at || null,
     isLive: row.status === 'active',
+    timezone: s.timezone || 'Asia/Kolkata',
   };
 }
 

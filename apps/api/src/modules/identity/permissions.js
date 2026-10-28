@@ -1,16 +1,19 @@
-/** Centralized role checks — extend for clinic_admin, doctor, receptionist, etc. */
+import {
+  ROLES,
+  normalizeRole,
+  canManageDoctorsPolicy,
+  canManageTeamPolicy,
+  canViewAuditPolicy,
+} from './rolePolicy.js';
 
-export const ROLES = {
-  OWNER: 'owner',
-  STAFF: 'staff',
-};
+export { ROLES, normalizeRole };
 
 export function canManageDoctors(user) {
-  return !!user?.tenantId && user.role === ROLES.OWNER && !user.isPlatformAdmin;
+  return !!user?.tenantId && canManageDoctorsPolicy(user) && !user.isPlatformAdmin;
 }
 
 export function canManageTeam(user) {
-  return canManageDoctors(user);
+  return canManageTeamPolicy(user) && !!user?.tenantId && !user.isPlatformAdmin;
 }
 
 export function canViewDoctors(user) {
@@ -34,7 +37,7 @@ export function requireViewDoctors(user) {
 }
 
 export function canViewAudit(user) {
-  return canManageTeam(user);
+  return !!user?.tenantId && canViewAuditPolicy(user) && !user.isPlatformAdmin;
 }
 
 export function requireViewAudit(user) {

@@ -3,9 +3,11 @@ import { Check, Copy, UserPlus, X } from 'lucide-react';
 import {
   approveAccessRequest,
   fetchAccessRequests,
+  fetchDoctors,
   rejectAccessRequest,
   type AccessRequest,
 } from '../lib/api';
+import type { Doctor } from '../types';
 
 interface Props {
   onToast: (text: string, type?: 'ok' | 'err') => void;
@@ -17,6 +19,9 @@ export function TeamAccessView({ onToast }: Props) {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<{ email: string; url: string } | null>(null);
+  const [approveRole, setApproveRole] = useState<'receptionist' | 'doctor'>('receptionist');
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [linkDoctorId, setLinkDoctorId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,12 +39,24 @@ export function TeamAccessView({ onToast }: Props) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (approveRole !== 'doctor') return;
+    fetchDoctors(true)
+      .then((list) => setDoctors(list.doctors || []))
+      .catch(() => setDoctors([]));
+  }, [approveRole]);
+
   async function handleApprove(id: string) {
     setBusyId(id);
     try {
-      const result = await approveAccessRequest(id);
+      const result = await approveAccessRequest(id, {
+        role: approveRole,
+        doctorId: approveRole === 'doctor' && linkDoctorId ? linkDoctorId : undefined,
+      });
       setInviteLink({ email: result.user.email, url: result.setPasswordUrl });
-      onToast(`Approved ${result.user.email}. Share the link with them.`);
+      onToast(result.emailDelivery === 'queued'
+        ? `Approved ${result.user.email}. Invite email queued; copy link if needed.`
+        : `Approved ${result.user.email}. Share the setup link.`);
       await load();
     } catch (err) {
       onToast(err instanceof Error ? err.message : 'Could not approve', 'err');
@@ -82,6 +99,24 @@ export function TeamAccessView({ onToast }: Props) {
           </p>
         </div>
         <div className="team-access-filters">
+          <label className="team-role-select">
+            Role on approve
+            <select value={approveRole} onChange={(e) => setApproveRole(e.target.value as 'receptionist' | 'doctor')}>
+              <option value="receptionist">Receptionist</option>
+              <option value="doctor">Doctor</option>
+            </select>
+          </label>
+          {approveRole === 'doctor' && (
+            <label className="team-role-select">
+              Link to profile (optional)
+              <select value={linkDoctorId} onChange={(e) => setLinkDoctorId(e.target.value)}>
+                <option value="">Auto (match email or create)</option>
+                {doctors.filter((d) => !d.userId).map((d) => (
+                  <option key={d.id} value={d.id}>{d.displayName || d.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             className={`team-filter-btn${filter === 'pending' ? ' active' : ''}`}

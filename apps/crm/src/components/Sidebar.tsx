@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield, Settings } from 'lucide-react';
 import { logout } from '../lib/auth';
 import type { TabId } from '../types';
 
@@ -14,6 +14,7 @@ const NAV_ITEMS: { id: TabId; label: string; Icon: React.ElementType }[] = [
 const OWNER_ITEMS: { id: TabId; label: string; Icon: React.ElementType }[] = [
   { id: 'doctors', label: 'Doctors', Icon: Stethoscope },
   { id: 'team',    label: 'Team',    Icon: UserCog },
+  { id: 'settings', label: 'Settings', Icon: Settings },
   { id: 'audit',   label: 'Activity', Icon: Shield },
 ];
 
@@ -26,10 +27,26 @@ interface Props {
   brandSub: string;
   userInitials: string;
   showOwnerNav?: boolean;
+  showPaymentsNav?: boolean;
+  showReportsNav?: boolean;
 }
 
-export function Sidebar({ active, collapsed, onChange, onToggle, brandName, brandSub, userInitials, showOwnerNav }: Props) {
-  const navItems = showOwnerNav ? [...NAV_ITEMS, ...OWNER_ITEMS] : NAV_ITEMS;
+export function Sidebar({
+  active,
+  collapsed,
+  onChange,
+  onToggle,
+  brandName,
+  brandSub,
+  userInitials,
+  showOwnerNav,
+  showPaymentsNav = true,
+  showReportsNav = true,
+}: Props) {
+  let baseNav = NAV_ITEMS;
+  if (!showPaymentsNav) baseNav = baseNav.filter((i) => i.id !== 'payments');
+  if (!showReportsNav) baseNav = baseNav.filter((i) => i.id !== 'reports');
+  const navItems = showOwnerNav ? [...baseNav, ...OWNER_ITEMS] : baseNav;
   return (
     <aside className={`clinic-sidebar${collapsed ? ' collapsed' : ''}`}>
 

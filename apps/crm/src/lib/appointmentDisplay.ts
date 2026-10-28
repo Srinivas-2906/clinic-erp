@@ -1,7 +1,11 @@
-const CLINIC_TZ = 'Asia/Kolkata';
+import { getClinicTimezone } from './clinicTimezone';
+
+function clinicTz(): string {
+  return getClinicTimezone();
+}
 
 export function clinicTodayYmd(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: CLINIC_TZ });
+  return new Date().toLocaleDateString('en-CA', { timeZone: clinicTz() });
 }
 
 export function apptDayKey(iso: string): string {
@@ -15,7 +19,7 @@ export function isApptToday(iso: string): boolean {
 export function isApptTomorrow(iso: string): boolean {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  return apptDayKey(iso) === d.toLocaleDateString('en-CA', { timeZone: CLINIC_TZ });
+  return apptDayKey(iso) === d.toLocaleDateString('en-CA', { timeZone: clinicTz() });
 }
 
 export function isSameYmd(a: string, b: string): boolean {
@@ -52,7 +56,7 @@ export function formatMonthLabel(year: number, monthIndex: number): string {
   return new Date(year, monthIndex, 1).toLocaleDateString('en-IN', {
     month: 'long',
     year: 'numeric',
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
@@ -66,7 +70,7 @@ export function formatScheduleHeader(ymd: string): string {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
@@ -78,7 +82,7 @@ export function formatDateFull(iso?: string | null): string | null {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
@@ -90,7 +94,7 @@ export function formatDateTimeFull(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
@@ -110,7 +114,7 @@ export function formatApptTime(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
@@ -124,14 +128,14 @@ export function formatTodayHeader(): string {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
   });
 }
 
 /** Wall-clock ISO in clinic TZ (matches API date filters and Today calendar). */
 export function clinicNowIsoLocal(): string {
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: CLINIC_TZ,
+    timeZone: clinicTz(),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

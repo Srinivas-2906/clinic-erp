@@ -10,9 +10,10 @@ interface Props {
   onClose: () => void;
   onDone: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
+  canRecordPayments?: boolean;
 }
 
-export function CompleteVisitDialog({ appointment, onClose, onDone, onToast }: Props) {
+export function CompleteVisitDialog({ appointment, onClose, onDone, onToast, canRecordPayments = true }: Props) {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [notes, setNotes] = useState('');
@@ -69,56 +70,62 @@ export function CompleteVisitDialog({ appointment, onClose, onDone, onToast }: P
         <div className="modal-body complete-visit-body">
           <p className="complete-visit-intro">
             Mark <strong>{name}</strong> as done for <strong>{appointment.service || 'visit'}</strong>.
-            Payment is optional but helps you track payments.
+            {canRecordPayments ? ' Payment is optional but helps you track collections.' : ''}
           </p>
 
-          <div className="form-field">
-            <label className="form-label"><Banknote size={12} /> Amount received (₹)</label>
-            <input
-              className="form-input"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="1"
-              placeholder="e.g. 500 — leave blank to skip"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
+          {canRecordPayments && (
+            <>
+              <div className="form-field">
+                <label className="form-label"><Banknote size={12} /> Amount received (₹)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 500 — leave blank to skip"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
 
-          <div className="form-row">
-            <div className="form-field">
-              <label className="form-label">Method</label>
-              <select className="form-input" value={method} onChange={(e) => setMethod(e.target.value)}>
-                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="form-field">
-              <label className="form-label" style={{ fontWeight: 500 }}>Note <span style={{ color: 'var(--muted)' }}>(optional)</span></label>
-              <input
-                className="form-input"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. consultation"
-              />
-            </div>
-          </div>
+              <div className="form-row">
+                <div className="form-field">
+                  <label className="form-label">Method</label>
+                  <select className="form-input" value={method} onChange={(e) => setMethod(e.target.value)}>
+                    {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label className="form-label" style={{ fontWeight: 500 }}>Note <span style={{ color: 'var(--muted)' }}>(optional)</span></label>
+                  <input
+                    className="form-input"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="e.g. consultation"
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-footer complete-visit-footer">
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => complete(false)} disabled={saving}>
-            Skip payment
-          </button>
+          {canRecordPayments && (
+            <button type="button" className="btn btn-ghost" onClick={() => complete(false)} disabled={saving}>
+              Skip payment
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => complete(Boolean(amount.trim()))}
+            onClick={() => complete(canRecordPayments && Boolean(amount.trim()))}
             disabled={saving}
           >
-            {saving ? 'Saving…' : amount.trim() ? 'Complete & record' : 'Complete visit'}
+            {saving ? 'Saving…' : canRecordPayments && amount.trim() ? 'Complete & record' : 'Complete visit'}
           </button>
         </div>
       </div>

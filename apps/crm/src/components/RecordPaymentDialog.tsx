@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import type { Patient, Payment } from '../types';
+import type { Patient, PatientInvoice, Payment } from '../types';
 import { PAYMENT_METHODS } from '../types';
 import { recordPayment, updatePayment } from '../lib/api';
 import { useScrollLock } from '../hooks/useScrollLock';
@@ -9,13 +9,14 @@ import { useScrollLock } from '../hooks/useScrollLock';
 interface Props {
   patients: Patient[];
   prefillPatientId?: string;
+  invoice?: PatientInvoice | null;
   payment?: Payment | null;
   onClose: () => void;
   onSaved: () => void;
   onToast?: (msg: string, type?: 'ok' | 'err') => void;
 }
 
-export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClose, onSaved, onToast }: Props) {
+export function RecordPaymentDialog({ patients, prefillPatientId, invoice, payment, onClose, onSaved, onToast }: Props) {
   const isEdit = Boolean(payment);
   const [patientId, setPatientId] = useState(payment?.patientId || prefillPatientId || '');
   const [amount, setAmount] = useState(payment?.amount != null ? String(payment.amount) : '');
@@ -36,14 +37,26 @@ export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClo
       setNotes(payment.notes || '');
       return;
     }
+    if (invoice) {
+      setPatientId(invoice.patientId);
+      setAmount(invoice.balanceDue > 0 ? String(invoice.balanceDue) : '');
+      setNotes(invoice.notes || '');
+      return;
+    }
     if (prefillPatientId) setPatientId(prefillPatientId);
-  }, [prefillPatientId, payment]);
+  }, [prefillPatientId, payment, invoice]);
+
+  const maxInvoicePay = invoice && invoice.balanceDue > 0 ? invoice.balanceDue : undefined;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!patientId) { setError('Select a patient'); return; }
     const value = Number(amount);
     if (!value || value <= 0) { setError('Enter a valid amount'); return; }
+    if (maxInvoicePay != null && value > maxInvoicePay + 0.001) {
+      setError(`Amount cannot exceed balance due (₹${maxInvoicePay})`);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -62,6 +75,10 @@ export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClo
           method,
           reference,
           notes: notes.trim() || undefined,
+          invoiceId: invoice?.id,
+          idempotencyKey: invoice
+            ? `pay-inv-${invoice.id}-${value}-${Date.now()}`
+            : `pay-${patientId}-${value}-${Date.now()}`,
         });
         onToast?.('Payment recorded', 'ok');
       }
@@ -81,7 +98,7 @@ export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClo
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="modal-handle" />
         <div className="modal-header">
-          <h3>{isEdit ? 'Edit payment' : 'Record payment'}</h3>
+          <h3>{isEdit ? 'Edit payment' : invoice ? 'Pay invoice' : 'Record payment'}</h3>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>
@@ -95,7 +112,7 @@ export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClo
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 required
-                disabled={Boolean(prefillPatientId) || isEdit}
+                disabled={Boolean(prefillPatientId) || Boolean(invoice) || isEdit}
               >
                 <option value="">Select patient</option>
                 {patients.map((p) => (
@@ -113,8 +130,12 @@ export function RecordPaymentDialog({ patients, prefillPatientId, payment, onClo
                 onChange={(e) => setAmount(e.target.value)}
                 required
                 min="1"
-                autoFocus={Boolean(prefillPatientId) || isEdit}
+                max={maxInvoicePay}
+                autoFocus={Boolean(prefillPatientId) || isEdit || Boolean(invoice)}
               />
+            {maxInvoicePay != null && (
+              <span className="muted">Balance due: ₹{maxInvoicePay.toLocaleString('en-IN')}</span>
+            )}
             </div>
             <div className="form-field">
               <label className="form-label">Method</label>

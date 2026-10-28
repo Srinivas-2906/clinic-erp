@@ -46,6 +46,7 @@ export default function App() {
   const [patientQuery, setPatientQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<{ patient: { name: string; phone?: string }; appointments: { service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
   const [error, setError] = useState('');
+  const [meLabel, setMeLabel] = useState('');
 
   const client = useMemo(
     () =>
@@ -72,6 +73,11 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     setError('');
+    client.me().then((m) => {
+      const role = m.user?.effectiveRole || m.user?.role || '';
+      const name = m.user?.name || m.user?.email || '';
+      setMeLabel(name ? `${name}${role ? ` · ${role}` : ''}` : role);
+    }).catch(() => setMeLabel(''));
     if (screen === 'today') {
       client.today().then(setToday).catch((e) => setError(e.message));
     } else {
@@ -167,7 +173,7 @@ export default function App() {
           <Text style={screen === 'patients' ? styles.tabTextActive : styles.muted}>Patients</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.subtitle}>{tenant} · {email || 'staff'}</Text>
+      <Text style={styles.subtitle}>{tenant} · {meLabel || email || 'staff'}</Text>
       {screen === 'patients' && (
         <TextInput
           style={styles.input}

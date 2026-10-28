@@ -38,6 +38,7 @@ interface Props {
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onPatientSaved: () => void;
   onPaymentRecorded: () => void;
+  canRecordPayments?: boolean;
 }
 
 function paymentSummary(p: Patient) {
@@ -50,7 +51,7 @@ function paymentSummary(p: Patient) {
   return { label: null, hasHistory: false };
 }
 
-export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPaymentRecorded }: Props) {
+export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPaymentRecorded, canRecordPayments = true }: Props) {
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -208,6 +209,7 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
                     title="Record payment"
                     aria-label={`Record payment for ${p.name}`}
                     onClick={(e) => { e.stopPropagation(); setPayPatient(p); }}
+                    style={canRecordPayments ? undefined : { display: 'none' }}
                   >
                     <Banknote size={14} />
                   </button>
@@ -290,6 +292,7 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
                         title="Record payment"
                         aria-label={`Record payment for ${p.name}`}
                         onClick={(e) => { e.stopPropagation(); setPayPatient(p); }}
+                        style={canRecordPayments ? undefined : { display: 'none' }}
                       >
                         <Banknote size={14} />
                       </button>

@@ -1,8 +1,16 @@
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
+COPY apps/crm/package.json ./apps/crm/package.json
+RUN npm ci --workspace=clinic-crm \
+  && npm install --no-save \
+    @rollup/rollup-linux-x64-gnu \
+    @rolldown/binding-linux-x64-gnu \
+    lightningcss-linux-x64-gnu
+COPY apps/crm ./apps/crm
+WORKDIR /app/apps/crm
 ARG VITE_CLINIC_API=/api
 ARG VITE_TENANT_SLUG=dentacare
 ENV VITE_CLINIC_API=$VITE_CLINIC_API \
@@ -10,9 +18,9 @@ ENV VITE_CLINIC_API=$VITE_CLINIC_API \
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY apps/crm/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/crm/docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh ; chmod +x /docker-entrypoint.sh
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/apps/crm/dist /usr/share/nginx/html
 EXPOSE 8080
 ENTRYPOINT ["/docker-entrypoint.sh"]

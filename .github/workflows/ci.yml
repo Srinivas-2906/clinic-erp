@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run test:api
+      - name: Billing API smoke
+        run: node apps/api/scripts/billing-api-smoke.js
 
   crm-unit-tests:
     name: CRM unit tests
@@ -71,9 +73,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t clinic-api:ci ./apps/api
+      - run: docker build -f apps/api/Dockerfile -t clinic-api:ci .
       - run: |
-          docker build -t clinic-crm:ci \
+          docker build -f apps/crm/Dockerfile -t clinic-crm:ci \
             --build-arg VITE_CLINIC_API=/api \
             --build-arg VITE_TENANT_SLUG=dentacare \
-            ./apps/crm
+            .

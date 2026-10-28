@@ -96,9 +96,93 @@ export function createDoctor(tenantId, user, data) {
   return getDoctorById(id, tenantId);
 }
 
+function assertUserNotLinkedToOtherDoctor(tenantId, userId, exceptDoctorId) {
+  if (!userId) return;
+  const clash = getDb().prepare(`
+    SELECT id FROM doctors WHERE tenant_id = ? AND user_id = ? AND id != ?
+  `).get(tenantId, userId, exceptDoctorId);
+  if (clash) {
+    const err = new Error('This user account is already linked to another doctor profile');
+    err.status = 409;
+    throw err;
+  }
+}
+
+/**
+ * After staff invite approval with role doctor: link to an existing profile or create one.
+ * Prefer explicit doctorId; else match by email; else create a minimal active doctor row.
+ */
+export function linkInvitedDoctorUser(tenantId, userId, { name, email, doctorId } = {}) {
+  const db = getDb();
+  const existingByUser = db.prepare(
+    'SELECT id FROM doctors WHERE tenant_id = ? AND user_id = ?',
+  ).get(tenantId, userId);
+  if (existingByUser) return existingByUser.id;
+
+  if (doctorId) {
+    assertDoctorBelongsToTenant(doctorId, tenantId);
+    const row = db.prepare(
+      'SELECT id, user_id, email FROM doctors WHERE id = ? AND tenant_id = ?',
+    ).get(doctorId, tenantId);
+    if (row.user_id && row.user_id !== userId) {
+      const err = new Error('Selected doctor profile is already linked to another account');
+      err.status = 409;
+      throw err;
+    }
+    assertUserNotLinkedToOtherDoctor(tenantId, userId, doctorId);
+    const em = String(email || '').trim();
+    db.prepare(`
+      UPDATE doctors SET user_id = ?, email = CASE WHEN trim(COALESCE(email, '')) = '' THEN ? ELSE email END, updated_at = ?
+      WHERE id = ? AND tenant_id = ?
+    `).run(userId, em, nowIso(), doctorId, tenantId);
+    return doctorId;
+  }
+
+  const em = String(email || '').trim().toLowerCase();
+  if (em) {
+    const emailMatches = db.prepare(`
+      SELECT id, user_id FROM doctors WHERE tenant_id = ? AND lower(trim(email)) = ?
+    `).all(tenantId, em);
+    if (emailMatches.length > 1) {
+      const err = new Error('Multiple doctor profiles share this email; select a profile explicitly when approving');
+      err.status = 409;
+      throw err;
+    }
+    const byEmail = emailMatches[0];
+    if (byEmail) {
+      if (byEmail.user_id && byEmail.user_id !== userId) {
+        const err = new Error('A doctor profile with this email is linked to another account');
+        err.status = 409;
+        throw err;
+      }
+      assertUserNotLinkedToOtherDoctor(tenantId, userId, byEmail.id);
+      db.prepare(`UPDATE doctors SET user_id = ?, updated_at = ? WHERE id = ?`).run(userId, nowIso(), byEmail.id);
+      return byEmail.id;
+    }
+  }
+
+  assertCanAddDoctor(tenantId, 1);
+  const displayName = String(name || 'Doctor').trim() || 'Doctor';
+  const id = nanoid(12);
+  const now = nowIso();
+  db.prepare(`
+    INSERT INTO doctors (
+      id, tenant_id, name, display_name, specialty, phone, email,
+      qualification, registration_number, avatar_url, user_id,
+      appointment_color, default_slot_duration, is_active, sort_order,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, '', '', ?, '', '', '', ?, '#2563eb', 30, 1, 0, ?, ?)
+  `).run(id, tenantId, displayName, displayName, String(email || '').trim(), userId, now, now);
+  return id;
+}
+
 export function updateDoctor(doctorId, tenantId, user, patch) {
   requireManageDoctors(user);
   assertDoctorBelongsToTenant(doctorId, tenantId);
+
+  if (patch.userId !== undefined && patch.userId) {
+    assertUserNotLinkedToOtherDoctor(tenantId, patch.userId, doctorId);
+  }
 
   const fields = [];
   const values = [];

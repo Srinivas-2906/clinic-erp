@@ -79,6 +79,7 @@ interface Props {
   onOpenPatient: (patientId: string) => void;
   onGoToBook: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
+  canRecordPayments?: boolean;
 }
 
 export function TodayView({
@@ -97,6 +98,7 @@ export function TodayView({
   onOpenPatient,
   onGoToBook,
   onToast,
+  canRecordPayments = true,
 }: Props) {
   const [viewMode, setViewMode] = useState<TodayViewMode>(() => (isMobileViewport() ? 'list' : 'board'));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -409,6 +411,7 @@ export function TodayView({
               onRefresh={onRefresh}
               onOpenPatient={onOpenPatient}
               onToast={onToast}
+              canRecordPayments={canRecordPayments}
             />
           ) : (
             showSessionSplit ? (
@@ -438,6 +441,7 @@ export function TodayView({
           onClose={() => setCompleteAppt(null)}
           onDone={() => { setCompleteAppt(null); onRefresh(); }}
           onToast={onToast}
+          canRecordPayments={canRecordPayments}
         />
       )}
 
