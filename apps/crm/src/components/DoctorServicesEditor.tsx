@@ -16,10 +16,11 @@ export function DoctorServicesEditor({ doctorId, onToast }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [items, svc] = await Promise.all([
+      const [catalogRes, svc] = await Promise.all([
         fetchCatalog(),
         fetchDoctorServices(doctorId),
       ]);
+      const items = Array.isArray(catalogRes) ? catalogRes : catalogRes.items || [];
       setCatalog(items);
       setSelected(new Set(svc.catalogItemIds || []));
     } catch (err) {
