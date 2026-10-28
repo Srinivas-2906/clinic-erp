@@ -10,11 +10,15 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# Monorepo install — root lock includes all workspace deps (e.g. nodemailer).
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY apps/api/package.json ./apps/api/package.json
+RUN npm ci --omit=dev --workspace=clinic-api
 
-COPY src ./src
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+WORKDIR /app/apps/api
+
+COPY apps/api/src ./src
+COPY apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh ; chmod +x /usr/local/bin/docker-entrypoint.sh
 
 RUN mkdir -p /data/uploads
@@ -27,6 +31,6 @@ ENV UPLOADS_DIR=/data/uploads
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 ENTRYPOINT ["docker-entrypoint.sh"]

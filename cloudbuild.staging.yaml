@@ -8,7 +8,9 @@ steps:
       - build
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api-staging:$BUILD_ID
-      - ./apps/api
+      - -f
+      - apps/api/Dockerfile
+      - .
 
   - id: push-clinic-api
     name: gcr.io/cloud-builders/docker
