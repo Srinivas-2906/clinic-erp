@@ -1,10 +1,6 @@
 import 'dotenv/config';
-import express from 'express';
 import { initDatabase } from './db/index.js';
-import { jsonBodyParserOptions } from './config/httpBodyLimits.js';
-import { jsonBodyErrorHandler } from './middleware/jsonBodyError.js';
-import { corsMiddleware } from './middleware/cors.js';
-import platformRouter, { clinicRouter } from './routes/index.js';
+import { createApiApp } from './appFactory.js';
 import { initReminderInfrastructure, processDueReminders } from './services/reminders/index.js';
 
 initDatabase();
@@ -23,22 +19,8 @@ if (useInProcessReminderWorker) {
   }, REMINDER_POLL_MS).unref?.();
 }
 
-const app = express();
+const app = createApiApp();
 const PORT = process.env.PORT || 3010;
-
-app.use(express.json(jsonBodyParserOptions()));
-app.use(jsonBodyErrorHandler);
-app.use(corsMiddleware);
-
-// Auth + tenant public info (matches clinic-crm LoginGate paths)
-app.use('/api/platform', platformRouter);
-
-// CRM data routes
-app.use('/api', clinicRouter());
-
-app.get('/', (_req, res) => {
-  res.json({ ok: true, service: 'clinic-api', docs: 'Standalone backend for clinic-crm' });
-});
 
 app.listen(PORT, () => {
   console.log(`Clinic API listening on port ${PORT}`);

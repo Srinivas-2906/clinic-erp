@@ -106,6 +106,12 @@ function ok(name, cond, detail = '') {
 async function main() {
   const password = secretPassword();
   ok('API health', (await json('GET', '/')).status === 200);
+  const health = await json('GET', '/health');
+  ok(
+    'API /health',
+    (health.status === 200 && health.data?.ok === true) || health.status === 404,
+    health.status === 404 ? 'optional until PR #25 deploy' : '',
+  );
 
   const login = await json('POST', '/api/platform/login', {
     body: { email: OWNER_EMAIL, password, tenantSlug: TENANT },
@@ -119,6 +125,12 @@ async function main() {
 
   const ent = await json('GET', '/api/clinic/entitlements', { token });
   ok('Entitlements', ent.status === 200 && ent.data?.planId, JSON.stringify(ent.data?.limits || {}));
+
+  const exp = await json('GET', '/api/clinic/export', { token });
+  ok('Owner tenant export', exp.status === 200 && exp.data?.tenant?.slug === TENANT);
+
+  const platDenied = await json('GET', '/api/platform/admin/tenants', { token });
+  ok('Platform admin denied for clinic owner', platDenied.status === 403);
 
   const patientPhone = `9${String(Date.now()).slice(-9)}`;
   const created = await json('POST', '/api/patients', {
@@ -176,6 +188,18 @@ async function main() {
 
   ok('CRM reachable', (await fetch(CRM)).status === 200, CRM);
   ok('CRM tenant query', (await fetch(`${CRM}/?tenant=${TENANT}`)).status === 200);
+
+  const provKey = process.env.CLINIC_PROVISIONING_API_KEY?.trim();
+  if (provKey) {
+    const reminders = await json('POST', '/api/platform/internal/process-reminders', {
+      body: { limit: 5 },
+      headers: { 'x-clinic-provisioning-key': provKey },
+      token: null,
+    });
+    ok('Process reminders (mock)', reminders.status === 200 && typeof reminders.data?.processed === 'number');
+  } else {
+    checks.push({ name: 'Process reminders (mock)', pass: true, detail: 'skipped — CLINIC_PROVISIONING_API_KEY not set locally' });
+  }
 
   printSummary();
   process.exit(checks.every((c) => c.pass) ? 0 : 1);

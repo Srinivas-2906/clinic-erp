@@ -53,6 +53,22 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       }),
+    createPatient: (body: { name: string; phone: string; email?: string }) =>
+      request<{ id: string }>(`/api/patients`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    appointmentSlots: (date: string) =>
+      request<{ slots: string[]; slotOptions?: unknown[] }>(
+        `/api/appointments/slots?date=${encodeURIComponent(date)}&anyAvailable=1`,
+      ),
+    createAppointment: (body: { patientId: string; scheduledAt: string; service?: string; status?: string }) =>
+      request<{ id: string }>(`/api/appointments`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    listEncounters: (patientId: string) =>
+      request<{ encounters: unknown[] }>(`/api/clinic/patients/${encodeURIComponent(patientId)}/encounters`),
   };
 }
 
