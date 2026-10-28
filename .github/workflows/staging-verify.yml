@@ -1,0 +1,30 @@
+name: Staging verify (post-deploy)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy staging (manual — approval required)']
+    types: [completed]
+
+jobs:
+  verify:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Release preflight
+        run: node apps/api/scripts/release-preflight.js
+      - name: Billing smoke
+        run: node apps/api/scripts/billing-api-smoke.js
+      - name: HTTP staging validate
+        env:
+          STAGING_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
+          STAGING_CRM_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
+          STAGING_DEMO_PASSWORD: ${{ secrets.STAGING_DEMO_PASSWORD }}
+          CLINIC_PROVISIONING_API_KEY: ${{ secrets.CLINIC_PROVISIONING_API_KEY }}
+        run: node scripts/staging-validate.mjs
