@@ -11,8 +11,10 @@ const PWD_SECRET = process.env.PLATFORM_ADMIN_PASSWORD_SECRET || 'clinic-staging
 function password() {
   const env = process.env.PLATFORM_ADMIN_PASSWORD?.trim();
   if (env) return env;
+  const imp = process.env.GCP_IMPERSONATE_SA?.trim();
+  const impFlag = imp ? `--impersonate-service-account=${imp}` : '';
   return execSync(
-    `gcloud secrets versions access latest --secret=${PWD_SECRET} --project=${PROJECT}`,
+    `gcloud ${impFlag} secrets versions access latest --secret=${PWD_SECRET} --project=${PROJECT}`,
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   ).trim();
 }

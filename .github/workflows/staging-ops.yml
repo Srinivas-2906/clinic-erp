@@ -1,4 +1,4 @@
-# Staging infrastructure ops — Cloud Build (Secret Manager via cloudbuild SA). Manual or post-deploy.
+# Staging operations — secrets via runner SA impersonation; infra via cloudbuild SA.
 name: Staging ops (validate, scheduler, monitoring)
 
 on:
@@ -23,6 +23,7 @@ jobs:
       || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: staging
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -30,6 +31,10 @@ jobs:
       GCP_STAGING_PROJECT_ID: ${{ vars.GCP_STAGING_PROJECT_ID }}
       GCP_STAGING_DEPLOYER_SA: ${{ vars.GCP_STAGING_DEPLOYER_SA }}
       GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      RUNNER_SA: clinic-staging-runner@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+      CLOUDBUILD_SA: clinic-staging-cloudbuild@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+      STAGING_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
+      STAGING_CRM_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
     steps:
       - uses: actions/checkout@v4
 
@@ -48,36 +53,105 @@ jobs:
         with:
           project_id: ${{ env.GCP_STAGING_PROJECT_ID }}
 
-      - name: Bootstrap staging secrets and secret IAM
-        env:
-          CLOUDBUILD_SA: clinic-staging-cloudbuild@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+      - name: Bootstrap staging secrets (create missing, bind IAM)
         run: |
           set -euo pipefail
-          export GCP_STAGING_PROJECT_ID="${{ vars.GCP_STAGING_PROJECT_ID }}"
-          export GCP_IMPERSONATE_SA="${CLOUDBUILD_SA}"
           chmod +x infra/staging/bootstrap-staging-secrets.sh scripts/staging-secret-preflight.sh
+          export GCP_IMPERSONATE_SA="${RUNNER_SA}"
           bash infra/staging/bootstrap-staging-secrets.sh || {
-            echo "Impersonated bootstrap failed; trying Cloud Build IAM config (default builder SA)…"
-            gcloud builds submit \
-              --project "$GCP_STAGING_PROJECT_ID" \
-              --config cloudbuild.staging-iam.yaml \
-              --format='value(id)' \
-              . >/dev/null
+            export GCP_IMPERSONATE_SA="${CLOUDBUILD_SA}"
+            bash infra/staging/bootstrap-staging-secrets.sh || true
           }
-          bash scripts/staging-secret-preflight.sh
+          gcloud builds submit \
+            --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-iam.yaml \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            --format='value(id)' \
+            . >/dev/null || true
 
-      - name: Submit staging ops Cloud Build
+      - name: Secret preflight (runner identity)
         run: |
           set -euo pipefail
-          CLOUDBUILD_SA="clinic-staging-cloudbuild@${GCP_STAGING_PROJECT_ID}.iam.gserviceaccount.com"
+          export GCP_IMPERSONATE_SA="${RUNNER_SA}"
+          bash scripts/staging-secret-preflight.sh | tee secret-preflight.jsonl
+
+      - name: Load staging credentials into env
+        run: |
+          set -euo pipefail
+          read_secret() {
+            gcloud --impersonate-service-account="${RUNNER_SA}" secrets versions access latest \
+              --secret="$1" --project="${GCP_STAGING_PROJECT_ID}"
+          }
+          DEMO="$(read_secret clinic-staging-demo-password)"
+          echo "::add-mask::${DEMO}"
+          echo "STAGING_DEMO_PASSWORD=${DEMO}" >> "$GITHUB_ENV"
+          if PROV="$(read_secret clinic-staging-provisioning-key 2>/dev/null || true)" && [ -n "$PROV" ]; then
+            echo "::add-mask::${PROV}"
+            echo "CLINIC_PROVISIONING_API_KEY=${PROV}" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Release preflight
+        run: node apps/api/scripts/release-preflight.js
+
+      - name: Staging validate (HTTP)
+        env:
+          STAGING_API_URL: ${{ env.STAGING_API_URL }}
+          STAGING_CRM_URL: ${{ env.STAGING_CRM_URL }}
+        run: node scripts/staging-validate.mjs | tee staging-validate.json
+
+      - name: Staging clinical QA
+        env:
+          STAGING_API_URL: ${{ env.STAGING_API_URL }}
+        run: node scripts/staging-clinical-qa.mjs | tee staging-clinical-qa.json
+
+      - name: Playwright staging pilot
+        env:
+          E2E_STAGING: '1'
+          E2E_API_URL: ${{ env.STAGING_API_URL }}
+          E2E_BASE_URL: ${{ env.STAGING_CRM_URL }}
+          E2E_EMAIL: staging-owner@clinic-erp.invalid
+          E2E_TENANT: dentacare
+          E2E_PASSWORD: ${{ env.STAGING_DEMO_PASSWORD }}
+        run: |
+          npm ci
+          npm run test:e2e:install --workspace=apps/crm
+          npm run test:e2e:staging --workspace=apps/crm -- --grep "Staging pilot"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-staging-report
+          path: apps/crm/e2e/report
+          if-no-files-found: ignore
+
+      - name: Infra ops (Cloud Build)
+        run: |
+          set -euo pipefail
           BUILD_ID="$(gcloud builds submit \
             --project "$GCP_STAGING_PROJECT_ID" \
-            --config cloudbuild.staging-ops.yaml \
+            --config cloudbuild.staging-infra.yaml \
             --substitutions="_COMMIT_SHA=${GITHUB_SHA}" \
-            --service-account="projects/$GCP_STAGING_PROJECT_ID/serviceAccounts/${CLOUDBUILD_SA}" \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
             --format='value(id)' \
             .)"
-          echo "Cloud Build ID: ${BUILD_ID}"
           gcloud builds log "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --stream
-          STATUS="$(gcloud builds describe "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')"
-          test "$STATUS" = "SUCCESS"
+          test "$(gcloud builds describe "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')" = "SUCCESS"
+
+      - name: Platform admin HTTP verify
+        env:
+          STAGING_API_URL: ${{ env.STAGING_API_URL }}
+          GCP_IMPERSONATE_SA: ${{ env.RUNNER_SA }}
+        run: |
+          set -euo pipefail
+          if gcloud --impersonate-service-account="${RUNNER_SA}" secrets versions access latest \
+            --secret=clinic-staging-platform-admin-password --project="${GCP_STAGING_PROJECT_ID}" >/dev/null 2>&1; then
+            node scripts/staging-verify-platform-admin.mjs | tee platform-admin-verify.json
+          else
+            echo '{"skipped":true,"reason":"platform admin secret missing or no access"}' | tee platform-admin-verify.json
+          fi

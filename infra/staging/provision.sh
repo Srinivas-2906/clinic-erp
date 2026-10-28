@@ -123,6 +123,14 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNNER_EMAIL" \
   --project="$PROJECT_ID" \
   --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
   --role="roles/iam.serviceAccountUser" --quiet
+gcloud iam service-accounts add-iam-policy-binding "$RUNNER_EMAIL" \
+  --project="$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/iam.serviceAccountUser" --quiet
+gcloud iam service-accounts add-iam-policy-binding "$RUNNER_EMAIL" \
+  --project="$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/iam.serviceAccountTokenCreator" --quiet
 
 echo "==> IAM (GitHub WIF deployer)"
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \

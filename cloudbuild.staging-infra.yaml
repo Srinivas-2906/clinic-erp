@@ -1,0 +1,86 @@
+# Staging infra only (trace, API env, platform admin job, scheduler, monitoring).
+steps:
+  - id: guard
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        test "$PROJECT_ID" != "crucial-accord-505607-g9"
+
+  - id: deployment-trace
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-deployment-trace.sh scripts/staging-backup-health.sh
+        export MAIN_SHA="${_COMMIT_SHA}" GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        bash scripts/staging-deployment-trace.sh | tee /workspace/deployment-trace.json
+        bash scripts/staging-backup-health.sh | tee /workspace/backup-health.json
+
+  - id: sync-api-provisioning
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if ! gcloud secrets describe clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo '{"skipped":true,"reason":"provisioning secret missing"}' | tee /workspace/sync-api.json
+          exit 0
+        fi
+        gcloud run services update clinic-api-staging \
+          --project="$$PROJECT_ID" --region="${_REGION}" \
+          --update-secrets "CLINIC_PROVISIONING_API_KEY=clinic-staging-provisioning-key:latest" \
+          --update-env-vars "REMINDER_DELIVERY_ENABLED=0,CLINIC_EMAIL_PROVIDER=console,REMINDER_EXTERNAL_SCHEDULER=1,DISABLE_REMINDER_WORKER=1"
+
+  - id: bootstrap-platform-admin
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if ! gcloud secrets describe clinic-staging-platform-admin-password --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo '{"skipped":true}' | tee /workspace/platform-admin-bootstrap.json
+          exit 0
+        fi
+        chmod +x scripts/staging-bootstrap-platform-admin.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
+        bash scripts/staging-bootstrap-platform-admin.sh | tee /workspace/platform-admin-bootstrap.json
+
+  - id: configure-scheduler
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if ! gcloud secrets describe clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo '{"skipped":true}' | tee /workspace/scheduler.json
+          exit 0
+        fi
+        chmod +x scripts/staging-setup-scheduler.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
+        bash scripts/staging-setup-scheduler.sh | tee /workspace/scheduler.json
+
+  - id: monitoring
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-monitoring-setup.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        bash scripts/staging-monitoring-setup.sh | tee /workspace/monitoring.json || true
+
+substitutions:
+  _REGION: asia-south1
+  _COMMIT_SHA: unknown
+
+options:
+  logging: CLOUD_LOGGING_ONLY
