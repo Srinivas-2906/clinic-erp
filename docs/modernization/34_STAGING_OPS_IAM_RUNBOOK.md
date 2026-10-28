@@ -25,7 +25,12 @@ bash infra/staging/bootstrap-staging-secrets.sh
 bash scripts/staging-iam-verify.sh
 ```
 
-**What this grants:** only `roles/secretmanager.secretAccessor` **on each listed secret** for the two service accounts above (not project-wide). Bootstrap creates missing ops secrets with new random values (does **not** rotate `clinic-staging-demo-password`).
+**What this grants:**
+
+- `roles/secretmanager.secretAccessor` **on each secret** for `clinic-staging-runner` and `clinic-staging-cloudbuild` only (not project-wide, not on the GitHub SA).
+- `roles/iam.serviceAccountUser` and `roles/iam.serviceAccountTokenCreator` on **runner** for **github-clinic-erp-staging** (WIF impersonation for ops).
+
+Bootstrap creates missing ops secrets with new random values (does **not** rotate `clinic-staging-demo-password`).
 
 ## Verify
 

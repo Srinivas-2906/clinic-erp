@@ -39,4 +39,14 @@ done
 # JWT: API runtime only (provision.sh usually binds runner already).
 bind clinic-staging-jwt-secret "$RUNNER_SA"
 
+GITHUB_SA="${GITHUB_SA:-github-clinic-erp-staging@${PROJECT}.iam.gserviceaccount.com}"
+for ROLE in roles/iam.serviceAccountUser roles/iam.serviceAccountTokenCreator; do
+  gcloud iam service-accounts add-iam-policy-binding "$RUNNER_SA" \
+    --project="$PROJECT" \
+    --member="serviceAccount:${GITHUB_SA}" \
+    --role="$ROLE" \
+    --quiet
+  echo "wif: ${GITHUB_SA} -> ${RUNNER_SA} (${ROLE})"
+done
+
 echo "Done. Verify: GCP_STAGING_PROJECT_ID=${PROJECT} bash scripts/staging-iam-verify.sh"
