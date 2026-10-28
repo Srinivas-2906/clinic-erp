@@ -5,7 +5,6 @@ set -euo pipefail
 PROJECT="${GCP_STAGING_PROJECT_ID:-clinic-erp-staging}"
 CLOUDBUILD_SA="${CLOUDBUILD_SA:-clinic-staging-cloudbuild@${PROJECT}.iam.gserviceaccount.com}"
 RUNNER_SA="${RUNNER_SA:-clinic-staging-runner@${PROJECT}.iam.gserviceaccount.com}"
-GITHUB_SA="${GITHUB_SA:-github-clinic-erp-staging@${PROJECT}.iam.gserviceaccount.com}"
 IMPERSONATE="${GCP_IMPERSONATE_SA:-}"
 
 if [ "$PROJECT" = "crucial-accord-505607-g9" ]; then
@@ -72,7 +71,7 @@ ensure_secret clinic-staging-platform-admin-password 1 || true
 for SEC in clinic-staging-demo-password clinic-staging-provisioning-key clinic-staging-platform-admin-password; do
   if "${GCLOUD[@]}" secrets versions access latest --secret="$SEC" --project="$PROJECT" >/dev/null 2>&1 \
     || "${GCLOUD[@]}" secrets describe "$SEC" --project="$PROJECT" >/dev/null 2>&1; then
-    for SA in "$CLOUDBUILD_SA" "$RUNNER_SA" "$GITHUB_SA"; do
+    for SA in "$RUNNER_SA" "$CLOUDBUILD_SA"; do
       bind_accessor "$SEC" "$SA"
     done
     echo "iam: $SEC"
