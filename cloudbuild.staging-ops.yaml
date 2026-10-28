@@ -21,9 +21,9 @@ steps:
       - -c
       - |
         set -euo pipefail
-        gcloud secrets describe clinic-staging-demo-password --project="$$PROJECT_ID" >/dev/null
+        gcloud secrets versions access latest --secret=clinic-staging-demo-password --project="$$PROJECT_ID" >/dev/null
         echo "ok: clinic-staging-demo-password"
-        if gcloud secrets describe clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
+        if gcloud secrets versions access latest --secret=clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
           echo "ok: clinic-staging-provisioning-key" | tee /workspace/has-provisioning-secret
         else
           echo "warn: clinic-staging-provisioning-key missing" | tee /workspace/missing-provisioning-secret
