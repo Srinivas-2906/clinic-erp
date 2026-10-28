@@ -21,12 +21,19 @@ steps:
       - -c
       - |
         set -euo pipefail
-        gcloud secrets describe clinic-staging-demo-password --project="$$PROJECT_ID" >/dev/null
-        echo "ok: clinic-staging-demo-password"
-        if gcloud secrets describe clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
-          echo "ok: clinic-staging-provisioning-key" | tee /workspace/has-provisioning-secret
+        chmod +x scripts/staging-secret-preflight.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        if bash scripts/staging-secret-preflight.sh | tee /workspace/secret-preflight.jsonl; then
+          echo ok > /workspace/demo-secret-ok
         else
-          echo "warn: clinic-staging-provisioning-key missing" | tee /workspace/missing-provisioning-secret
+          echo "demo-password preflight failed" >&2
+          exit 1
+        fi
+        if gcloud secrets versions access latest --secret=clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo ok | tee /workspace/has-provisioning-secret
+        fi
+        if gcloud secrets versions access latest --secret=clinic-staging-platform-admin-password --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo ok | tee /workspace/has-platform-admin-secret
         fi
 
   - id: deployment-trace
@@ -65,8 +72,8 @@ steps:
       - -c
       - |
         set -euo pipefail
-        if ! gcloud secrets describe clinic-staging-platform-admin-password --project="$$PROJECT_ID" >/dev/null 2>&1; then
-          echo '{"ok":false,"skipped":true,"reason":"create secret clinic-staging-platform-admin-password"}' | tee /workspace/platform-admin-bootstrap.json
+        if [ ! -f /workspace/has-platform-admin-secret ]; then
+          echo '{"ok":false,"skipped":true,"reason":"clinic-staging-platform-admin-password unavailable"}' | tee /workspace/platform-admin-bootstrap.json
           exit 0
         fi
         chmod +x scripts/staging-bootstrap-platform-admin.sh

@@ -48,6 +48,24 @@ jobs:
         with:
           project_id: ${{ env.GCP_STAGING_PROJECT_ID }}
 
+      - name: Bootstrap staging secrets and secret IAM
+        env:
+          CLOUDBUILD_SA: clinic-staging-cloudbuild@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+        run: |
+          set -euo pipefail
+          export GCP_STAGING_PROJECT_ID="${{ vars.GCP_STAGING_PROJECT_ID }}"
+          export GCP_IMPERSONATE_SA="${CLOUDBUILD_SA}"
+          chmod +x infra/staging/bootstrap-staging-secrets.sh scripts/staging-secret-preflight.sh
+          bash infra/staging/bootstrap-staging-secrets.sh || {
+            echo "Impersonated bootstrap failed; trying Cloud Build IAM config (default builder SA)…"
+            gcloud builds submit \
+              --project "$GCP_STAGING_PROJECT_ID" \
+              --config cloudbuild.staging-iam.yaml \
+              --format='value(id)' \
+              . >/dev/null
+          }
+          bash scripts/staging-secret-preflight.sh
+
       - name: Submit staging ops Cloud Build
         run: |
           set -euo pipefail

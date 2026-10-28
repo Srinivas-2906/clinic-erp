@@ -1,0 +1,17 @@
+# One-time / idempotent staging secret IAM + missing secret creation.
+# Submit WITHOUT --service-account so the default Cloud Build identity runs this config.
+steps:
+  - id: guard
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        test "$PROJECT_ID" != "crucial-accord-505607-g9"
+        chmod +x infra/staging/bootstrap-staging-secrets.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        bash infra/staging/bootstrap-staging-secrets.sh
+
+options:
+  logging: CLOUD_LOGGING_ONLY

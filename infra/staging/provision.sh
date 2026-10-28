@@ -108,7 +108,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --role="roles/secretmanager.secretAccessor" --quiet
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
-  --role="roles/secretmanager.admin" --quiet
+  --role="roles/secretmanager.secretCreator" --quiet
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
   --role="roles/logging.logWriter" --quiet
@@ -142,6 +142,10 @@ gcloud iam service-accounts add-iam-policy-binding "$CLOUDBUILD_EMAIL" \
   --project="$PROJECT_ID" \
   --member="serviceAccount:${GITHUB_EMAIL}" \
   --role="roles/iam.serviceAccountUser" --quiet
+gcloud iam service-accounts add-iam-policy-binding "$CLOUDBUILD_EMAIL" \
+  --project="$PROJECT_ID" \
+  --member="serviceAccount:${GITHUB_EMAIL}" \
+  --role="roles/iam.serviceAccountTokenCreator" --quiet
 
 echo "==> Workload Identity Federation"
 POOL_ID="github"
@@ -191,6 +195,12 @@ if ! gcloud billing budgets list --billing-account="$BILLING_ACCOUNT" --format='
     --threshold-rule=percent=0.9 \
     --threshold-rule=percent=1.0 \
     --quiet || echo "Budget create may need Billing Admin role; configure in console if this failed."
+fi
+
+echo "==> Secret IAM (resource-scoped)"
+if [ -x infra/staging/bootstrap-staging-secrets.sh ]; then
+  GCP_STAGING_PROJECT_ID="$PROJECT_ID" CLOUDBUILD_SA="$CLOUDBUILD_EMAIL" RUNNER_SA="$RUNNER_EMAIL" GITHUB_SA="$GITHUB_EMAIL" \
+    bash infra/staging/bootstrap-staging-secrets.sh || echo "Run bootstrap-staging-secrets.sh after granting Secret Manager Admin once if needed."
 fi
 
 echo ""
