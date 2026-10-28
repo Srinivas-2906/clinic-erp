@@ -76,6 +76,13 @@ import {
 import { processDueReminders } from '../services/reminders/index.js';
 import { buildTenantExportBundle } from '../services/tenantExport.js';
 import { getPaymentGatewayConfig } from '../modules/billing/paymentGateway.js';
+import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
+import {
+  listTenantsForPlatformAdmin,
+  getTenantDetailForPlatformAdmin,
+  patchTenantAsPlatformAdmin,
+} from '../modules/platform/platformAdmin.service.js';
+import { enqueuePaymentReceiptNotification } from '../services/notificationAutomation.js';
 import { requireTenantWrite } from '../middleware/requireTenantWrite.js';
 import { assertSubscriptionTransition } from '../modules/identity/subscription.js';
 import { normalizePlanId } from '../modules/identity/plans.js';
@@ -257,6 +264,33 @@ router.post('/internal/tenants', requireProvisioningAuth, (req, res) => {
     res.status(result.idempotentReplay ? 200 : 201).json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || 'Provision failed', code: err.code });
+  }
+});
+
+router.get('/admin/tenants', authMiddleware, requirePlatformAdmin, (req, res) => {
+  const tenants = listTenantsForPlatformAdmin({
+    search: req.query.search,
+    status: req.query.status,
+    limit: req.query.limit,
+    offset: req.query.offset,
+  });
+  res.json({ tenants });
+});
+
+router.get('/admin/tenants/:tenantId', authMiddleware, requirePlatformAdmin, (req, res) => {
+  try {
+    res.json(getTenantDetailForPlatformAdmin(req.params.tenantId));
+  } catch (err) {
+    res.status(err.status || 404).json({ error: err.message || 'Not found' });
+  }
+});
+
+router.patch('/admin/tenants/:tenantId', authMiddleware, requirePlatformAdmin, (req, res) => {
+  try {
+    const detail = patchTenantAsPlatformAdmin(req.user, req.params.tenantId, req.body ?? {});
+    res.json(detail);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || 'Update failed', code: err.code });
   }
 });
 
@@ -489,6 +523,10 @@ export function clinicRouter() {
         idempotencyKey: req.body?.idempotencyKey,
       });
       logAudit(req.user.tenantId, req.user.sub, 'create', 'payment', payment.id, { amount });
+      try {
+        const row = getDb().prepare(`SELECT * FROM patient_payments WHERE id = ?`).get(payment.id);
+        if (row) enqueuePaymentReceiptNotification(req.user.tenantId, row);
+      } catch { /* non-blocking */ }
       res.status(201).json(payment);
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message || 'Could not record payment' });

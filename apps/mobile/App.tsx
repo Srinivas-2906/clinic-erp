@@ -47,6 +47,7 @@ export default function App() {
   const [selectedPatient, setSelectedPatient] = useState<{ patient: { name: string; phone?: string }; appointments: { service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
   const [error, setError] = useState('');
   const [meLabel, setMeLabel] = useState('');
+  const [canRecordPayments, setCanRecordPayments] = useState(false);
 
   const client = useMemo(
     () =>
@@ -77,6 +78,7 @@ export default function App() {
       const role = m.user?.effectiveRole || m.user?.role || '';
       const name = m.user?.name || m.user?.email || '';
       setMeLabel(name ? `${name}${role ? ` · ${role}` : ''}` : role);
+      setCanRecordPayments(!!m.user?.capabilities?.recordPayments);
     }).catch(() => setMeLabel(''));
     if (screen === 'today') {
       client.today().then(setToday).catch((e) => setError(e.message));
@@ -191,10 +193,10 @@ export default function App() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.card}
-            disabled={screen === 'today'}
             onPress={() => {
-              if (screen !== 'patients' || !('id' in item)) return;
-              client.patient(item.id).then(setSelectedPatient).catch((e) => setError(e.message));
+              if (screen === 'patients' && 'id' in item) {
+                client.patient(item.id).then(setSelectedPatient).catch((e) => setError(e.message));
+              }
             }}
           >
             <Text style={styles.cardTitle}>
@@ -205,6 +207,18 @@ export default function App() {
                 ? `${item.service || 'Visit'} · ${item.status}`
                 : (item.phone || '—')}
             </Text>
+            {screen === 'today' && 'id' in item && item.id && canRecordPayments && item.status === 'confirmed' && (
+              <TouchableOpacity
+                style={styles.inlineBtn}
+                onPress={() => {
+                  client.updateAppointment(item.id!, { status: 'arrived' })
+                    .then(() => client.today().then(setToday))
+                    .catch((e) => setError(e.message));
+                }}
+              >
+                <Text style={styles.link}>Mark arrived</Text>
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
         )}
       />
@@ -241,4 +255,5 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: typography.sizeLg, fontWeight: typography.weightMedium },
   muted: { color: colors.muted, fontSize: typography.sizeSm },
+  inlineBtn: { marginTop: 8 },
 });

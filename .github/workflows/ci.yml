@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run test:api
+      - name: Release preflight (CI mode)
+        run: node apps/api/scripts/release-preflight.js
       - name: Billing API smoke
         run: node apps/api/scripts/billing-api-smoke.js
 
