@@ -2,39 +2,39 @@
 
 **Project:** `clinic-erp-staging` only.
 
-## Symptom
+## Who needs which secret
 
-GitHub **Staging ops** fails with:
+| Secret | `clinic-staging-runner` | `clinic-staging-cloudbuild` | `github-clinic-erp-staging` |
+|--------|-------------------------|-----------------------------|-----------------------------|
+| `clinic-staging-jwt-secret` | Yes (Cloud Run API) | No | No (uses impersonation) |
+| `clinic-staging-demo-password` | Yes (runtime + ops via impersonation) | Yes (deploy + Cloud Build ops) | No |
+| `clinic-staging-provisioning-key` | Yes | Yes | No |
+| `clinic-staging-platform-admin-password` | Yes (bootstrap job) | Yes | No |
 
-```json
-{"secret":"clinic-staging-demo-password","status":"iam_denied","identity":"clinic-staging-runner@..."}
-```
+GitHub Actions reads secrets by **impersonating** runner or cloudbuild (WIF → github SA → `serviceAccountTokenCreator` on target SA).
 
-This is **IAM**, not a missing secret. Secret Manager often returns `NOT_FOUND` to unauthorized callers; ops scripts classify via `versions access`.
+## One-time fix (your user account)
 
-## Fix (Project Owner or Secret Manager Admin)
+Run with a Google account that is **Owner** or **Secret Manager Admin** on `clinic-erp-staging` (after `gcloud auth login`):
 
 ```bash
+cd /path/to/clinic-erp
 export GCP_STAGING_PROJECT_ID=clinic-erp-staging
 bash infra/staging/bind-staging-secret-access.sh
+bash infra/staging/bootstrap-staging-secrets.sh
+bash scripts/staging-iam-verify.sh
 ```
 
-Optional: create missing ops secrets (does **not** rotate demo password):
+**What this grants:** only `roles/secretmanager.secretAccessor` **on each listed secret** for the two service accounts above (not project-wide). Bootstrap creates missing ops secrets with new random values (does **not** rotate `clinic-staging-demo-password`).
+
+## Verify
 
 ```bash
-bash infra/staging/bootstrap-staging-secrets.sh
+gcloud --impersonate-service-account=clinic-staging-runner@clinic-erp-staging.iam.gserviceaccount.com \
+  secrets versions access latest --secret=clinic-staging-demo-password \
+  --project=clinic-erp-staging >/dev/null && echo "demo secret: ok"
 ```
 
-## Re-run
+## Then
 
 GitHub Actions → **Staging ops (validate, scheduler, monitoring)** → `confirm=run-staging-ops`.
-
-## Identities
-
-| Identity | Role in ops |
-|----------|-------------|
-| `github-clinic-erp-staging@...` | WIF → submit Cloud Build, impersonate runner/cloudbuild |
-| `clinic-staging-cloudbuild@...` | Cloud Build steps, deploy, scheduler |
-| `clinic-staging-runner@...` | Cloud Run runtime, GHA secret read (impersonated) |
-
-Do **not** grant project-wide `roles/secretmanager.admin`. Use per-secret `secretAccessor` bindings only.

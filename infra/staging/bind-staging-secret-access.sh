@@ -1,30 +1,42 @@
 #!/usr/bin/env bash
-# Per-secret secretAccessor for staging ops identities (run once as Project Owner / SM Admin).
+# Minimal per-secret secretAccessor for clinic-erp-staging (run as Owner / Secret Manager Admin).
 set -euo pipefail
 
 PROJECT="${GCP_STAGING_PROJECT_ID:-clinic-erp-staging}"
-CLOUDBUILD_SA="${CLOUDBUILD_SA:-clinic-staging-cloudbuild@${PROJECT}.iam.gserviceaccount.com}"
 RUNNER_SA="${RUNNER_SA:-clinic-staging-runner@${PROJECT}.iam.gserviceaccount.com}"
-GITHUB_SA="${GITHUB_SA:-github-clinic-erp-staging@${PROJECT}.iam.gserviceaccount.com}"
+CLOUDBUILD_SA="${CLOUDBUILD_SA:-clinic-staging-cloudbuild@${PROJECT}.iam.gserviceaccount.com}"
 
 if [ "$PROJECT" = "crucial-accord-505607-g9" ]; then
   echo "Refusing production project"
   exit 1
 fi
 
-for SEC in clinic-staging-demo-password clinic-staging-provisioning-key clinic-staging-platform-admin-password clinic-staging-jwt-secret; do
-  if ! gcloud secrets describe "$SEC" --project="$PROJECT" >/dev/null 2>&1; then
-    echo "skip (not found): $SEC"
-    continue
+bind() {
+  local secret_id="$1"
+  local sa_email="$2"
+  if ! gcloud secrets describe "$secret_id" --project="$PROJECT" >/dev/null 2>&1; then
+    echo "skip (not found): $secret_id"
+    return 0
   fi
-  for SA in "$RUNNER_SA" "$CLOUDBUILD_SA" "$GITHUB_SA"; do
-    gcloud secrets add-iam-policy-binding "$SEC" \
-      --project="$PROJECT" \
-      --member="serviceAccount:${SA}" \
-      --role="roles/secretmanager.secretAccessor" \
-      --quiet
-    echo "bound: $SEC -> $SA"
-  done
+  gcloud secrets add-iam-policy-binding "$secret_id" \
+    --project="$PROJECT" \
+    --member="serviceAccount:${sa_email}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet
+  echo "bound: ${secret_id} -> ${sa_email}"
+}
+
+# Cloud Run API runtime + GHA ops (via impersonation of runner).
+for SEC in clinic-staging-demo-password clinic-staging-provisioning-key clinic-staging-platform-admin-password; do
+  bind "$SEC" "$RUNNER_SA"
 done
 
-echo "Done. Re-run GitHub workflow: Staging ops (confirm=run-staging-ops)."
+# Deploy, Cloud Build infra, scheduler, platform-admin job (runs as cloudbuild identity in GHA).
+for SEC in clinic-staging-demo-password clinic-staging-provisioning-key clinic-staging-platform-admin-password; do
+  bind "$SEC" "$CLOUDBUILD_SA"
+done
+
+# JWT: API runtime only (provision.sh usually binds runner already).
+bind clinic-staging-jwt-secret "$RUNNER_SA"
+
+echo "Done. Verify: GCP_STAGING_PROJECT_ID=${PROJECT} bash scripts/staging-iam-verify.sh"

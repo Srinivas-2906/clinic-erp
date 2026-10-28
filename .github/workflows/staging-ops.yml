@@ -53,6 +53,12 @@ jobs:
         with:
           project_id: ${{ env.GCP_STAGING_PROJECT_ID }}
 
+      - name: Verify staging secret IAM (required)
+        run: |
+          set -euo pipefail
+          chmod +x scripts/staging-iam-verify.sh
+          bash scripts/staging-iam-verify.sh | tee staging-iam-verify.json
+
       - name: Bootstrap staging secrets (create missing, bind IAM)
         run: |
           set -euo pipefail
