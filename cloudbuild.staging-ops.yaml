@@ -146,7 +146,6 @@ steps:
 
 substitutions:
   _REGION: asia-south1
-  _GCP_PROJECT: clinic-erp-staging
   _STAGING_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
   _STAGING_CRM_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
   _COMMIT_SHA: unknown
