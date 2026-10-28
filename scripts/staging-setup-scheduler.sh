@@ -39,6 +39,10 @@ fi
 
 gcloud run services update clinic-api-staging \
   --project="$PROJECT" --region="$REGION" \
-  --update-env-vars "REMINDER_EXTERNAL_SCHEDULER=1,DISABLE_REMINDER_WORKER=1,REMINDER_DELIVERY_ENABLED=0"
+  --update-env-vars "REMINDER_EXTERNAL_SCHEDULER=1,DISABLE_REMINDER_WORKER=1,REMINDER_DELIVERY_ENABLED=0" \
+  --update-secrets "CLINIC_PROVISIONING_API_KEY=${SECRET_NAME}:latest"
 
 echo "Scheduler configured (staging). Mock delivery only."
+
+gcloud scheduler jobs run "$JOB_NAME" --project="$PROJECT" --location="$REGION" >/dev/null 2>&1 || true
+echo "{\"ok\":true,\"schedulerJob\":\"${JOB_NAME}\",\"triggeredManualRun\":true}"

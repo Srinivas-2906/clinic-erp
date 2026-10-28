@@ -1,0 +1,156 @@
+# Staging operations — runs in clinic-erp-staging via Cloud Build SA (Secret Manager access).
+# Submit: gcloud builds submit --project clinic-erp-staging --config cloudbuild.staging-ops.yaml .
+
+steps:
+  - id: guard-project
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ "$PROJECT_ID" = "crucial-accord-505607-g9" ]; then
+          echo "Refusing production project"
+          exit 1
+        fi
+
+  - id: ensure-provisioning-secret
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        SEC=clinic-staging-provisioning-key
+        if ! gcloud secrets describe "$$SEC" --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          openssl rand -base64 32 | gcloud secrets create "$$SEC" \
+            --project="$$PROJECT_ID" \
+            --replication-policy=automatic \
+            --data-file=-
+          echo "Created $$SEC"
+        fi
+
+  - id: deployment-trace
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-deployment-trace.sh scripts/staging-backup-health.sh
+        export MAIN_SHA="${_COMMIT_SHA}" GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        bash scripts/staging-deployment-trace.sh | tee /workspace/deployment-trace.json
+        bash scripts/staging-backup-health.sh | tee /workspace/backup-health.json
+
+  - id: sync-api-provisioning
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        gcloud run services update clinic-api-staging \
+          --project="$$PROJECT_ID" \
+          --region="${_REGION}" \
+          --update-secrets "CLINIC_PROVISIONING_API_KEY=clinic-staging-provisioning-key:latest" \
+          --update-env-vars "REMINDER_DELIVERY_ENABLED=0,CLINIC_EMAIL_PROVIDER=console"
+
+  - id: bootstrap-platform-admin
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-bootstrap-platform-admin.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
+        bash scripts/staging-bootstrap-platform-admin.sh | tee /workspace/platform-admin-bootstrap.json
+
+  - id: verify-platform-admin
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        apt-get update -qq && apt-get install -y -qq nodejs npm >/dev/null
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" STAGING_API_URL="${_STAGING_API_URL}"
+        node scripts/staging-verify-platform-admin.mjs | tee /workspace/platform-admin-verify.json
+
+  - id: configure-scheduler
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-setup-scheduler.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
+        bash scripts/staging-setup-scheduler.sh | tee /workspace/scheduler.json
+
+  - id: monitoring
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        chmod +x scripts/staging-monitoring-setup.sh
+        export GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
+        bash scripts/staging-monitoring-setup.sh | tee /workspace/monitoring.json \
+          || echo '{"ok":false,"note":"monitoring setup failed — check monitoring.uptimeCheckConfigs.create IAM"}' | tee /workspace/monitoring.json
+
+  - id: staging-validate
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        apt-get update -qq && apt-get install -y -qq nodejs npm >/dev/null
+        npm ci
+        export STAGING_API_URL="${_STAGING_API_URL}" STAGING_CRM_URL="${_STAGING_CRM_URL}"
+        export STAGING_DEMO_PASSWORD="$$(gcloud secrets versions access latest --secret=clinic-staging-demo-password --project="$$PROJECT_ID")"
+        export CLINIC_PROVISIONING_API_KEY="$$(gcloud secrets versions access latest --secret=clinic-staging-provisioning-key --project="$$PROJECT_ID")"
+        node scripts/staging-validate.mjs | tee /workspace/staging-validate.json
+
+  - id: staging-clinical-qa
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        apt-get update -qq && apt-get install -y -qq nodejs npm >/dev/null
+        export STAGING_API_URL="${_STAGING_API_URL}"
+        export STAGING_DEMO_PASSWORD="$$(gcloud secrets versions access latest --secret=clinic-staging-demo-password --project="$$PROJECT_ID")"
+        node scripts/staging-clinical-qa.mjs | tee /workspace/staging-clinical-qa.json
+
+  - id: playwright-staging
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        apt-get update -qq && apt-get install -y -qq nodejs npm libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 >/dev/null
+        npm ci
+        npm run test:e2e:install --workspace=apps/crm
+        export E2E_STAGING=1
+        export E2E_API_URL="${_STAGING_API_URL}"
+        export E2E_BASE_URL="${_STAGING_CRM_URL}"
+        export E2E_EMAIL=staging-owner@clinic-erp.invalid
+        export E2E_TENANT=dentacare
+        export E2E_PASSWORD="$$(gcloud secrets versions access latest --secret=clinic-staging-demo-password --project="$$PROJECT_ID")"
+        npm run test:e2e:staging --workspace=apps/crm -- --grep "Staging pilot"
+
+substitutions:
+  _REGION: asia-south1
+  _GCP_PROJECT: clinic-erp-staging
+  _STAGING_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
+  _STAGING_CRM_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
+  _COMMIT_SHA: unknown
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
