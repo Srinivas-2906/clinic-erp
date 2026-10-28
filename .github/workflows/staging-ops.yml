@@ -62,13 +62,12 @@ jobs:
             export GCP_IMPERSONATE_SA="${CLOUDBUILD_SA}"
             bash infra/staging/bootstrap-staging-secrets.sh || true
           }
-          export GCP_IMPERSONATE_SA="${CLOUDBUILD_SA}"
           gcloud builds submit \
-              --project "$GCP_STAGING_PROJECT_ID" \
-              --config cloudbuild.staging-iam.yaml \
-              --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
-              --format='value(id)' \
-              . >/dev/null || true
+            --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-iam.yaml \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            --format='value(id)' \
+            . >/dev/null || true
 
       - name: Secret preflight (runner identity)
         run: |

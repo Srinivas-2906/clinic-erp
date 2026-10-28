@@ -52,27 +52,26 @@ bind_accessor() {
     --quiet >/dev/null 2>&1 || true
 }
 
-# Demo password: must already exist (Cloud Run deploy depends on it).
 set +e
 ensure_secret clinic-staging-demo-password 0
 demo_rc=$?
 set -e
 if [ "$demo_rc" = "2" ]; then
-  echo "demo-password: exists but current identity lacks describe; continuing if access works"
   if ! "${GCLOUD[@]}" secrets versions access latest --secret=clinic-staging-demo-password --project="$PROJECT" >/dev/null 2>&1; then
     echo "demo-password: cannot access latest version" >&2
     exit 1
   fi
+  echo "demo-password: access ok (describe denied)"
 elif [ "$demo_rc" != "0" ]; then
   exit 1
 fi
 
-# Optional ops secrets — create if missing.
 ensure_secret clinic-staging-provisioning-key 1 || true
 ensure_secret clinic-staging-platform-admin-password 1 || true
 
 for SEC in clinic-staging-demo-password clinic-staging-provisioning-key clinic-staging-platform-admin-password; do
-  if "${GCLOUD[@]}" secrets describe "$SEC" --project="$PROJECT" >/dev/null 2>&1; then
+  if "${GCLOUD[@]}" secrets versions access latest --secret="$SEC" --project="$PROJECT" >/dev/null 2>&1 \
+    || "${GCLOUD[@]}" secrets describe "$SEC" --project="$PROJECT" >/dev/null 2>&1; then
     for SA in "$CLOUDBUILD_SA" "$RUNNER_SA" "$GITHUB_SA"; do
       bind_accessor "$SEC" "$SA"
     done
