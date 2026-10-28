@@ -102,7 +102,13 @@ jobs:
           fi
           echo "::add-mask::${DEMO}"
           echo "STAGING_DEMO_PASSWORD=${DEMO}" >> "$GITHUB_ENV"
-          if PROV="$(read_secret clinic-staging-provisioning-key 2>/dev/null || true)" && [ -n "$PROV" ]; then
+          PROV=""
+          for SA in "${RUNNER_SA}" "${CLOUDBUILD_SA}" ""; do
+            if PROV="$(read_secret_as "$SA" clinic-staging-provisioning-key 2>/dev/null)" && [ -n "$PROV" ]; then
+              break
+            fi
+          done
+          if [ -n "$PROV" ]; then
             echo "::add-mask::${PROV}"
             echo "CLINIC_PROVISIONING_API_KEY=${PROV}" >> "$GITHUB_ENV"
           fi
