@@ -10,14 +10,14 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Monorepo install — root lock includes all workspace deps (e.g. nodemailer).
+# Monorepo: npm ci requires all workspace roots declared in package-lock.json.
 COPY package.json package-lock.json ./
-COPY apps/api/package.json ./apps/api/package.json
+COPY apps ./apps
+COPY packages ./packages
 RUN npm ci --omit=dev --workspace=clinic-api
 
 WORKDIR /app/apps/api
 
-COPY apps/api/src ./src
 COPY apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh ; chmod +x /usr/local/bin/docker-entrypoint.sh
 

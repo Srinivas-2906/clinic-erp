@@ -3,13 +3,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY apps/crm/package.json ./apps/crm/package.json
+COPY apps ./apps
+COPY packages ./packages
 RUN npm ci --workspace=clinic-crm \
   && npm install --no-save \
     @rollup/rollup-linux-x64-gnu \
     @rolldown/binding-linux-x64-gnu \
     lightningcss-linux-x64-gnu
-COPY apps/crm ./apps/crm
 WORKDIR /app/apps/crm
 ARG VITE_CLINIC_API=/api
 ARG VITE_TENANT_SLUG=dentacare

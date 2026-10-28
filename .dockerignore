@@ -1,0 +1,12 @@
+**/node_modules
+**/.git
+**/dist
+**/data
+**/*.db
+**/*.db-*
+.env
+.env.*
+apps/crm/e2e/report
+apps/crm/playwright-report
+coverage
+.cursor
