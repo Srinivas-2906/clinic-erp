@@ -16,11 +16,8 @@ if [ "$PROJECT" = "crucial-accord-505607-g9" ]; then
 fi
 
 if ! gcloud secrets describe "$PWD_SECRET" --project="$PROJECT" >/dev/null 2>&1; then
-  echo "Creating secret ${PWD_SECRET} (staging-only operator password)"
-  openssl rand -base64 24 | gcloud secrets create "$PWD_SECRET" \
-    --project="$PROJECT" \
-    --replication-policy=automatic \
-    --data-file=-
+  echo "Missing secret ${PWD_SECRET} — grant Cloud Build SA secretmanager.admin or create secret manually (staging only)" >&2
+  exit 1
 fi
 
 IMAGE="$(gcloud run services describe clinic-api-staging \

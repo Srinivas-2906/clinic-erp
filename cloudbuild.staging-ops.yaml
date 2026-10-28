@@ -14,21 +14,17 @@ steps:
           exit 1
         fi
 
-  - id: ensure-provisioning-secret
+  - id: ensure-staging-secrets
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        SEC=clinic-staging-provisioning-key
-        if ! gcloud secrets describe "$$SEC" --project="$$PROJECT_ID" >/dev/null 2>&1; then
-          openssl rand -base64 32 | gcloud secrets create "$$SEC" \
-            --project="$$PROJECT_ID" \
-            --replication-policy=automatic \
-            --data-file=-
-          echo "Created $$SEC"
-        fi
+        for SEC in clinic-staging-demo-password clinic-staging-provisioning-key; do
+          gcloud secrets describe "$$SEC" --project="$$PROJECT_ID" >/dev/null
+          echo "ok: $$SEC"
+        done
 
   - id: deployment-trace
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
