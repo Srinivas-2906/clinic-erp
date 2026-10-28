@@ -60,7 +60,9 @@ steps:
       - VITE_CLINIC_API=${_VITE_CLINIC_API}
       - --build-arg
       - VITE_TENANT_SLUG=${_VITE_TENANT_SLUG}
-      - ./apps/crm
+      - -f
+      - apps/crm/Dockerfile
+      - .
 
   - id: push-clinic-crm
     name: gcr.io/cloud-builders/docker
