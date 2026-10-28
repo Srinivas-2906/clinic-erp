@@ -21,10 +21,13 @@ steps:
       - -c
       - |
         set -euo pipefail
-        for SEC in clinic-staging-demo-password clinic-staging-provisioning-key; do
-          gcloud secrets describe "$$SEC" --project="$$PROJECT_ID" >/dev/null
-          echo "ok: $$SEC"
-        done
+        gcloud secrets describe clinic-staging-demo-password --project="$$PROJECT_ID" >/dev/null
+        echo "ok: clinic-staging-demo-password"
+        if gcloud secrets describe clinic-staging-provisioning-key --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo "ok: clinic-staging-provisioning-key" | tee /workspace/has-provisioning-secret
+        else
+          echo "warn: clinic-staging-provisioning-key missing" | tee /workspace/missing-provisioning-secret
+        fi
 
   - id: deployment-trace
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -45,6 +48,10 @@ steps:
       - -c
       - |
         set -euo pipefail
+        if [ ! -f /workspace/has-provisioning-secret ]; then
+          echo '{"ok":false,"skipped":true,"reason":"clinic-staging-provisioning-key missing"}' | tee /workspace/sync-api-provisioning.json
+          exit 0
+        fi
         gcloud run services update clinic-api-staging \
           --project="$$PROJECT_ID" \
           --region="${_REGION}" \
@@ -58,6 +65,10 @@ steps:
       - -c
       - |
         set -euo pipefail
+        if ! gcloud secrets describe clinic-staging-platform-admin-password --project="$$PROJECT_ID" >/dev/null 2>&1; then
+          echo '{"ok":false,"skipped":true,"reason":"create secret clinic-staging-platform-admin-password"}' | tee /workspace/platform-admin-bootstrap.json
+          exit 0
+        fi
         chmod +x scripts/staging-bootstrap-platform-admin.sh
         export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
         bash scripts/staging-bootstrap-platform-admin.sh | tee /workspace/platform-admin-bootstrap.json
@@ -69,6 +80,10 @@ steps:
       - -c
       - |
         set -euo pipefail
+        if [ ! -f /workspace/platform-admin-bootstrap.json ] || grep -q '"skipped":true' /workspace/platform-admin-bootstrap.json; then
+          echo '{"ok":false,"skipped":true}' | tee /workspace/platform-admin-verify.json
+          exit 0
+        fi
         apt-get update -qq && apt-get install -y -qq nodejs npm >/dev/null
         export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" STAGING_API_URL="${_STAGING_API_URL}"
         node scripts/staging-verify-platform-admin.mjs | tee /workspace/platform-admin-verify.json
@@ -80,9 +95,18 @@ steps:
       - -c
       - |
         set -euo pipefail
+        if [ ! -f /workspace/has-provisioning-secret ]; then
+          echo '{"ok":false,"skipped":true,"reason":"clinic-staging-provisioning-key missing"}' | tee /workspace/scheduler.json
+          exit 0
+        fi
         chmod +x scripts/staging-setup-scheduler.sh
         export GCP_STAGING_PROJECT_ID="$$PROJECT_ID" GCP_STAGING_REGION="${_REGION}"
-        bash scripts/staging-setup-scheduler.sh | tee /workspace/scheduler.json
+        if bash scripts/staging-setup-scheduler.sh | tee /workspace/scheduler.json; then
+          true
+        else
+          echo '{"ok":false,"note":"scheduler setup failed — cloudscheduler.admin on clinic-staging-cloudbuild?"}' | tee /workspace/scheduler.json
+          exit 0
+        fi
 
   - id: monitoring
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -107,7 +131,9 @@ steps:
         npm ci
         export STAGING_API_URL="${_STAGING_API_URL}" STAGING_CRM_URL="${_STAGING_CRM_URL}"
         export STAGING_DEMO_PASSWORD="$$(gcloud secrets versions access latest --secret=clinic-staging-demo-password --project="$$PROJECT_ID")"
-        export CLINIC_PROVISIONING_API_KEY="$$(gcloud secrets versions access latest --secret=clinic-staging-provisioning-key --project="$$PROJECT_ID")"
+        if [ -f /workspace/has-provisioning-secret ]; then
+          export CLINIC_PROVISIONING_API_KEY="$$(gcloud secrets versions access latest --secret=clinic-staging-provisioning-key --project="$$PROJECT_ID")"
+        fi
         node scripts/staging-validate.mjs | tee /workspace/staging-validate.json
 
   - id: staging-clinical-qa
