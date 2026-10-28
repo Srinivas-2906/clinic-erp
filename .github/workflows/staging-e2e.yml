@@ -1,0 +1,38 @@
+name: Staging E2E (Playwright)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy staging (manual — approval required)']
+    types: [completed]
+
+jobs:
+  pilot:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_STAGING: '1'
+      E2E_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
+      E2E_BASE_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
+      E2E_EMAIL: staging-owner@clinic-erp.invalid
+      E2E_TENANT: dentacare
+      E2E_PASSWORD: ${{ secrets.STAGING_DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright
+        run: npm run test:e2e:install --workspace=apps/crm
+      - name: Staging pilot journey
+        run: npm run test:e2e:staging --workspace=apps/crm -- --grep "Staging pilot"
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-staging-report
+          path: apps/crm/e2e/report
+          if-no-files-found: ignore
