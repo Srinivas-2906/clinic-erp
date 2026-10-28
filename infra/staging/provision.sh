@@ -109,6 +109,12 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
   --role="roles/logging.logWriter" --quiet
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
+  --role="roles/cloudscheduler.admin" --quiet
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${CLOUDBUILD_EMAIL}" \
+  --role="roles/monitoring.editor" --quiet
 
 gcloud iam service-accounts add-iam-policy-binding "$RUNNER_EMAIL" \
   --project="$PROJECT_ID" \
