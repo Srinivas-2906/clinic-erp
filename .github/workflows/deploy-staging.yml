@@ -70,7 +70,10 @@ jobs:
             echo "Build status: ${STATUS} (poll ${attempt}/80)"
             case "$STATUS" in
               SUCCESS) exit 0 ;;
-              FAILURE|CANCELLED|EXPIRED|INTERNAL_ERROR|TIMEOUT) exit 1 ;;
+              FAILURE|CANCELLED|EXPIRED|INTERNAL_ERROR|TIMEOUT)
+                gcloud builds log "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" | tail -200 || true
+                exit 1
+                ;;
               UNKNOWN)
                 echo "Transient describe error; retrying…"
                 sleep 20
