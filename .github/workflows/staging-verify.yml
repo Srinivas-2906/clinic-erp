@@ -21,10 +21,22 @@ jobs:
         run: node apps/api/scripts/release-preflight.js
       - name: Billing smoke
         run: node apps/api/scripts/billing-api-smoke.js
-      - name: HTTP staging validate
+      - name: HTTP health smoke
+        run: |
+          set -euo pipefail
+          API=https://clinic-api-staging-339065153036.asia-south1.run.app
+          CRM=https://kaana-clinic-staging-339065153036.asia-south1.run.app
+          curl -fsS "$API/health" | grep -q '"ok":true'
+          curl -fsS "$API/" | grep -q clinic-api
+          curl -fsS -o /dev/null "$CRM/"
+      - name: HTTP staging validate (authenticated)
+        if: ${{ secrets.STAGING_DEMO_PASSWORD != '' }}
         env:
           STAGING_API_URL: https://clinic-api-staging-339065153036.asia-south1.run.app
           STAGING_CRM_URL: https://kaana-clinic-staging-339065153036.asia-south1.run.app
           STAGING_DEMO_PASSWORD: ${{ secrets.STAGING_DEMO_PASSWORD }}
           CLINIC_PROVISIONING_API_KEY: ${{ secrets.CLINIC_PROVISIONING_API_KEY }}
         run: node scripts/staging-validate.mjs
+      - name: Authenticated validate skipped
+        if: ${{ secrets.STAGING_DEMO_PASSWORD == '' }}
+        run: echo "::warning::STAGING_DEMO_PASSWORD not set — full staging-validate skipped"
