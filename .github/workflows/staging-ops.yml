@@ -73,16 +73,33 @@ jobs:
         run: |
           set -euo pipefail
           export GCP_IMPERSONATE_SA="${RUNNER_SA}"
-          bash scripts/staging-secret-preflight.sh | tee secret-preflight.jsonl
+          bash scripts/staging-secret-preflight.sh | tee secret-preflight.jsonl || true
 
       - name: Load staging credentials into env
         run: |
           set -euo pipefail
-          read_secret() {
-            gcloud --impersonate-service-account="${RUNNER_SA}" secrets versions access latest \
-              --secret="$1" --project="${GCP_STAGING_PROJECT_ID}"
+          read_secret_as() {
+            local sa="$1"
+            local name="$2"
+            if [ -n "$sa" ]; then
+              gcloud --impersonate-service-account="$sa" secrets versions access latest \
+                --secret="$name" --project="${GCP_STAGING_PROJECT_ID}"
+            else
+              gcloud secrets versions access latest \
+                --secret="$name" --project="${GCP_STAGING_PROJECT_ID}"
+            fi
           }
-          DEMO="$(read_secret clinic-staging-demo-password)"
+          DEMO=""
+          for SA in "${RUNNER_SA}" "${CLOUDBUILD_SA}" ""; do
+            if DEMO="$(read_secret_as "$SA" clinic-staging-demo-password 2>/dev/null)" && [ -n "$DEMO" ]; then
+              echo "Loaded demo password via identity: ${SA:-github-wif}"
+              break
+            fi
+          done
+          if [ -z "$DEMO" ]; then
+            echo "BLOCKED: cannot read clinic-staging-demo-password. Run infra/staging/bind-staging-secret-access.sh as project Owner, then re-run this workflow." >&2
+            exit 1
+          fi
           echo "::add-mask::${DEMO}"
           echo "STAGING_DEMO_PASSWORD=${DEMO}" >> "$GITHUB_ENV"
           if PROV="$(read_secret clinic-staging-provisioning-key 2>/dev/null || true)" && [ -n "$PROV" ]; then

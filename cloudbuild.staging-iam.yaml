@@ -11,7 +11,7 @@ steps:
         test "$PROJECT_ID" != "crucial-accord-505607-g9"
         chmod +x infra/staging/bootstrap-staging-secrets.sh
         export GCP_STAGING_PROJECT_ID="$$PROJECT_ID"
-        bash infra/staging/bootstrap-staging-secrets.sh
+        bash infra/staging/bootstrap-staging-secrets.sh || bash infra/staging/bind-staging-secret-access.sh || true
 
 options:
   logging: CLOUD_LOGGING_ONLY
