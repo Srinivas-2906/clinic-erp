@@ -54,6 +54,9 @@ interface Props {
   canRecordPayments?: boolean;
   onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
   onOpenVisitBilling?: (appointment: Appointment, encounterId?: string | null) => void;
+  outstandingBalance?: number;
+  openInvoiceCount?: number;
+  onGoToPayments?: () => void;
 }
 
 export function OverviewTab({
@@ -70,6 +73,9 @@ export function OverviewTab({
   canRecordPayments = true,
   onConsultationFinalized,
   onOpenVisitBilling,
+  outstandingBalance = 0,
+  openInvoiceCount = 0,
+  onGoToPayments,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
@@ -172,6 +178,19 @@ export function OverviewTab({
           <div className="stat-lbl">Arrived now</div>
         </div>
       </div>
+
+      {canRecordPayments && outstandingBalance > 0 && onGoToPayments && (
+        <div className="overview-billing-alert" role="status">
+          <Banknote size={18} />
+          <div>
+            <strong>₹{outstandingBalance.toLocaleString('en-IN')} outstanding</strong>
+            <span>{openInvoiceCount} open invoice{openInvoiceCount !== 1 ? 's' : ''} · collect at front desk</span>
+          </div>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onGoToPayments}>
+            Collect
+          </button>
+        </div>
+      )}
 
       {/* Arrived — always show full queue (usually small) */}
       {arrivedQueue.length > 0 && (

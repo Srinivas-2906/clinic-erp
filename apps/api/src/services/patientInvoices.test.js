@@ -17,6 +17,7 @@ const {
   applyPaymentToInvoice,
   getInvoiceById,
   findActiveInvoiceForVisit,
+  getInvoiceFinancialSummary,
 } = await import('./patientInvoices.js');
 const { createPayment } = await import('./clinicPayments.js');
 
@@ -300,6 +301,48 @@ describe('patientInvoices', () => {
       }),
       /receptionist|Owner|required/i,
     );
+  });
+
+  it('financial summary counts open and partial balances only', () => {
+    const before = getInvoiceFinancialSummary('t1');
+    const open = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Open', unitPrice: 400, quantity: 1 }],
+    });
+    const partial = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Partial', unitPrice: 300, quantity: 1 }],
+    });
+    createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 100,
+      invoiceId: partial.id,
+      idempotencyKey: 'sum-partial',
+    });
+    const paid = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Paid', unitPrice: 200, quantity: 1 }],
+    });
+    createPayment('t1', receptionist, {
+      patientId: 'p1',
+      amount: 200,
+      invoiceId: paid.id,
+      idempotencyKey: 'sum-paid',
+    });
+    const voided = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      lineItems: [{ description: 'Void', unitPrice: 999, quantity: 1 }],
+    });
+    voidInvoice('t1', owner, voided.id, { reason: 'test' });
+
+    const after = getInvoiceFinancialSummary('t1');
+    assert.equal(after.openInvoiceCount - before.openInvoiceCount, 2);
+    assert.equal(after.outstandingBalance - before.outstandingBalance, 600);
+
+    const other = getInvoiceFinancialSummary('t2');
+    assert.equal(other.openInvoiceCount, 0);
+    assert.equal(other.outstandingBalance, 0);
+    assert.ok(open.id);
   });
 
   it('recovers from unique index when concurrent visit invoice insert races', () => {

@@ -88,6 +88,7 @@ test.describe('Full clinical → billing journey', () => {
     await goToTab(page, 'book');
     const e2eDoctorLabel = await e2eLinkedDoctorLabel(request);
     const e2eDoctorPattern = new RegExp(escapeRegex(e2eDoctorLabel), 'i');
+    await page.getByRole('tab', { name: /walk-in now/i }).click();
     await page.locator('#book-search').fill(phone);
     await expect(page.getByRole('button', { name: /continue booking/i })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: /continue booking/i }).click();
@@ -100,7 +101,7 @@ test.describe('Full clinical → billing journey', () => {
       } else {
         await page.locator('.book-doctor-option').filter({ hasText: e2eDoctorPattern }).first().click();
       }
-      await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
+      await page.getByRole('button', { name: /^Review$/ }).click();
     }
     if (await page.getByRole('button', { name: /^Review$/ }).isVisible().catch(() => false)) {
       await page.getByRole('button', { name: /^Review$/ }).click();
@@ -109,7 +110,7 @@ test.describe('Full clinical → billing journey', () => {
       (r) => r.url().includes('/api/appointments') && r.request().method() === 'POST' && r.ok(),
       { timeout: 25_000 },
     );
-    await page.getByRole('button', { name: /^(Book appointment|Save walk-in)$/i }).click();
+    await page.getByRole('button', { name: /save walk-in/i }).click();
     const apptRes = await apptCreate;
     appointmentId = (await apptRes.json()).id;
     expect(appointmentId).toBeTruthy();

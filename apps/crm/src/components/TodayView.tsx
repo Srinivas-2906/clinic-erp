@@ -82,6 +82,8 @@ interface Props {
   canRecordPayments?: boolean;
   onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
   onOpenVisitBilling?: (appointment: Appointment, encounterId?: string | null) => void;
+  /** Doctors land on arrived queue when patients are waiting. */
+  preferArrivedQueue?: boolean;
 }
 
 export function TodayView({
@@ -103,6 +105,7 @@ export function TodayView({
   canRecordPayments = true,
   onConsultationFinalized,
   onOpenVisitBilling,
+  preferArrivedQueue = false,
 }: Props) {
   const [viewMode, setViewMode] = useState<TodayViewMode>(() => (isMobileViewport() ? 'list' : 'board'));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -133,6 +136,14 @@ export function TodayView({
     mq.addEventListener('change', sync);
     return () => mq.removeEventListener('change', sync);
   }, []);
+
+  useEffect(() => {
+    if (!preferArrivedQueue || stats.arrived <= 0) return;
+    const key = `today-arrived-focus:${selectedDate}`;
+    if (sessionStorage.getItem(key)) return;
+    setStatusFilter('arrived');
+    sessionStorage.setItem(key, '1');
+  }, [preferArrivedQueue, selectedDate, stats.arrived]);
 
   async function advance(appt: Appointment) {
     const next = NEXT[appt.status];
@@ -283,6 +294,9 @@ export function TodayView({
             <h1 className="page-title">{headerLabel}</h1>
             <span className="page-title-meta">
               {loading ? 'Loading…' : `${stats.total} appt${stats.total !== 1 ? 's' : ''}`}
+              {!loading && stats.arrived > 0 && (
+                <> · {stats.arrived} waiting for consult</>
+              )}
             </span>
           </div>
           <div className="today-stat-row">

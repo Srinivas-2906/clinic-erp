@@ -4389,6 +4389,21 @@ body.modal-open .clinic-app {
 
 .clinic-onboarding-banner .signup-hint.ok { color: var(--success); }
 
+.overview-billing-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.overview-billing-alert strong { display: block; }
+.overview-billing-alert span { font-size: 0.85rem; color: var(--muted); }
+
 .login-forgot {
   display: block;
   margin: 8px 0 4px;
