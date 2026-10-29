@@ -1,15 +1,20 @@
 appId: host.exp.exponent
 ---
-# Run with Expo dev client / Expo Go pointed at local Metro.
-# Set MAESTRO_CLINIC_EMAIL / MAESTRO_CLINIC_PASSWORD in env or replace below.
+# Requires Metro + Expo Go; set MAESTRO_CLINIC_* env vars.
 - launchApp
 - tapOn:
-    text: "Email"
+    id: "login-email"
     optional: true
 - inputText: "${MAESTRO_CLINIC_EMAIL}"
 - tapOn:
-    text: "Password"
+    id: "login-password"
     optional: true
 - inputText: "${MAESTRO_CLINIC_PASSWORD}"
-- tapOn: "Sign in"
-- assertVisible: "Today"
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "today-screen"
+- tapOn:
+    id: "today-refresh"
+- assertVisible:
+    id: "tab-today"
