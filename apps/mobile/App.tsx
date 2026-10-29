@@ -1,116 +1,47 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import type { ClinicAppointment } from '@clinic-erp/api-client';
 import { colors, spacing, typography } from '@clinic-erp/design-tokens';
-import { createClinicApiClient } from '@clinic-erp/api-client';
+import { clinicTodayYmd } from './src/clinicTime';
+import { useClinicSession } from './src/useClinicSession';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
+import { ConsultScreen } from './src/screens/ConsultScreen';
+import { PatientsScreen } from './src/screens/PatientsScreen';
 
-const API_URL = process.env.EXPO_PUBLIC_CLINIC_API || 'http://127.0.0.1:3010';
-const TENANT_KEY = 'clinic.tenant';
-const TOKEN_KEY = 'clinic.token';
-
-async function getStored(key: string) {
-  try {
-    return await SecureStore.getItemAsync(key);
-  } catch {
-    return null;
-  }
-}
-
-async function setStored(key: string, value: string) {
-  await SecureStore.setItemAsync(key, value);
-}
-
-async function clearStored(key: string) {
-  await SecureStore.deleteItemAsync(key);
-}
+type Tab = 'today' | 'patients';
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [tenant, setTenant] = useState('dentacare');
+  const session = useClinicSession();
+  const [tab, setTab] = useState<Tab>('today');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [screen, setScreen] = useState<'today' | 'patients'>('today');
-  const [today, setToday] = useState<{ appointments?: { id?: string; patientName?: string; service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
-  const [patients, setPatients] = useState<{ id: string; name: string; phone?: string }[]>([]);
-  const [patientQuery, setPatientQuery] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<{ patient: { name: string; phone?: string }; appointments: { service?: string; status?: string; scheduledAt?: string }[] } | null>(null);
-  const [error, setError] = useState('');
-  const [meLabel, setMeLabel] = useState('');
-  const [canRecordPayments, setCanRecordPayments] = useState(false);
-
-  const client = useMemo(
-    () =>
-      createClinicApiClient({
-        baseUrl: API_URL,
-        auth: {
-          getToken: () => token,
-          getTenantSlug: () => tenant,
-          onUnauthorized: () => setToken(null),
-        },
-      }),
-    [token, tenant],
-  );
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [banner, setBanner] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null);
+  const [consultAppt, setConsultAppt] = useState<ClinicAppointment | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(clinicTodayYmd());
 
   useEffect(() => {
-    (async () => {
-      const [t, tok] = await Promise.all([getStored(TENANT_KEY), getStored(TOKEN_KEY)]);
-      if (t) setTenant(t);
-      if (tok) setToken(tok);
-      setLoading(false);
-    })();
-  }, []);
+    if (!session.token) return;
+    session.client
+      .today()
+      .then((t) => setScheduleDate(t.date || clinicTodayYmd()))
+      .catch(() => setScheduleDate(clinicTodayYmd()));
+  }, [session.token, session.client]);
 
-  useEffect(() => {
-    if (!token) return;
-    setError('');
-    client.me().then((m) => {
-      const role = m.user?.effectiveRole || m.user?.role || '';
-      const name = m.user?.name || m.user?.email || '';
-      setMeLabel(name ? `${name}${role ? ` · ${role}` : ''}` : role);
-      setCanRecordPayments(!!m.user?.capabilities?.recordPayments);
-    }).catch(() => setMeLabel(''));
-    if (screen === 'today') {
-      client.today().then(setToday).catch((e) => setError(e.message));
-    } else {
-      client.patients(patientQuery.trim() || undefined)
-        .then((rows) => setPatients(Array.isArray(rows) ? rows as { id: string; name: string; phone?: string }[] : []))
-        .catch((e) => setError(e.message));
-    }
-  }, [token, client, screen, patientQuery]);
-
-  async function onLogin() {
-    setBusy(true);
-    setError('');
-    try {
-      const { token: tok } = await client.login(email.trim(), password, tenant.trim());
-      await setStored(TOKEN_KEY, tok);
-      await setStored(TENANT_KEY, tenant.trim());
-      setToken(tok);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
-    } finally {
-      setBusy(false);
-    }
+  function flash(text: string, kind: 'ok' | 'err' = 'ok') {
+    setBanner({ text, kind });
+    setTimeout(() => setBanner(null), 4000);
   }
 
-  async function onLogout() {
-    await clearStored(TOKEN_KEY);
-    setToken(null);
-    setToday(null);
-  }
-
-  if (loading) {
+  if (session.booting) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.brand} />
@@ -118,142 +49,118 @@ export default function App() {
     );
   }
 
-  if (!token) {
+  if (!session.token) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <Text style={styles.title}>Clinic ERP</Text>
-        <TextInput style={styles.input} placeholder="Workspace (tenant slug)" value={tenant} onChangeText={setTenant} autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-        <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <TouchableOpacity style={styles.primaryBtn} onPress={onLogin} disabled={busy}>
-          <Text style={styles.primaryBtnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
-        </TouchableOpacity>
+      <SafeAreaView style={styles.safe}>
+        <LoginScreen
+          tenant={session.tenant}
+          onTenantChange={session.setTenant}
+          email={email}
+          onEmailChange={setEmail}
+          password={password}
+          onPasswordChange={setPassword}
+          error={banner?.kind === 'err' ? banner.text : ''}
+          busy={loginBusy}
+          onSubmit={async () => {
+            setLoginBusy(true);
+            try {
+              await session.login(email, password, session.tenant);
+              flash('Signed in');
+            } catch (e) {
+              flash(e instanceof Error ? e.message : 'Login failed', 'err');
+            } finally {
+              setLoginBusy(false);
+            }
+          }}
+        />
       </SafeAreaView>
     );
   }
 
-  const appts = today?.appointments || [];
-
-  if (selectedPatient) {
-    const p = selectedPatient.patient;
+  if (consultAppt) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <TouchableOpacity onPress={() => setSelectedPatient(null)}>
-          <Text style={styles.link}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{p.name}</Text>
-        <Text style={styles.subtitle}>{p.phone || 'No phone'}</Text>
-        <FlatList
-          data={selectedPatient.appointments || []}
-          keyExtractor={(_, i) => String(i)}
-          ListEmptyComponent={<Text style={styles.muted}>No appointments on file.</Text>}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.service || 'Visit'}</Text>
-              <Text style={styles.muted}>{item.status} · {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : ''}</Text>
-            </View>
-          )}
+      <SafeAreaView style={styles.safe}>
+        {banner ? (
+          <Text style={banner.kind === 'err' ? styles.bannerErr : styles.bannerOk}>{banner.text}</Text>
+        ) : null}
+        <ConsultScreen
+          client={session.client}
+          appointment={consultAppt}
+          canSignClinical={session.canSignClinical}
+          onBack={() => setConsultAppt(null)}
+          onDone={() => {
+            setConsultAppt(null);
+            setTab('today');
+          }}
+          onError={(msg) => flash(msg, 'err')}
+          onMessage={(msg) => flash(msg, 'ok')}
         />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{screen === 'today' ? 'Today' : 'Patients'}</Text>
-        <TouchableOpacity onPress={onLogout}>
+        <Text style={styles.title}>{tab === 'today' ? 'Today' : 'Patients'}</Text>
+        <TouchableOpacity onPress={() => void session.logout()} testID="logout-btn">
           <Text style={styles.link}>Logout</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.tabRow}>
-        <TouchableOpacity style={[styles.tabBtn, screen === 'today' && styles.tabBtnActive]} onPress={() => setScreen('today')}>
-          <Text style={screen === 'today' ? styles.tabTextActive : styles.muted}>Today</Text>
+        <TouchableOpacity
+          style={[styles.tabBtn, tab === 'today' && styles.tabBtnActive]}
+          onPress={() => setTab('today')}
+          testID="tab-today"
+        >
+          <Text style={tab === 'today' ? styles.tabTextActive : styles.muted}>Today</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tabBtn, screen === 'patients' && styles.tabBtnActive]} onPress={() => setScreen('patients')}>
-          <Text style={screen === 'patients' ? styles.tabTextActive : styles.muted}>Patients</Text>
+        <TouchableOpacity
+          style={[styles.tabBtn, tab === 'patients' && styles.tabBtnActive]}
+          onPress={() => setTab('patients')}
+          testID="tab-patients"
+        >
+          <Text style={tab === 'patients' ? styles.tabTextActive : styles.muted}>Patients</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.subtitle}>{tenant} · {meLabel || email || 'staff'}</Text>
-      {screen === 'patients' && (
-        <TextInput
-          style={styles.input}
-          placeholder="Search patients"
-          value={patientQuery}
-          onChangeText={setPatientQuery}
-          autoCapitalize="none"
+      <Text style={styles.subtitle}>
+        {session.tenant} · {session.meLabel || email}{session.role ? ` · ${session.role}` : ''}
+      </Text>
+      {tab === 'today' ? (
+        <Text style={styles.dateLine}>Schedule · {scheduleDate}</Text>
+      ) : null}
+      {banner ? (
+        <Text style={banner.kind === 'err' ? styles.bannerErr : styles.bannerOk}>{banner.text}</Text>
+      ) : null}
+      {tab === 'today' ? (
+        <TodayScreen
+          client={session.client}
+          scheduleDate={scheduleDate}
+          canManageAppointments={session.canManageAppointments}
+          canSignClinical={session.canSignClinical}
+          onConsult={setConsultAppt}
+          onError={(msg) => flash(msg, 'err')}
         />
+      ) : (
+        <PatientsScreen client={session.client} onError={(msg) => flash(msg, 'err')} />
       )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <FlatList
-        data={screen === 'today' ? appts : patients}
-        keyExtractor={(item, i) => ('id' in item && item.id) ? item.id : String(i)}
-        ListEmptyComponent={<Text style={styles.muted}>{screen === 'today' ? 'No appointments loaded.' : 'No patients found.'}</Text>}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => {
-              if (screen === 'patients' && 'id' in item) {
-                client.patient(item.id).then(setSelectedPatient).catch((e) => setError(e.message));
-              }
-            }}
-          >
-            <Text style={styles.cardTitle}>
-              {'patientName' in item ? (item.patientName || 'Patient') : item.name}
-            </Text>
-            <Text style={styles.muted}>
-              {'service' in item
-                ? `${item.service || 'Visit'} · ${item.status}`
-                : (item.phone || '—')}
-            </Text>
-            {screen === 'today' && 'id' in item && item.id && canRecordPayments && item.status === 'confirmed' && (
-              <TouchableOpacity
-                style={styles.inlineBtn}
-                onPress={() => {
-                  client.updateAppointment(item.id!, { status: 'arrived' })
-                    .then(() => client.today().then(setToday))
-                    .catch((e) => setError(e.message));
-                }}
-              >
-                <Text style={styles.link}>Mark arrived</Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-        )}
-      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+  safe: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.brandDark },
-  subtitle: { color: colors.muted, marginBottom: spacing.md, fontSize: typography.sizeMd },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    fontSize: typography.sizeMd,
-  },
-  primaryBtn: { backgroundColor: colors.brand, padding: spacing.md, borderRadius: 10, marginTop: spacing.sm },
-  primaryBtnText: { color: '#fff', textAlign: 'center', fontWeight: typography.weightSemibold },
-  error: { color: colors.danger, marginVertical: spacing.sm },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.brandDark },
+  subtitle: { color: colors.muted, marginBottom: spacing.xs, fontSize: typography.sizeMd },
+  dateLine: { color: colors.muted, marginBottom: spacing.sm, fontSize: typography.sizeSm },
   tabRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   tabBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surface },
   tabBtnActive: { backgroundColor: '#e3f0fd' },
   tabTextActive: { color: colors.brand, fontWeight: typography.weightSemibold },
   link: { color: colors.brand },
-  card: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: 10,
-    marginBottom: spacing.sm,
-  },
-  cardTitle: { fontSize: typography.sizeLg, fontWeight: typography.weightMedium },
   muted: { color: colors.muted, fontSize: typography.sizeSm },
-  inlineBtn: { marginTop: 8 },
+  bannerOk: { color: colors.brand, marginBottom: spacing.xs },
+  bannerErr: { color: colors.danger, marginBottom: spacing.xs },
 });

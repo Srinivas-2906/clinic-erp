@@ -1,4 +1,9 @@
-import { parseApiError, type MeResponse } from '@clinic-erp/contracts';
+import {
+  parseApiError,
+  type MeResponse,
+  type PrescriptionLineInput,
+  type ClinicalVitalInput,
+} from '@clinic-erp/contracts';
 
 export type AuthTransport = {
   getToken: () => string | null;
@@ -9,6 +14,51 @@ export type AuthTransport = {
 export type ClinicApiClientOptions = {
   baseUrl: string;
   auth: AuthTransport;
+};
+
+export type ClinicAppointment = {
+  id: string;
+  patientId: string;
+  patientName?: string;
+  patientPhone?: string;
+  scheduledAt: string;
+  status: string;
+  service?: string;
+  assignedDoctorId?: string | null;
+  assignedDoctor?: string;
+  encounterId?: string | null;
+  notes?: string;
+};
+
+export type TodayStats = {
+  date: string;
+  appointments: ClinicAppointment[];
+  total?: number;
+  confirmed?: number;
+  arrived?: number;
+  unconfirmedToday?: number;
+};
+
+export type EncounterDetail = {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  appointmentId?: string | null;
+  status: 'draft' | 'finalized';
+  chiefComplaint?: string;
+  historySummary?: string;
+  clinicalNote?: string;
+  diagnoses?: { description: string; isPrimary?: boolean; code?: string }[];
+  vitals?: ClinicalVitalInput[];
+  prescription?: {
+    items?: {
+      drugName: string;
+      dose?: string;
+      frequency?: string;
+      duration?: string;
+      instructions?: string;
+    }[];
+  } | null;
 };
 
 export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions) {
@@ -42,15 +92,22 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
         body: JSON.stringify({ email, password, tenantSlug }),
       }),
     me: () => request<MeResponse>(`/api/platform/me`),
-    today: () => request<{ appointments: unknown[] }>(`/api/clinic/today`),
+    today: () => request<TodayStats>(`/api/clinic/today`),
+    appointments: (params?: { date?: string; patientId?: string; status?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.date) q.set('date', params.date);
+      if (params?.patientId) q.set('patientId', params.patientId);
+      if (params?.status) q.set('status', params.status);
+      const qs = q.toString();
+      return request<ClinicAppointment[]>(`/api/appointments${qs ? `?${qs}` : ''}`);
+    },
     patients: (search?: string) =>
       request<unknown[]>(`/api/patients${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     patient: (id: string) =>
       request<{ patient: unknown; appointments: unknown[]; encounters?: unknown[] }>(`/api/patients/${id}`),
     updateAppointment: (id: string, patch: { status?: string; scheduledAt?: string }) =>
-      request<unknown>(`/api/appointments/${encodeURIComponent(id)}`, {
+      request<ClinicAppointment>(`/api/appointments/${encodeURIComponent(id)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       }),
     createPatient: (body: { name: string; phone: string; email?: string }) =>
@@ -69,6 +126,48 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
       }),
     listEncounters: (patientId: string) =>
       request<{ encounters: unknown[] }>(`/api/clinic/patients/${encodeURIComponent(patientId)}/encounters`),
+    createEncounter: (
+      patientId: string,
+      body: {
+        appointmentId?: string;
+        doctorId?: string;
+        chiefComplaint?: string;
+        historySummary?: string;
+        clinicalNote?: string;
+        vitals?: ClinicalVitalInput[];
+        diagnoses?: { description: string; isPrimary?: boolean; code?: string }[];
+        prescriptionItems?: PrescriptionLineInput[];
+      },
+    ) =>
+      request<EncounterDetail>(`/api/clinic/patients/${encodeURIComponent(patientId)}/encounters`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    fetchEncounter: (encounterId: string) =>
+      request<EncounterDetail>(`/api/clinic/encounters/${encodeURIComponent(encounterId)}`),
+    updateEncounter: (
+      encounterId: string,
+      body: {
+        chiefComplaint?: string;
+        historySummary?: string;
+        clinicalNote?: string;
+        vitals?: ClinicalVitalInput[];
+        diagnoses?: { description: string; isPrimary?: boolean; code?: string }[];
+        prescriptionItems?: PrescriptionLineInput[];
+      },
+    ) =>
+      request<EncounterDetail>(`/api/clinic/encounters/${encodeURIComponent(encounterId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    finalizeEncounter: (encounterId: string) =>
+      request<EncounterDetail>(`/api/clinic/encounters/${encodeURIComponent(encounterId)}/finalize`, {
+        method: 'POST',
+      }),
+    patientAllergies: (patientId: string) =>
+      request<{ allergies: { substance: string; severity?: string }[] }>(
+        `/api/clinic/patients/${encodeURIComponent(patientId)}/allergies`,
+      ),
   };
 }
 
