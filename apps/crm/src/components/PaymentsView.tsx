@@ -42,6 +42,8 @@ interface Props {
   /** When set, opens record-payment with this patient pre-selected (once). */
   prefillRecordPatientId?: string | null;
   onPrefillRecordConsumed?: () => void;
+  focusDueInvoices?: boolean;
+  onFocusDueConsumed?: () => void;
 }
 
 export function PaymentsView({
@@ -57,8 +59,11 @@ export function PaymentsView({
   onToast,
   prefillRecordPatientId,
   onPrefillRecordConsumed,
+  focusDueInvoices,
+  onFocusDueConsumed,
 }: Props) {
   const [section, setSection] = useState<'invoices' | 'payments'>('invoices');
+  const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'due'>('all');
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordPrefillId, setRecordPrefillId] = useState<string | undefined>();
 
@@ -69,6 +74,13 @@ export function PaymentsView({
     setRecordOpen(true);
     onPrefillRecordConsumed?.();
   }, [prefillRecordPatientId, onPrefillRecordConsumed]);
+
+  useEffect(() => {
+    if (!focusDueInvoices) return;
+    setSection('invoices');
+    setInvoiceFilter('due');
+    onFocusDueConsumed?.();
+  }, [focusDueInvoices, onFocusDueConsumed]);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [sharePayment, setSharePayment] = useState<Payment | null>(null);
@@ -106,6 +118,10 @@ export function PaymentsView({
 
   const outstanding = summary.outstandingBalance ?? 0;
   const openCount = summary.openInvoiceCount ?? invoices.filter((i) => i.status === 'open' || i.status === 'partial').length;
+  const visibleInvoices = useMemo(() => {
+    if (invoiceFilter !== 'due') return invoices;
+    return invoices.filter((i) => i.status !== 'void' && i.balanceDue > 0);
+  }, [invoices, invoiceFilter]);
 
   return (
     <div className="view payments-view">
@@ -148,6 +164,16 @@ export function PaymentsView({
         <button type="button" className={`team-filter-btn${section === 'payments' ? ' active' : ''}`} onClick={() => setSection('payments')}>
           Payment history
         </button>
+        {section === 'invoices' && (
+          <>
+            <button type="button" className={`team-filter-btn${invoiceFilter === 'all' ? ' active' : ''}`} onClick={() => setInvoiceFilter('all')}>
+              All
+            </button>
+            <button type="button" className={`team-filter-btn${invoiceFilter === 'due' ? ' active' : ''}`} onClick={() => setInvoiceFilter('due')}>
+              Due now ({invoices.filter((i) => i.status !== 'void' && i.balanceDue > 0).length})
+            </button>
+          </>
+        )}
       </div>
 
       {invoiceOpen && (
@@ -226,9 +252,11 @@ export function PaymentsView({
 
       {section === 'invoices' ? (
         <ul className="payment-list">
-          {invoices.length === 0 ? (
-            <li className="muted">No invoices yet. Create one to track balances, or keep using quick payments without invoices.</li>
-          ) : invoices.map((inv) => (
+          {visibleInvoices.length === 0 ? (
+            <li className="muted">
+              {invoiceFilter === 'due' ? 'No invoices with balance due.' : 'No invoices yet. Create one to track balances, or keep using quick payments without invoices.'}
+            </li>
+          ) : visibleInvoices.map((inv) => (
             <li key={inv.id}>
               <div
                 role="button"

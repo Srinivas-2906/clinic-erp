@@ -99,6 +99,7 @@ function ClinicApp() {
     () => localStorage.getItem('pilot-setup-dismissed') === '1',
   );
   const [onboardingRefresh, setOnboardingRefresh] = useState(0);
+  const [paymentsFocusDue, setPaymentsFocusDue] = useState(false);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
@@ -248,10 +249,11 @@ function ClinicApp() {
   }, [tab, loadToday]);
 
   useEffect(() => {
-    if (tab !== 'payments') return;
+    if (tab !== 'payments' && tab !== 'overview' && tab !== 'today') return;
+    if (!userCaps.recordPayments) return;
     loadPayments();
-    loadPatients();
-  }, [tab, loadPayments, loadPatients]);
+    if (tab === 'payments') loadPatients();
+  }, [tab, loadPayments, loadPatients, userCaps.recordPayments]);
 
   const loadScheduleDay = useCallback(async (date: string) => {
     setScheduleLoading(true);
@@ -574,6 +576,12 @@ function ClinicApp() {
               canRecordPayments={userCaps.recordPayments}
               onConsultationFinalized={handleConsultationFinalized}
               onOpenVisitBilling={userCaps.recordPayments ? openVisitBillingHandoff : undefined}
+              outstandingBalance={paymentSummary.outstandingBalance ?? 0}
+              openInvoiceCount={paymentSummary.openInvoiceCount ?? 0}
+              onGoToPayments={userCaps.recordPayments ? () => {
+                setPaymentsFocusDue(true);
+                handleTabChange('payments');
+              } : undefined}
             />
           ) : tab === 'today' ? (
             <TodayView
@@ -595,6 +603,7 @@ function ClinicApp() {
               canRecordPayments={userCaps.recordPayments}
               onConsultationFinalized={handleConsultationFinalized}
               onOpenVisitBilling={userCaps.recordPayments ? openVisitBillingHandoff : undefined}
+              preferArrivedQueue={userRole === 'doctor'}
             />
           ) : tab === 'patients' ? (
             <PatientsView
@@ -620,6 +629,8 @@ function ClinicApp() {
                 onToast={toast}
                 prefillRecordPatientId={paymentsPrefillPatientId}
                 onPrefillRecordConsumed={() => setPaymentsPrefillPatientId(null)}
+                focusDueInvoices={paymentsFocusDue}
+                onFocusDueConsumed={() => setPaymentsFocusDue(false)}
               />
             ) : (
               <div className="doctors-empty">Billing is handled by front desk staff.</div>
