@@ -44,11 +44,5 @@ export default async function globalSetup() {
     });
   }
 
-  const seedScript = process.env.E2E_SEED_SCRIPT || 'scripts/seed-e2e-local.js';
-  console.log(`\n[e2e] Seeding fixtures (${seedScript}) on ${e2eDbPath}…`);
-  execSync(`node ${seedScript}`, {
-    cwd: apiRoot,
-    stdio: 'inherit',
-    env: { ...process.env, DATABASE_PATH: e2eDbPath },
-  });
+  console.log('\n[e2e] DB reset complete; E2E fixtures seed when API boots (CLINIC_E2E_MODE=1).');
 }

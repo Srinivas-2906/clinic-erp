@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab } from '../helpers/navigation';
-import { continueBookAfterTreatment, pickFirstBookSlot } from '../helpers/booking';
+import { continueBookAfterTreatment, pickFirstBookSlot, ensureBookableScheduleDate } from '../helpers/booking';
 
 function uniquePhone() {
   return `9${Date.now().toString().slice(-9)}`;
@@ -37,13 +37,10 @@ test.describe('Phase 1 regression smoke', () => {
 
     await page.locator('.form-select').first().selectOption({ index: 0 });
     await continueBookAfterTreatment(page, 'schedule');
+    await ensureBookableScheduleDate(page);
 
-    const slotSelect = page.locator('.form-select').last();
-    if (await slotSelect.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await pickFirstBookSlot(page);
-      await page.getByRole('button', { name: 'Review' }).click();
-    }
-
+    await pickFirstBookSlot(page);
+    await page.getByRole('button', { name: 'Review' }).click();
     await page.getByRole('button', { name: /book appointment/i }).click();
     await page.waitForTimeout(1500);
     await expect(page.locator('.clinic-app')).toBeVisible();

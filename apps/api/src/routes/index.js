@@ -754,6 +754,13 @@ export function clinicRouter() {
       const dbPath = process.env.DATABASE_PATH || '';
       payload.e2e = true;
       payload.dbFingerprint = dbPath ? dbPath.replace(/\\/g, '/').split('/').slice(-2).join('/') : 'unknown';
+      try {
+        const ownerEmail = process.env.E2E_EMAIL || 'e2e-owner@dentacare.in';
+        const row = getDb().prepare('SELECT id FROM users WHERE email = ?').get(ownerEmail);
+        payload.e2eReady = !!row;
+      } catch {
+        payload.e2eReady = false;
+      }
     }
     res.json(payload);
   });

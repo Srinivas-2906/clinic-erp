@@ -97,6 +97,7 @@ export async function advanceQueueToConsult(page: Page, patientLabel: string) {
     await waitTodayListSettled(page);
 
     const card = await pickQueueCard(page, patientLabel);
+    await card.scrollIntoViewIfNeeded().catch(() => {});
     const consult = queueActionButton(card).filter({ hasText: /^Consult$/i });
     if (await consult.isVisible().catch(() => false)) {
       await openConsultFromQueue(page, patientLabel);

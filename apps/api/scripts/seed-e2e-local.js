@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
-import { initDatabase, getDb } from '../src/db/index.js';
+import { initDatabase, getDb, closeDatabase } from '../src/db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 execSync('node scripts/assert-e2e-safe-env.js', {
@@ -131,7 +131,7 @@ if (doctorCount < 2 && doctor) {
   console.log('Ensured second doctor (with sessions) for multi-doctor E2E');
 }
 
-getDb().pragma('wal_checkpoint(FULL)');
+closeDatabase();
 
 console.log(JSON.stringify({
   tenant: 'dentacare',

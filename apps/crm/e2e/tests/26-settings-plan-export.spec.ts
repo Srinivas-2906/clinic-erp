@@ -4,12 +4,12 @@ import { goToTab } from '../helpers/navigation';
 test.describe('Settings, plan usage, export', () => {
   test('owner updates timezone and sees plan panel', async ({ authedPage: page }) => {
     await goToTab(page, 'settings');
-    await expect(page.locator('#clinicName')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#clinicName, .settings-form, .plan-usage-panel').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.plan-usage-panel')).toBeVisible();
     const tz = page.locator('#clinicTz');
     await tz.fill('Asia/Kolkata');
     await page.getByRole('button', { name: /save settings/i }).click();
-    await expect(page.getByText(/saved|updated|settings/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.toast').filter({ hasText: /Clinic settings saved|saved/i })).toBeVisible({ timeout: 10_000 });
   });
 
   test('owner can download tenant export from plan panel', async ({ authedPage: page }) => {

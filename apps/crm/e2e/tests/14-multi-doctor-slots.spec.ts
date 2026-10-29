@@ -43,12 +43,20 @@ test.describe('Multi-doctor slot API', () => {
     test.skip(!slot, 'No slots for doctor A');
 
     const match = dataA1.slotOptions?.find((s: { label: string }) => s.label === slot);
-    const scheduledAt = `${date}T${match?.time || '10:00'}:00`;
+    const scheduledAt = match?.startsAt
+      || (match?.time ? `${date}T${match.time}:00+05:30` : `${date}T10:00:00+05:30`);
+
+    const patientRes = await request.post(`${API}/api/patients`, {
+      headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT, 'Content-Type': 'application/json' },
+      data: { name: `SlotIso ${Date.now()}`, phone: `9${Date.now().toString().slice(-9)}` },
+    });
+    expect(patientRes.ok()).toBeTruthy();
+    const patient = await patientRes.json();
 
     const bookRes = await request.post(`${API}/api/appointments`, {
       headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT, 'Content-Type': 'application/json' },
       data: {
-        patientId: 'pat-demo-1',
+        patientId: patient.id,
         service: 'Check-up',
         scheduledAt,
         status: 'confirmed',

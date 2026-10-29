@@ -29,9 +29,11 @@ export async function pickTodayScheduledAt(
   request: APIRequestContext,
   apiBase: string,
   headers: Record<string, string>,
+  doctorId?: string,
 ) {
   const dateStr = clinicTodayYmd();
-  const slotRes = await request.get(`${apiBase}/api/appointments/slots?date=${dateStr}`, { headers });
+  const doctorQ = doctorId ? `&doctorId=${encodeURIComponent(doctorId)}` : '';
+  const slotRes = await request.get(`${apiBase}/api/appointments/slots?date=${dateStr}${doctorQ}`, { headers });
   expect(slotRes.ok()).toBeTruthy();
   const body = await slotRes.json();
   const options = (body.slotOptions ?? []) as SlotOption[];
@@ -73,9 +75,18 @@ export async function createPatientAndAppointment(
   const docRes = await request.get(`${apiBase}/api/clinic/doctors`, { headers });
   const docBody = await docRes.json();
   const doctors = docBody.doctors ?? docBody;
-  const doctorId = Array.isArray(doctors) ? doctors[0]?.id : undefined;
+  const clinician =
+    Array.isArray(doctors)
+      ? doctors.find((d: { userId?: string | null }) => d.userId === 'user-e2e-doctor') ?? doctors[0]
+      : undefined;
+  const doctorId = clinician?.id as string | undefined;
 
-  const { dateStr, scheduledAt, doctorId: slotDoctorId } = await pickTodayScheduledAt(request, apiBase, headers);
+  const { dateStr, scheduledAt, doctorId: slotDoctorId } = await pickTodayScheduledAt(
+    request,
+    apiBase,
+    headers,
+    doctorId,
+  );
   const assignedDoctorId = doctorId ?? slotDoctorId;
   const apptRes = await request.post(`${apiBase}/api/appointments`, {
     headers: { ...headers, 'Content-Type': 'application/json' },

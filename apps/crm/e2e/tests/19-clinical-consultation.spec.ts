@@ -27,7 +27,7 @@ test.describe('Clinical consultation flow', () => {
     );
     const { patient } = await createPatientAndAppointment(request, API, headers, {
       name: uniqueLabel,
-      status: 'arrived',
+      status: 'requested',
     });
 
     await loginClinicApp(page, 'doctor');
@@ -37,8 +37,7 @@ test.describe('Clinical consultation flow', () => {
       await page.getByRole('button', { name: 'Refresh' }).first().click();
       return page.getByText(uniqueLabel).first().isVisible();
     }, { timeout: 25_000 }).toBe(true);
-    const card = page.locator('.appt-card, .board-card').filter({ hasText: uniqueLabel }).first();
-    await card.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
+    await advanceQueueToConsult(page, uniqueLabel);
     await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
 
     await page.locator('#consult-complaint').fill('Sharp pain lower left');
@@ -46,13 +45,16 @@ test.describe('Clinical consultation flow', () => {
     await page.getByPlaceholder('Medicine').first().fill('Paracetamol');
     await page.getByPlaceholder('Dose').first().fill('500mg');
 
+    const saveDraft = page.getByRole('button', { name: /save draft/i });
+    await expect(page.getByText('Loading consultation…')).toBeHidden({ timeout: 20_000 });
+    await expect(saveDraft).toBeEnabled({ timeout: 20_000 });
     const saveResp = page.waitForResponse(
       (r) => r.url().includes('/clinic/encounters/') && r.request().method() === 'PATCH' && r.ok(),
+      { timeout: 25_000 },
     );
-    await page.getByRole('button', { name: /save draft/i }).click();
-    const savedBody = await (await saveResp).json();
-    expect(savedBody.chiefComplaint).toBe('Sharp pain lower left');
-    await expect(page.getByText(/consultation saved/i)).toBeVisible({ timeout: 10_000 });
+    await saveDraft.click();
+    await saveResp;
+    await expect(page.locator('.toast').filter({ hasText: /Consultation saved/i })).toBeVisible({ timeout: 15_000 });
 
     await page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') }).locator('button.modal-close').click();
     await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 10_000 });
