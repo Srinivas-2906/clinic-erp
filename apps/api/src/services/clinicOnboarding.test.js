@@ -1,11 +1,18 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { initDatabase, getDb, closeDatabase } from '../db/index.js';
-import { getClinicOnboardingStatus } from './clinicOnboarding.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const tmpDb = path.join(os.tmpdir(), `onboarding-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+process.env.DATABASE_PATH = tmpDb;
+process.env.SKIP_DEMO_SEED = '1';
+
+const { initDatabase, getDb, closeDatabase } = await import('../db/index.js');
+const { getClinicOnboardingStatus } = await import('./clinicOnboarding.js');
 
 describe('clinicOnboarding', () => {
   before(() => {
-    process.env.DATABASE_PATH = ':memory:';
     initDatabase();
     const db = getDb();
     db.prepare(`
@@ -18,7 +25,10 @@ describe('clinicOnboarding', () => {
     `).run();
   });
 
-  after(() => closeDatabase());
+  after(() => {
+    closeDatabase();
+    try { fs.unlinkSync(tmpDb); } catch { /* ok */ }
+  });
 
   it('starts with incomplete checklist', () => {
     const status = getClinicOnboardingStatus('t-onb');

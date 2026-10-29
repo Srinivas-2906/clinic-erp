@@ -254,8 +254,52 @@ export function linkDoctorToCurrentUser(doctorId, tenantId, user) {
     throw err;
   }
   assertDoctorBelongsToTenant(doctorId, tenantId);
+  const existing = getDoctorById(doctorId, tenantId);
+  if (existing?.userId && existing.userId !== user.sub) {
+    const err = new Error('This doctor profile is already linked to another login');
+    err.status = 409;
+    throw err;
+  }
+  if (existing?.userId === user.sub) {
+    return existing;
+  }
   assertUserNotLinkedToOtherDoctor(tenantId, user.sub, doctorId);
-  return updateDoctor(doctorId, tenantId, user, { userId: user.sub });
+  const db = getDb();
+  const link = db.transaction(() => {
+    const row = db.prepare(
+      'SELECT user_id, email FROM doctors WHERE id = ? AND tenant_id = ?',
+    ).get(doctorId, tenantId);
+    if (!row) {
+      const err = new Error('Doctor not found');
+      err.status = 404;
+      throw err;
+    }
+    if (row.user_id && row.user_id !== user.sub) {
+      const err = new Error('This doctor profile is already linked to another login');
+      err.status = 409;
+      throw err;
+    }
+    if (row.user_id === user.sub) {
+      return getDoctorById(doctorId, tenantId);
+    }
+    if (user.role === 'doctor') {
+      const account = db.prepare('SELECT email FROM users WHERE id = ? AND tenant_id = ?').get(user.sub, tenantId);
+      const docEmail = String(row.email || '').trim().toLowerCase();
+      const acctEmail = String(account?.email || '').trim().toLowerCase();
+      if (docEmail && acctEmail && docEmail !== acctEmail) {
+        const err = new Error('You can only link a doctor profile that matches your login email');
+        err.status = 403;
+        throw err;
+      }
+    }
+    assertUserNotLinkedToOtherDoctor(tenantId, user.sub, doctorId);
+    const now = nowIso();
+    db.prepare(
+      'UPDATE doctors SET user_id = ?, updated_at = ? WHERE id = ? AND tenant_id = ?',
+    ).run(user.sub, now, doctorId, tenantId);
+    return getDoctorById(doctorId, tenantId);
+  });
+  return link();
 }
 
 export function resolveDoctorDisplayName(doctorId, tenantId) {
