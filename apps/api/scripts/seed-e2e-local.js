@@ -68,13 +68,22 @@ const hash = bcrypt.hashSync(password, 10);
 
 for (const u of USERS) {
   const tid = u.tenantId === null ? null : tenantId;
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(u.email);
+  const existing = db.prepare('SELECT id, email FROM users WHERE id = ? OR email = ?').get(u.id, u.email);
   if (!existing) {
-    db.prepare(`
-      INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(u.id, tid, u.username, u.email, hash, u.name, u.role, u.isPlatformAdmin);
-    console.log(`Created: ${u.email} (${u.role}${u.isPlatformAdmin ? ', platform' : ''})`);
+    try {
+      db.prepare(`
+        INSERT INTO users (id, tenant_id, username, email, password_hash, name, role, is_platform_admin)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(u.id, tid, u.username, u.email, hash, u.name, u.role, u.isPlatformAdmin);
+      console.log(`Created: ${u.email} (${u.role}${u.isPlatformAdmin ? ', platform' : ''})`);
+    } catch (err) {
+      if (err?.code !== 'SQLITE_CONSTRAINT') throw err;
+      db.prepare(`
+        UPDATE users SET tenant_id = ?, username = ?, password_hash = ?, name = ?, role = ?, is_platform_admin = ?
+        WHERE email = ? OR id = ?
+      `).run(tid, u.username, hash, u.name, u.role, u.isPlatformAdmin, u.email, u.id);
+      console.log(`Updated (after conflict): ${u.email}`);
+    }
   } else {
     db.prepare(`
       UPDATE users SET tenant_id = ?, username = ?, password_hash = ?, name = ?, role = ?, is_platform_admin = ?
@@ -91,6 +100,8 @@ if (doctor) {
   db.prepare(`UPDATE doctors SET user_id = ? WHERE id = ?`).run('user-e2e-doctor', doctor.id);
   console.log(`Linked e2e-doctor to doctor ${doctor.id}`);
 }
+
+getDb().pragma('wal_checkpoint(FULL)');
 
 console.log(JSON.stringify({
   tenant: 'dentacare',
