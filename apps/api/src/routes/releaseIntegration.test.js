@@ -270,12 +270,24 @@ describe('release integration (HTTP)', () => {
     const row = db.prepare(`SELECT status FROM reminder_jobs WHERE id = ?`).get(emailJob);
     assert.equal(row.status, 'delivered');
 
+    const cancelAppt = await http('POST', '/api/appointments', {
+      token: receptionistToken,
+      body: {
+        patientId,
+        scheduledAt: new Date(Date.now() + 172800000).toISOString(),
+        service: 'Consult',
+        status: 'confirmed',
+      },
+    });
+    assert.equal(cancelAppt.status, 201);
+    const cancelApptId = cancelAppt.json.id;
+
     db.prepare(`
       INSERT INTO reminder_jobs (id, tenant_id, appointment_id, kind, channel, recipient, payload, scheduled_at, status)
       VALUES ('pending-cancel-test', ?, ?, 'appointment_reminder', 'mock', '9876543210', '{}', datetime('now'), 'pending')
-    `).run(TENANT, appointmentId);
+    `).run(TENANT, cancelApptId);
 
-    await http('PATCH', `/api/appointments/${appointmentId}`, {
+    await http('PATCH', `/api/appointments/${cancelApptId}`, {
       token: receptionistToken,
       body: { status: 'cancelled' },
     });
