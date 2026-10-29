@@ -88,11 +88,13 @@ describe('clinical encounters', () => {
     const db = getDb();
     db.prepare(`DELETE FROM follow_ups WHERE tenant_id = ?`).run(tenantId);
     db.prepare(`DELETE FROM record_amendments WHERE tenant_id = ?`).run(tenantId);
+    db.prepare(`UPDATE appointments SET encounter_id = NULL WHERE tenant_id = ?`).run(tenantId);
     db.prepare(`DELETE FROM prescription_items WHERE prescription_id IN (SELECT id FROM prescriptions WHERE tenant_id = ?)`).run(tenantId);
     db.prepare(`DELETE FROM prescriptions WHERE tenant_id = ?`).run(tenantId);
     db.prepare(`DELETE FROM encounter_diagnoses WHERE tenant_id = ?`).run(tenantId);
     db.prepare(`DELETE FROM encounter_vitals WHERE tenant_id = ?`).run(tenantId);
     db.prepare(`DELETE FROM encounters WHERE tenant_id = ?`).run(tenantId);
+    db.prepare(`DELETE FROM appointments WHERE tenant_id = ?`).run(tenantId);
   });
 
   after(() => {
@@ -286,6 +288,30 @@ describe('clinical encounters', () => {
       assert.ok(audit);
       assert.match(audit.reason, /Corrected/);
     });
+  });
+
+  it('reuses encounter when creating again for same appointment', () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const db = getDb();
+    const apptId = `appt-enc-dup-${Date.now()}`;
+    db.prepare(`DELETE FROM appointments WHERE id = ?`).run(apptId);
+    db.prepare(`
+      INSERT INTO appointments (id, tenant_id, patient_id, service, scheduled_at, status)
+      VALUES (?, ?, ?, 'Consultation', datetime('now'), 'arrived')
+    `).run(apptId, ctx.tenantId, ctx.patientId);
+    const first = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+      appointmentId: apptId,
+    });
+    const second = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+      appointmentId: apptId,
+    });
+    assert.equal(first.id, second.id);
+    const rows = db.prepare(`SELECT COUNT(*) AS c FROM encounters WHERE appointment_id = ?`).get(apptId);
+    assert.equal(rows.c, 1);
   });
 
   it('lists patient visit history in reverse chronological order', async () => {

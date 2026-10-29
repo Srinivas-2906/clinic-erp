@@ -17,13 +17,22 @@ Sign in with workspace `dentacare` and E2E users from `apps/api/scripts/seed-e2e
 
 ## Roles
 
-| Role | Today |
-|------|--------|
-| Receptionist | Confirm → Check in (status transitions) |
-| Doctor (linked profile) | **Consult** on arrived patients; save draft / finalize |
-| Doctor without link | Consult UI blocked on finalize (API enforces) |
+| Role | Today | Patients | Book |
+|------|--------|----------|------|
+| Receptionist | Confirm / Check in / Cancel | Search, detail, reschedule/cancel | Register, book slot |
+| Doctor (linked) | **Consult** on arrived | Read-only detail | — |
 
 Default Today filter is **All** (no hidden scheduled patients).
+
+## Reception workflow
+
+1. **Patients** → search → open profile → **Book appointment** or use **Book** tab.
+2. Register new patient (name + phone) or pick existing.
+3. Choose doctor → date → slot → **Confirm appointment**.
+4. **Today** → Confirm → Check in; or cancel from Today/Patient detail.
+5. Reschedule from patient detail (new date + slot; preserves queue status rules).
+
+## Doctor workflow
 
 ## Checks
 

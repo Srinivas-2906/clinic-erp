@@ -7,52 +7,51 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import type { ClinicApiClient } from '@clinic-erp/api-client';
+import type { ClinicApiClient, ClinicPatient } from '@clinic-erp/api-client';
 import { colors, spacing, typography } from '@clinic-erp/design-tokens';
+import { PatientDetailScreen } from './PatientDetailScreen';
 
 type Props = {
   client: ClinicApiClient;
+  canManageAppointments: boolean;
+  onBookForPatient: (patientId: string) => void;
   onError: (msg: string) => void;
+  onMessage: (msg: string) => void;
 };
 
-export function PatientsScreen({ client, onError }: Props) {
+export function PatientsScreen({
+  client,
+  canManageAppointments,
+  onBookForPatient,
+  onError,
+  onMessage,
+}: Props) {
   const [query, setQuery] = useState('');
-  const [patients, setPatients] = useState<{ id: string; name: string; phone?: string }[]>([]);
-  const [selected, setSelected] = useState<{
-    patient: { name: string; phone?: string };
-    appointments: { service?: string; status?: string; scheduledAt?: string }[];
-  } | null>(null);
+  const [patients, setPatients] = useState<ClinicPatient[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    client
-      .patients(query.trim() || undefined)
-      .then((rows) => setPatients(Array.isArray(rows) ? (rows as typeof patients) : []))
-      .catch((e) => onError(e instanceof Error ? e.message : 'Search failed'));
+    const t = setTimeout(() => {
+      client.patients(query.trim().length >= 2 ? query.trim() : undefined)
+        .then((rows) => setPatients(Array.isArray(rows) ? (rows as ClinicPatient[]) : []))
+        .catch((e) => onError(e instanceof Error ? e.message : 'Search failed'));
+    }, query.trim().length >= 2 ? 300 : 0);
+    return () => clearTimeout(t);
   }, [client, query, onError]);
 
-  if (selected) {
-    const p = selected.patient;
+  if (selectedId) {
     return (
-      <View testID="patient-detail">
-        <TouchableOpacity onPress={() => setSelected(null)}>
-          <Text style={styles.link}>← Patients</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{p.name}</Text>
-        <Text style={styles.muted}>{p.phone || 'No phone'}</Text>
-        <FlatList
-          data={selected.appointments || []}
-          keyExtractor={(_, i) => String(i)}
-          ListEmptyComponent={<Text style={styles.muted}>No appointments on file.</Text>}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.service || 'Visit'}</Text>
-              <Text style={styles.muted}>
-                {item.status} · {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : ''}
-              </Text>
-            </View>
-          )}
-        />
-      </View>
+      <PatientDetailScreen
+        client={client}
+        patientId={selectedId}
+        canManageAppointments={canManageAppointments}
+        onBack={() => setSelectedId(null)}
+        onBook={() => {
+          onBookForPatient(selectedId);
+        }}
+        onError={onError}
+        onMessage={onMessage}
+      />
     );
   }
 
@@ -60,7 +59,7 @@ export function PatientsScreen({ client, onError }: Props) {
     <View style={styles.wrap} testID="patients-screen">
       <TextInput
         style={styles.input}
-        placeholder="Search patients"
+        placeholder="Search patients (min 2 chars)"
         value={query}
         onChangeText={setQuery}
         autoCapitalize="none"
@@ -69,22 +68,12 @@ export function PatientsScreen({ client, onError }: Props) {
       <FlatList
         data={patients}
         keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={styles.muted}>No patients found.</Text>}
+        ListEmptyComponent={<Text style={styles.muted}>Search to find patients.</Text>}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.card}
-            onPress={() => {
-              client
-                .patient(item.id)
-                .then((detail) => {
-                  const p = detail.patient as { name: string; phone?: string };
-                  setSelected({
-                    patient: p,
-                    appointments: detail.appointments as { service?: string; status?: string; scheduledAt?: string }[],
-                  });
-                })
-                .catch((e) => onError(e instanceof Error ? e.message : 'Could not load patient'));
-            }}
+            onPress={() => setSelectedId(item.id)}
+            testID={`patients-row-${item.id}`}
           >
             <Text style={styles.cardTitle}>{item.name}</Text>
             <Text style={styles.muted}>{item.phone || '—'}</Text>
@@ -104,9 +93,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     fontSize: typography.sizeMd,
   },
-  link: { color: colors.brand, marginBottom: spacing.sm },
-  title: { fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.brandDark },
-  muted: { color: colors.muted, fontSize: typography.sizeSm },
   card: {
     backgroundColor: colors.surface,
     padding: spacing.md,
@@ -114,4 +100,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   cardTitle: { fontSize: typography.sizeLg, fontWeight: typography.weightMedium },
+  muted: { color: colors.muted, fontSize: typography.sizeSm },
 });

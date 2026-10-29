@@ -16,6 +16,28 @@ export type ClinicApiClientOptions = {
   auth: AuthTransport;
 };
 
+export type ClinicDoctor = {
+  id: string;
+  name: string;
+  displayName?: string;
+  specialty?: string;
+  isActive?: boolean;
+};
+
+export type SlotOption = {
+  label: string;
+  time?: string;
+  doctorId?: string;
+  doctorName?: string;
+};
+
+export type ClinicPatient = {
+  id: string;
+  name: string;
+  phone?: string;
+  chiefComplaint?: string;
+};
+
 export type ClinicAppointment = {
   id: string;
   patientId: string;
@@ -110,17 +132,28 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
         method: 'PATCH',
         body: JSON.stringify(patch),
       }),
-    createPatient: (body: { name: string; phone: string; email?: string }) =>
-      request<{ id: string }>(`/api/patients`, {
+    createPatient: (body: { name: string; phone: string; email?: string; chiefComplaint?: string }) =>
+      request<ClinicPatient>(`/api/patients`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    appointmentSlots: (date: string) =>
-      request<{ slots: string[]; slotOptions?: unknown[] }>(
-        `/api/appointments/slots?date=${encodeURIComponent(date)}&anyAvailable=1`,
-      ),
-    createAppointment: (body: { patientId: string; scheduledAt: string; service?: string; status?: string }) =>
-      request<{ id: string }>(`/api/appointments`, {
+    appointmentSlots: (date: string, opts?: { doctorId?: string; anyAvailable?: boolean }) => {
+      const q = new URLSearchParams({ date });
+      if (opts?.doctorId) q.set('doctorId', opts.doctorId);
+      if (opts?.anyAvailable) q.set('anyAvailable', '1');
+      return request<{ date: string; slots: string[]; slotOptions?: SlotOption[] }>(
+        `/api/appointments/slots?${q.toString()}`,
+      );
+    },
+    doctors: () => request<{ doctors: ClinicDoctor[] }>(`/api/clinic/doctors`),
+    createAppointment: (body: {
+      patientId: string;
+      scheduledAt: string;
+      service?: string;
+      status?: string;
+      assignedDoctorId?: string;
+    }) =>
+      request<ClinicAppointment>(`/api/appointments`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),

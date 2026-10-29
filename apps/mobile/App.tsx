@@ -15,8 +15,9 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { ConsultScreen } from './src/screens/ConsultScreen';
 import { PatientsScreen } from './src/screens/PatientsScreen';
+import { BookScreen } from './src/screens/BookScreen';
 
-type Tab = 'today' | 'patients';
+type Tab = 'today' | 'patients' | 'book';
 
 export default function App() {
   const session = useClinicSession();
@@ -26,7 +27,9 @@ export default function App() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [banner, setBanner] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null);
   const [consultAppt, setConsultAppt] = useState<ClinicAppointment | null>(null);
+  const [bookPatientId, setBookPatientId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState(clinicTodayYmd());
+  const [todayKey, setTodayKey] = useState(0);
 
   useEffect(() => {
     if (!session.token) return;
@@ -40,6 +43,8 @@ export default function App() {
     setBanner({ text, kind });
     setTimeout(() => setBanner(null), 4000);
   }
+
+  const showBookTab = session.canManageAppointments && session.canManagePatients;
 
   if (session.booting) {
     return (
@@ -91,6 +96,7 @@ export default function App() {
           onDone={() => {
             setConsultAppt(null);
             setTab('today');
+            setTodayKey((k) => k + 1);
           }}
           onError={(msg) => flash(msg, 'err')}
           onMessage={(msg) => flash(msg, 'ok')}
@@ -99,10 +105,12 @@ export default function App() {
     );
   }
 
+  const tabTitle = tab === 'today' ? 'Today' : tab === 'patients' ? 'Patients' : 'Book';
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{tab === 'today' ? 'Today' : 'Patients'}</Text>
+        <Text style={styles.title}>{tabTitle}</Text>
         <TouchableOpacity onPress={() => void session.logout()} testID="logout-btn">
           <Text style={styles.link}>Logout</Text>
         </TouchableOpacity>
@@ -122,6 +130,15 @@ export default function App() {
         >
           <Text style={tab === 'patients' ? styles.tabTextActive : styles.muted}>Patients</Text>
         </TouchableOpacity>
+        {showBookTab ? (
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === 'book' && styles.tabBtnActive]}
+            onPress={() => { setBookPatientId(null); setTab('book'); }}
+            testID="tab-book"
+          >
+            <Text style={tab === 'book' ? styles.tabTextActive : styles.muted}>Book</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <Text style={styles.subtitle}>
         {session.tenant} · {session.meLabel || email}{session.role ? ` · ${session.role}` : ''}
@@ -134,6 +151,7 @@ export default function App() {
       ) : null}
       {tab === 'today' ? (
         <TodayScreen
+          key={todayKey}
           client={session.client}
           scheduleDate={scheduleDate}
           canManageAppointments={session.canManageAppointments}
@@ -141,9 +159,27 @@ export default function App() {
           onConsult={setConsultAppt}
           onError={(msg) => flash(msg, 'err')}
         />
-      ) : (
-        <PatientsScreen client={session.client} onError={(msg) => flash(msg, 'err')} />
-      )}
+      ) : tab === 'patients' ? (
+        <PatientsScreen
+          client={session.client}
+          canManageAppointments={session.canManageAppointments}
+          onBookForPatient={(id) => { setBookPatientId(id); setTab('book'); }}
+          onError={(msg) => flash(msg, 'err')}
+          onMessage={(msg) => flash(msg, 'ok')}
+        />
+      ) : showBookTab ? (
+        <BookScreen
+          client={session.client}
+          prefillPatientId={bookPatientId}
+          onDone={() => {
+            setBookPatientId(null);
+            setTab('today');
+            setTodayKey((k) => k + 1);
+          }}
+          onError={(msg) => flash(msg, 'err')}
+          onMessage={(msg) => flash(msg, 'ok')}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -155,7 +191,7 @@ const styles = StyleSheet.create({
   title: { fontSize: typography.sizeXl, fontWeight: typography.weightSemibold, color: colors.brandDark },
   subtitle: { color: colors.muted, marginBottom: spacing.xs, fontSize: typography.sizeMd },
   dateLine: { color: colors.muted, marginBottom: spacing.sm, fontSize: typography.sizeSm },
-  tabRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  tabRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   tabBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surface },
   tabBtnActive: { backgroundColor: '#e3f0fd' },
   tabTextActive: { color: colors.brand, fontWeight: typography.weightSemibold },
