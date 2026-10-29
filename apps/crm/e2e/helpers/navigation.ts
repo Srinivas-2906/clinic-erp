@@ -76,6 +76,7 @@ async function dismissMobileKeyboard(page: Page) {
 }
 
 export async function goToTab(page: Page, tab: TabId) {
+  await closeBlockingModalsIfOpen(page);
   await closeConsultModalIfOpen(page);
   await closePatientDetailIfOpen(page);
   const label = TAB_LABELS[tab];

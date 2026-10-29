@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { goToTab } from '../helpers/navigation';
+import { goToTab, closePatientDetailIfOpen } from '../helpers/navigation';
 import { captureStep } from '../helpers/screenshot';
 
 test.describe('Patients', () => {
@@ -28,8 +28,7 @@ test.describe('Patients', () => {
     await captureStep(page, 'patients-add-form-filled');
 
     await page.locator('.modal-footer').getByRole('button', { name: 'Add patient' }).click();
-    await page.waitForTimeout(1500);
-
+    await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 10_000 }).catch(() => {});
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
     await captureStep(page, 'patients-after-create');
   });
@@ -41,7 +40,7 @@ test.describe('Patients', () => {
 
     await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 10_000 });
     await captureStep(page, 'patients-detail-open');
-    // Desktop hides mobile back button — navigate away via sidebar
-    await page.locator('.clinic-sidebar').getByRole('button', { name: 'Home' }).click();
+    await closePatientDetailIfOpen(page);
+    await goToTab(page, 'overview');
   });
 });

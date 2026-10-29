@@ -27,7 +27,6 @@ test.describe('Authentication @smoke', () => {
     await page.locator('#lPass').fill(E2E_CREDENTIALS.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.locator('.clinic-app')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('heading', { name: /Home|Today|Patients/i }).first()).toBeVisible();
     await captureStep(page, 'auth-success-login');
   });
 

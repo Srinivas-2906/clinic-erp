@@ -44,5 +44,11 @@ export default async function globalSetup() {
     });
   }
 
-  console.log('\n[e2e] Fixtures seed runs via API webServer (seed-e2e-local.js before dev).');
+  const seedScript = process.env.E2E_SEED_SCRIPT || 'scripts/seed-e2e-local.js';
+  console.log(`\n[e2e] Seeding fixtures (${seedScript}) on ${e2eDbPath}…`);
+  execSync(`node ${seedScript}`, {
+    cwd: apiRoot,
+    stdio: 'inherit',
+    env: { ...process.env, DATABASE_PATH: e2eDbPath },
+  });
 }

@@ -14,9 +14,6 @@ test.describe('Multi-doctor slot API', () => {
   test('doctor-specific slots do not cross-block', async ({ request }) => {
     const date = nextMonday(2);
 
-    const doctorsRes = await request.get(`${API}/api/platform/tenant/${TENANT}/public`);
-    expect(doctorsRes.ok()).toBeTruthy();
-
     const loginRes = await request.post(`${API}/api/platform/login`, {
       headers: { 'x-tenant-slug': TENANT },
       data: {

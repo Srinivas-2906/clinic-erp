@@ -24,4 +24,8 @@ describe('assert-e2e-safe-env', () => {
   it('blocks default dev clinic.db', () => {
     assert.throws(() => run({ DATABASE_PATH: devDb }), /Refusing/);
   });
+
+  it('blocks staging NODE_ENV', () => {
+    assert.throws(() => run({ DATABASE_PATH: e2eDb, NODE_ENV: 'staging' }), /Refusing/);
+  });
 });

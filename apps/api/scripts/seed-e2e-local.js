@@ -101,6 +101,16 @@ if (doctor) {
   console.log(`Linked e2e-doctor to doctor ${doctor.id}`);
 }
 
+const doctorCount = db.prepare(`SELECT COUNT(*) AS n FROM doctors WHERE tenant_id = ? AND is_active = 1`).get(tenantId).n;
+if (doctorCount < 2) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT OR IGNORE INTO doctors (id, tenant_id, name, display_name, email, user_id, is_active, sort_order, created_at, updated_at)
+    VALUES ('doc-e2e-second', ?, 'E2E Second Doctor', 'Dr. E2E Second', 'e2e-second@dentacare.in', NULL, 1, 2, ?, ?)
+  `).run(tenantId, now, now);
+  console.log('Ensured second doctor for multi-doctor E2E');
+}
+
 getDb().pragma('wal_checkpoint(FULL)');
 
 console.log(JSON.stringify({

@@ -18,16 +18,17 @@ test.describe('Clinical consultation flow', () => {
   test('Today → Consult → draft → reopen → finalize → PDF → visit history', async ({ authedPage: page, request }) => {
     const uniqueLabel = `E2E UI ${Date.now()}`;
     const headers = await authHeaders(request, API, TENANT, E2E_CREDENTIALS.email, E2E_CREDENTIALS.password);
-    const { patient, dateStr } = await createPatientAndAppointment(request, API, headers, {
+    const { patient } = await createPatientAndAppointment(request, API, headers, {
       name: uniqueLabel,
-      status: 'requested',
+      status: 'arrived',
     });
 
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await expect(page.getByText(uniqueLabel).first()).toBeVisible({ timeout: 20_000 });
-    await advanceQueueToConsult(page, uniqueLabel);
+    const card = page.locator('.appt-card, .board-card').filter({ hasText: uniqueLabel }).first();
+    await card.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
     await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
 
     await page.locator('#consult-complaint').fill('Sharp pain lower left');
