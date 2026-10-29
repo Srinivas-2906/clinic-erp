@@ -99,6 +99,21 @@ export async function createPatientAndAppointment(
     },
   });
   expect(apptRes.ok()).toBeTruthy();
+  const appointment = await apptRes.json();
 
-  return { patient, dateStr, scheduledAt, headers };
+  return { patient, appointment, dateStr, scheduledAt, headers };
+}
+
+export async function setAppointmentStatus(
+  request: APIRequestContext,
+  apiBase: string,
+  headers: Record<string, string>,
+  appointmentId: string,
+  status: string,
+) {
+  const res = await request.patch(`${apiBase}/api/appointments/${encodeURIComponent(appointmentId)}`, {
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    data: { status },
+  });
+  expect(res.ok()).toBeTruthy();
 }

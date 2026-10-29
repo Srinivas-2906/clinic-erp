@@ -31,7 +31,17 @@ export async function loginAs(page: Page, role: ClinicRole, opts?: { tenantPath?
 }
 
 export async function loginClinicApp(page: Page, role: ClinicRole) {
-  await loginAs(page, role);
+  await page.goto('/');
+  const creds = ROLE_CREDENTIALS[role];
+  await page.locator('#lUser').fill(creds.email);
+  await page.locator('#lPass').fill(creds.password);
+  const loginWait = page.waitForResponse(
+    (r) => r.url().includes('/api/platform/login') && r.request().method() === 'POST',
+    { timeout: 20_000 },
+  );
+  await page.getByRole('button', { name: /sign in/i }).click();
+  const loginRes = await loginWait;
+  expect(loginRes.ok(), `login failed (${role}): ${loginRes.status()}`).toBeTruthy();
   await expect(page.locator('.clinic-app')).toBeVisible({ timeout: 20_000 });
 }
 

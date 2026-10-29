@@ -8,6 +8,8 @@ import { initReminderInfrastructure, processDueReminders } from './services/remi
 
 const apiRoot = path.dirname(fileURLToPath(import.meta.url));
 
+initDatabase();
+
 if (process.env.CLINIC_E2E_MODE === '1') {
   execSync('node scripts/seed-e2e-local.js', {
     cwd: path.join(apiRoot, '..'),
@@ -16,7 +18,6 @@ if (process.env.CLINIC_E2E_MODE === '1') {
   });
 }
 
-initDatabase();
 initReminderInfrastructure();
 
 const REMINDER_POLL_MS = Number(process.env.REMINDER_POLL_MS || 30_000);

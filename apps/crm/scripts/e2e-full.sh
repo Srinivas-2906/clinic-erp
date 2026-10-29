@@ -15,5 +15,29 @@ free_ports() {
   sleep 2
 }
 
+run_project() {
+  local project=$1
+  local extra_env=${2:-}
+  echo "==> Playwright ${project}"
+  set +e
+  if [ -n "$extra_env" ]; then
+    env $extra_env npx playwright test --project="$project" 2>&1 | tee "e2e/report/${project}-run.log"
+  else
+    npx playwright test --project="$project" 2>&1 | tee "e2e/report/${project}-run.log"
+  fi
+  local code=${PIPESTATUS[0]}
+  set -e
+  return "$code"
+}
+
+code_d=0
+code_m=0
 free_ports
-npx playwright test --project=chromium-desktop --project=chromium-mobile 2>&1 | tee e2e/report/full-run.log
+run_project chromium-desktop || code_d=$?
+free_ports
+run_project chromium-mobile "E2E_RESET_DB=0" || code_m=$?
+free_ports
+echo "==> Summary desktop=${code_d} mobile=${code_m}"
+if [ "$code_d" != "0" ] || [ "$code_m" != "0" ]; then
+  exit 1
+fi

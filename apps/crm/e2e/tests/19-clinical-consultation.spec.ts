@@ -3,7 +3,7 @@ import { goToTab } from '../helpers/navigation';
 import { advanceQueueToConsult } from '../helpers/queue';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
-import { authHeaders, createPatientAndAppointment } from '../helpers/clinicApi';
+import { authHeaders, createPatientAndAppointment, setAppointmentStatus } from '../helpers/clinicApi';
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
 const TENANT = E2E_CREDENTIALS.tenant;
@@ -25,10 +25,12 @@ test.describe('Clinical consultation flow', () => {
       ROLE_CREDENTIALS.owner.email,
       ROLE_CREDENTIALS.owner.password,
     );
-    const { patient } = await createPatientAndAppointment(request, API, headers, {
+    const { patient, appointment } = await createPatientAndAppointment(request, API, headers, {
       name: uniqueLabel,
       status: 'requested',
     });
+    await setAppointmentStatus(request, API, headers, appointment.id, 'confirmed');
+    await setAppointmentStatus(request, API, headers, appointment.id, 'arrived');
 
     await loginClinicApp(page, 'doctor');
     await goToTab(page, 'today');
@@ -37,32 +39,39 @@ test.describe('Clinical consultation flow', () => {
       await page.getByRole('button', { name: 'Refresh' }).first().click();
       return page.getByText(uniqueLabel).first().isVisible();
     }, { timeout: 25_000 }).toBe(true);
-    await advanceQueueToConsult(page, uniqueLabel);
-    await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
 
-    await page.locator('#consult-complaint').fill('Sharp pain lower left');
-    await page.locator('#consult-diagnosis').fill('Dental caries');
-    await page.getByPlaceholder('Medicine').first().fill('Paracetamol');
-    await page.getByPlaceholder('Dose').first().fill('500mg');
-
-    const saveDraft = page.getByRole('button', { name: /save draft/i });
-    await expect(page.getByText('Loading consultation…')).toBeHidden({ timeout: 20_000 });
-    await expect(saveDraft).toBeEnabled({ timeout: 20_000 });
-    const saveResp = page.waitForResponse(
-      (r) => r.url().includes('/clinic/encounters/') && r.request().method() === 'PATCH' && r.ok(),
+    const encounterReady = page.waitForResponse(
+      (r) => r.url().includes('/encounters') && ['POST', 'GET'].includes(r.request().method()) && r.ok(),
       { timeout: 25_000 },
     );
-    await saveDraft.click();
-    await saveResp;
-    await expect(page.locator('.toast').filter({ hasText: /Consultation saved/i })).toBeVisible({ timeout: 15_000 });
+    await advanceQueueToConsult(page, uniqueLabel);
+    await encounterReady;
 
-    await page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') }).locator('button.modal-close').click();
+    const consultModal = page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') });
+    await expect(consultModal.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Loading consultation…')).toBeHidden({ timeout: 20_000 });
+
+    await consultModal.locator('#consult-complaint').fill('Sharp pain lower left');
+    const saveDraft = consultModal.getByRole('button', { name: /save draft/i });
+    await saveDraft.scrollIntoViewIfNeeded();
+    await saveDraft.click();
+    const errToast = page.locator('.toast-err');
+    await expect(page.getByText(/consultation saved/i).or(errToast)).toBeVisible({ timeout: 20_000 });
+    if (await errToast.isVisible().catch(() => false)) {
+      throw new Error(`Save draft failed: ${(await errToast.innerText()).trim()}`);
+    }
+
+    await consultModal.locator('button.modal-close').click();
     await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 10_000 });
 
     await page.getByRole('button', { name: 'Refresh' }).first().click();
     await advanceQueueToConsult(page, uniqueLabel);
     await expect.poll(async () => page.locator('#consult-complaint').inputValue(), { timeout: 20_000 })
       .toBe('Sharp pain lower left');
+
+    await page.locator('#consult-diagnosis').fill('Dental caries');
+    await page.getByPlaceholder('Medicine').first().fill('Paracetamol');
+    await page.getByPlaceholder('Dose').first().fill('500mg');
 
     await page.getByRole('button', { name: /finalize visit/i }).click();
     await expect(page.getByText(/consultation finalized/i)).toBeVisible({ timeout: 20_000 });

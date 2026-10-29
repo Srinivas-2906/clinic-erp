@@ -10,10 +10,17 @@ function nextMonday(offsetWeeks = 1) {
   return d.toISOString().slice(0, 10);
 }
 
+type SlotOption = { time?: string; label?: string; startsAt?: string };
+
+function findOverlappingSlot(dataA: { slotOptions?: SlotOption[] }, dataB: { slotOptions?: SlotOption[] }) {
+  const bTimes = new Set(
+    (dataB.slotOptions ?? []).map((o) => o.time || o.label).filter(Boolean),
+  );
+  return (dataA.slotOptions ?? []).find((s) => bTimes.has(s.time) || bTimes.has(s.label));
+}
+
 test.describe('Multi-doctor slot API', () => {
   test('doctor-specific slots do not cross-block', async ({ request }) => {
-    const date = nextMonday(2);
-
     const loginRes = await request.post(`${API}/api/platform/login`, {
       headers: { 'x-tenant-slug': TENANT },
       data: {
@@ -34,17 +41,24 @@ test.describe('Multi-doctor slot API', () => {
     const doctorA = doctors[0].id;
     const doctorB = doctors[1].id;
 
-    const slotsA1 = await request.get(`${API}/api/appointments/slots?date=${date}&doctorId=${doctorA}`, {
-      headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT },
-    });
-    expect(slotsA1.ok()).toBeTruthy();
-    const dataA1 = await slotsA1.json();
-    const slot = dataA1.slots?.[0];
-    test.skip(!slot, 'No slots for doctor A');
+    let date = '';
+    let match: SlotOption | undefined;
+    for (let week = 2; week <= 6 && !match; week++) {
+      date = nextMonday(week);
+      const slotsA1 = await request.get(`${API}/api/appointments/slots?date=${date}&doctorId=${doctorA}`, {
+        headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT },
+      });
+      const slotsB1 = await request.get(`${API}/api/appointments/slots?date=${date}&doctorId=${doctorB}`, {
+        headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT },
+      });
+      if (!slotsA1.ok() || !slotsB1.ok()) continue;
+      match = findOverlappingSlot(await slotsA1.json(), await slotsB1.json());
+    }
+    test.skip(!match, 'No overlapping slot for both doctors in upcoming weeks');
 
-    const match = dataA1.slotOptions?.find((s: { label: string }) => s.label === slot);
-    const scheduledAt = match?.startsAt
-      || (match?.time ? `${date}T${match.time}:00+05:30` : `${date}T10:00:00+05:30`);
+    const slot = match.label ?? match.time;
+    const scheduledAt = match.startsAt
+      || (match.time ? `${date}T${match.time}:00+05:30` : `${date}T10:00:00+05:30`);
 
     const patientRes = await request.post(`${API}/api/patients`, {
       headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': TENANT, 'Content-Type': 'application/json' },
@@ -76,7 +90,7 @@ test.describe('Multi-doctor slot API', () => {
 
     test.skip(!forB.slots?.length, 'Doctor B has no slots on test date');
     expect(afterA.slots).not.toContain(slot);
-    const slotTime = match?.time;
+    const slotTime = match.time;
     const bHasParallelSlot =
       forB.slots?.includes(slot)
       || (slotTime && forB.slotOptions?.some((o: { time?: string; label?: string }) => o.time === slotTime || o.label === slot));
