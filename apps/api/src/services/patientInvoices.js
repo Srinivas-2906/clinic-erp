@@ -82,6 +82,33 @@ export function getInvoiceById(id, tenantId) {
   return row ? rowToInvoice(row, loadLineItems(id, tenantId)) : null;
 }
 
+/** Non-void invoice already linked to this visit (appointment and/or encounter). */
+export function findActiveInvoiceForVisit(tenantId, { patientId, appointmentId, encounterId } = {}) {
+  const db = getDb();
+  const apptId = appointmentId ? String(appointmentId).trim() : '';
+  const encId = encounterId ? String(encounterId).trim() : '';
+  if (apptId) {
+    const row = db.prepare(`
+      SELECT * FROM patient_invoices
+      WHERE tenant_id = ? AND appointment_id = ? AND status != ?
+      ORDER BY datetime(created_at) DESC LIMIT 1
+    `).get(tenantId, apptId, INVOICE_STATUS.VOID);
+    if (row) return rowToInvoice(row, loadLineItems(row.id, tenantId));
+  }
+  if (encId) {
+    const row = db.prepare(`
+      SELECT * FROM patient_invoices
+      WHERE tenant_id = ? AND encounter_id = ? AND status != ?
+      ORDER BY datetime(created_at) DESC LIMIT 1
+    `).get(tenantId, encId, INVOICE_STATUS.VOID);
+    if (row) return rowToInvoice(row, loadLineItems(row.id, tenantId));
+  }
+  if (patientId && (apptId || encId)) {
+    return null;
+  }
+  return null;
+}
+
 export function listInvoices(tenantId, { patientId, status, limit = 100 } = {}) {
   let sql = `SELECT * FROM patient_invoices WHERE tenant_id = ?`;
   const params = [tenantId];
@@ -105,6 +132,12 @@ export function createInvoice(tenantId, user, data = {}) {
     const err = new Error('Patient not found');
     err.status = 404;
     throw err;
+  }
+  const appointmentId = data.appointmentId ? String(data.appointmentId).trim() : null;
+  const encounterId = data.encounterId ? String(data.encounterId).trim() : null;
+  if (appointmentId || encounterId) {
+    const existing = findActiveInvoiceForVisit(tenantId, { patientId, appointmentId, encounterId });
+    if (existing) return existing;
   }
   const id = nanoid(12);
   const db = getDb();

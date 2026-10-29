@@ -16,6 +16,8 @@ interface LineDraft {
 interface Props {
   patients: Patient[];
   prefillPatientId?: string;
+  appointmentId?: string;
+  encounterId?: string;
   onClose: () => void;
   onSaved: () => void;
   onToast?: (msg: string, type?: 'ok' | 'err') => void;
@@ -25,7 +27,7 @@ function newLine(): LineDraft {
   return { key: Math.random().toString(36).slice(2), description: '', quantity: '1', unitPrice: '' };
 }
 
-export function CreateInvoiceDialog({ patients, prefillPatientId, onClose, onSaved, onToast }: Props) {
+export function CreateInvoiceDialog({ patients, prefillPatientId, appointmentId, encounterId, onClose, onSaved, onToast }: Props) {
   const [patientId, setPatientId] = useState(prefillPatientId || '');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
@@ -86,7 +88,13 @@ export function CreateInvoiceDialog({ patients, prefillPatientId, onClose, onSav
     setLoading(true);
     setError('');
     try {
-      await createInvoice({ patientId, notes: notes.trim() || undefined, lineItems });
+      await createInvoice({
+        patientId,
+        notes: notes.trim() || undefined,
+        lineItems,
+        ...(appointmentId ? { appointmentId } : {}),
+        ...(encounterId ? { encounterId } : {}),
+      });
       onToast?.('Invoice created', 'ok');
       onSaved();
       onClose();

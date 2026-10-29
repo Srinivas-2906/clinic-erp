@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarClock, UserX, XCircle, X } from 'lucide-react';
+import { CalendarClock, UserX, XCircle, X, FileText } from 'lucide-react';
 import type { Appointment } from '../types';
 import { updateAppointment } from '../lib/api';
 import { RescheduleDialog } from './RescheduleDialog';
@@ -11,6 +11,8 @@ interface Props {
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   allowCompleteWithoutConsult?: boolean;
   onCompleteWithoutConsult?: () => void;
+  canOpenBilling?: boolean;
+  onOpenBilling?: () => void;
 }
 
 export function AppointmentActionsDialog({
@@ -20,6 +22,8 @@ export function AppointmentActionsDialog({
   onToast,
   allowCompleteWithoutConsult,
   onCompleteWithoutConsult,
+  canOpenBilling,
+  onOpenBilling,
 }: Props) {
   const [showReschedule, setShowReschedule] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,6 +88,11 @@ export function AppointmentActionsDialog({
             <button type="button" className="btn btn-ghost" onClick={() => setStatus('cancelled' as Appointment['status'])} disabled={saving || locked}>
               <XCircle size={14} /> Cancel appointment
             </button>
+            {canOpenBilling && onOpenBilling && (
+              <button type="button" className="btn btn-primary" onClick={() => { onClose(); onOpenBilling(); }} disabled={saving}>
+                <FileText size={14} /> Billing for this visit
+              </button>
+            )}
             {allowCompleteWithoutConsult && onCompleteWithoutConsult && (
               <button type="button" className="btn btn-ghost" onClick={() => { onClose(); onCompleteWithoutConsult(); }} disabled={saving || locked}>
                 Complete visit without consultation

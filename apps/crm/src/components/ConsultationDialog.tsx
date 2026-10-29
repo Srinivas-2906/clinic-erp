@@ -20,7 +20,7 @@ interface Props {
   onDone: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   /** Fired after successful finalize (before onDone). */
-  onConsultationFinalized?: (appointment: Appointment) => void;
+  onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
 }
 
 const DEFAULT_VITALS: VitalInput[] = [
@@ -153,7 +153,7 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast, onCo
         });
       }
       onToast('Consultation finalized');
-      onConsultationFinalized?.(appointment);
+      onConsultationFinalized?.(appointment, finalized.id);
       onDone();
     } catch (e) {
       onToast(e instanceof Error ? e.message : 'Finalize failed', 'err');

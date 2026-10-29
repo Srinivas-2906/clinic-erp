@@ -218,4 +218,26 @@ describe('patientInvoices', () => {
     const b = createRefund('t1', owner, { paymentId: pay.id, amount: 10, idempotencyKey: 'idem-ref' });
     assert.equal(a.id, b.id);
   });
+
+  it('does not duplicate invoices for the same appointment or encounter', () => {
+    const first = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-bill-1',
+      encounterId: 'enc-bill-1',
+      lineItems: [{ description: 'Consultation', unitPrice: 600, quantity: 1 }],
+    });
+    const second = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-bill-1',
+      encounterId: 'enc-bill-1',
+      lineItems: [{ description: 'Should not apply', unitPrice: 999, quantity: 1 }],
+    });
+    assert.equal(first.id, second.id);
+    assert.equal(second.total, 600);
+    const rows = getDb().prepare(`
+      SELECT COUNT(*) AS c FROM patient_invoices
+      WHERE tenant_id = 't1' AND appointment_id = 'appt-bill-1' AND status != 'void'
+    `).get();
+    assert.equal(rows.c, 1);
+  });
 });

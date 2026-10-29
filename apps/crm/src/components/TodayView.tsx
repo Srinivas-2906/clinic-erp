@@ -80,7 +80,8 @@ interface Props {
   onGoToBook: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   canRecordPayments?: boolean;
-  onOpenPayments?: (patientId: string) => void;
+  onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
+  onOpenVisitBilling?: (appointment: Appointment, encounterId?: string | null) => void;
 }
 
 export function TodayView({
@@ -100,7 +101,8 @@ export function TodayView({
   onGoToBook,
   onToast,
   canRecordPayments = true,
-  onOpenPayments,
+  onConsultationFinalized,
+  onOpenVisitBilling,
 }: Props) {
   const [viewMode, setViewMode] = useState<TodayViewMode>(() => (isMobileViewport() ? 'list' : 'board'));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -414,6 +416,8 @@ export function TodayView({
               onOpenPatient={onOpenPatient}
               onToast={onToast}
               canRecordPayments={canRecordPayments}
+              onConsultationFinalized={onConsultationFinalized}
+              onOpenVisitBilling={onOpenVisitBilling}
             />
           ) : (
             showSessionSplit ? (
@@ -433,12 +437,7 @@ export function TodayView({
           appointment={consultAppt}
           onClose={() => { setConsultAppt(null); onRefresh(); }}
           onDone={() => { setConsultAppt(null); onRefresh(); }}
-          onConsultationFinalized={(appt) => {
-            if (canRecordPayments && onOpenPayments) {
-              onToast('Consultation finalized — record payment when ready');
-              onOpenPayments(appt.patientId);
-            }
-          }}
+          onConsultationFinalized={(appt, encounterId) => onConsultationFinalized?.(appt, encounterId)}
           onToast={onToast}
         />
       )}
@@ -464,6 +463,12 @@ export function TodayView({
             const appt = actionsAppt;
             setActionsAppt(null);
             setCompleteAppt(appt);
+          }}
+          canOpenBilling={actionsAppt.status === 'visited' && canRecordPayments && Boolean(onOpenVisitBilling)}
+          onOpenBilling={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            onOpenVisitBilling?.(appt);
           }}
         />
       )}
