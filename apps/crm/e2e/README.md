@@ -19,14 +19,26 @@ cd ../clinic-api && npm run seed:e2e
 
 ## Run tests
 
-```bash
-# Terminal 1 — API (or let Playwright start both)
-cd ../clinic-api && npm run dev
+**Recommended (isolated DB — does not touch your dev `clinic.db`):**
 
-# Terminal 2 — install + run
-npm install
-npx playwright install chromium
-npm run test:e2e
+```bash
+# From repo root
+npm run test:e2e:smoke    # @smoke — ~30s
+npm run test:e2e:full     # all local specs (excludes staging pilot)
+npm run verify:local      # API tests + build + smoke E2E
+```
+
+Playwright starts API + CRM with `apps/api/data/e2e/clinic.db`. To reuse already-running servers (must use the same DB):
+
+```bash
+E2E_REUSE_SERVERS=1 npm run test:e2e
+```
+
+Manual dev servers:
+
+```bash
+cd ../clinic-api && npm run dev
+cd apps/crm && npx playwright install chromium && npm run test:e2e
 ```
 
 ### Interactive modes

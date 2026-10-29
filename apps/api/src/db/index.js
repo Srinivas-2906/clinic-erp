@@ -506,5 +506,18 @@ function seedDentaCareSampleData(tenantId) {
 }
 
 export function getDb() {
+  if (!db) initDatabase();
   return db;
+}
+
+export function closeDatabase() {
+  if (db) {
+    try {
+      db.pragma('wal_checkpoint(FULL)');
+    } catch {
+      /* ignore */
+    }
+    db.close();
+    db = null;
+  }
 }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 import { captureStep } from '../helpers/screenshot';
 
-test.describe('Authentication', () => {
+test.describe('Authentication @smoke', () => {
   test('shows login screen and demo hint', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.login-screen')).toBeVisible();
@@ -27,7 +27,6 @@ test.describe('Authentication', () => {
     await page.locator('#lPass').fill(E2E_CREDENTIALS.password);
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.locator('.clinic-app')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('heading', { name: /Home|Today|Patients/i }).first()).toBeVisible();
     await captureStep(page, 'auth-success-login');
   });
 

@@ -12,7 +12,13 @@ export const test = base.extend<{ authedPage: Page }>({
     await page.goto('/');
     await page.locator('#lUser').fill(E2E_CREDENTIALS.email);
     await page.locator('#lPass').fill(E2E_CREDENTIALS.password);
+    const loginWait = page.waitForResponse(
+      (r) => r.url().includes('/api/platform/login') && r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
     await page.getByRole('button', { name: /sign in/i }).click();
+    const loginRes = await loginWait;
+    expect(loginRes.ok(), `login failed: ${loginRes.status()}`).toBeTruthy();
     await expect(page.locator('.clinic-app')).toBeVisible({ timeout: 20_000 });
     await captureStep(page, '01-logged-in');
     await use(page);

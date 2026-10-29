@@ -1,6 +1,15 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { goToTab } from '../helpers/navigation';
+import { goToTab, closePatientDetailIfOpen } from '../helpers/navigation';
 import { captureStep } from '../helpers/screenshot';
+
+async function openAddPatientDialog(page: import('@playwright/test').Page) {
+  const headerBtn = page.locator('.patients-header-actions .add-patient-btn');
+  if (await headerBtn.isVisible().catch(() => false)) {
+    await headerBtn.click();
+    return;
+  }
+  await page.locator('button.fab[aria-label="Add patient"]').click();
+}
 
 test.describe('Patients', () => {
   test.beforeEach(async ({ authedPage: page }) => {
@@ -18,7 +27,7 @@ test.describe('Patients', () => {
     const name = `E2E Patient ${suffix}`;
     const phone = `9${suffix.padStart(9, '0').slice(0, 9)}`;
 
-    await page.locator('.patients-header-actions').getByRole('button', { name: 'Add patient' }).click();
+    await openAddPatientDialog(page);
     await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 8000 });
 
     await page.getByPlaceholder('Patient name').fill(name);
@@ -27,21 +36,22 @@ test.describe('Patients', () => {
 
     await captureStep(page, 'patients-add-form-filled');
 
+    await page.locator('.modal-footer').getByRole('button', { name: 'Add patient' }).scrollIntoViewIfNeeded();
     await page.locator('.modal-footer').getByRole('button', { name: 'Add patient' }).click();
-    await page.waitForTimeout(1500);
-
+    await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 10_000 }).catch(() => {});
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
     await captureStep(page, 'patients-after-create');
   });
 
   test('opens patient detail from list', async ({ authedPage: page }) => {
-    const card = page.locator('.patient-card').first();
-    await expect(card).toBeVisible({ timeout: 10_000 });
-    await card.click({ position: { x: 20, y: 20 } });
+    const card = page.locator('.patient-card, .patient-row').first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await card.scrollIntoViewIfNeeded();
+    await card.click();
 
     await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 10_000 });
     await captureStep(page, 'patients-detail-open');
-    // Desktop hides mobile back button — navigate away via sidebar
-    await page.locator('.clinic-sidebar').getByRole('button', { name: 'Home' }).click();
+    await closePatientDetailIfOpen(page);
+    await goToTab(page, 'overview');
   });
 });

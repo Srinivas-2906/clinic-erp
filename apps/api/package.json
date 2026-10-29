@@ -6,10 +6,13 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "CLINIC_FILES_STORAGE=memory CLINIC_FILES_PREFIX=clinic-files node --watch src/index.js",
-    "test": "node --test src/**/*.test.js src/**/**/*.test.js",
+    "dev:e2e": "node src/index.js",
+    "test": "node --test src/**/*.test.js src/**/**/*.test.js scripts/*.test.js",
     "migrate": "node scripts/migrate-from-kaana-db.js",
     "migrate:prod-download": "bash scripts/download-and-migrate.sh",
-    "seed:e2e": "node scripts/seed-e2e-user.js"
+    "seed:e2e": "node scripts/seed-e2e-user.js",
+    "seed:e2e:local": "node scripts/seed-e2e-local.js",
+    "reset:e2e-db": "node scripts/reset-e2e-database.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
