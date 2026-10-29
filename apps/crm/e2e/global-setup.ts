@@ -20,6 +20,22 @@ export default async function globalSetup() {
     return;
   }
 
+  if (process.env.E2E_REUSE_SERVERS === '1') {
+    try {
+      const res = await fetch('http://localhost:3010/api/health');
+      const body = await res.json() as { e2e?: boolean; dbFingerprint?: string };
+      if (!body.e2e || !String(body.dbFingerprint || '').includes('e2e/')) {
+        throw new Error(
+          `E2E_REUSE_SERVERS=1 but API is not on isolated e2e DB (health=${JSON.stringify(body)}). Stop dev servers or unset E2E_REUSE_SERVERS.`,
+        );
+      }
+      console.log('[e2e] Reusing servers with fingerprint', body.dbFingerprint);
+    } catch (err) {
+      console.error(String(err));
+      process.exit(1);
+    }
+  }
+
   if (process.env.E2E_RESET_DB !== '0') {
     execSync('node scripts/reset-e2e-database.js', {
       cwd: apiRoot,

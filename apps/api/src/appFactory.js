@@ -16,7 +16,13 @@ export function createApiApp() {
     res.json({ ok: true, service: 'clinic-api', docs: 'Standalone backend for clinic-crm' });
   });
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'clinic-api' });
+    const payload = { ok: true, service: 'clinic-api' };
+    if (process.env.CLINIC_E2E_MODE === '1') {
+      const dbPath = process.env.DATABASE_PATH || '';
+      payload.e2e = true;
+      payload.dbFingerprint = dbPath ? dbPath.replace(/\\/g, '/').split('/').slice(-2).join('/') : 'unknown';
+    }
+    res.json(payload);
   });
   return app;
 }

@@ -3,8 +3,18 @@
  * Idempotent local E2E fixtures: role accounts + platform admin.
  * Uses DATABASE_PATH (isolated e2e DB recommended). Never touches production.
  */
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { initDatabase, getDb } from '../src/db/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+execSync('node scripts/assert-e2e-safe-env.js', {
+  cwd: path.join(__dirname, '..'),
+  stdio: 'inherit',
+  env: process.env,
+});
 
 const tenantId = 'denta-care';
 const password = process.env.E2E_PASSWORD || 'E2eTest@2026';

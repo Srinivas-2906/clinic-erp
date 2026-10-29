@@ -16,6 +16,10 @@ Staging GCP billing/IAM is **not** required for day-to-day development. Use isol
 
 E2E uses **`apps/api/data/e2e/clinic.db`** (gitignored under `apps/api/data/`). Your normal dev database is untouched.
 
+**Guards:** `assert-e2e-safe-env.js` blocks seed/reset on `data/clinic.db` or production GCP. `GET /api/health` returns `e2e: true` and `dbFingerprint: e2e/clinic.db` when `CLINIC_E2E_MODE=1`. Setting `E2E_REUSE_SERVERS=1` without that fingerprint aborts the run.
+
+**Guards:** `assert-e2e-safe-env.js` blocks seed/reset on `data/clinic.db` or production GCP. With `E2E_REUSE_SERVERS=1`, global setup requires `/api/health` to report `e2e: true` and `dbFingerprint` containing `e2e/`.
+
 ## Credentials (local E2E only)
 
 | Role | Email | Password |

@@ -17,7 +17,17 @@ Query-param routing on `/?tenant=dentacare&tab=…&patient=…`. Platform consol
 | Activity (audit) | `tab=audit` | `22-settings-audit` |
 | Patient detail | `patient=<id>` | `10-patient-detail`, `19-clinical-consultation` |
 | Platform admin | `/platform` | `23-role-permissions` |
+| Appointment cancel | Today actions | `24-appointment-lifecycle` |
+| Queue → consult | Today | `25-queue-transitions` |
+| Settings / plan / export | `tab=settings` | `26-settings-plan-export` |
+| Reminders (API) | — | `27-reminders-api` |
+| Invoice + partial pay | Payments | `28-invoice-partial-payment` |
 | Staging-only pilot | Cloud Run | `21-staging-pilot-journey` (staging config) |
+| Cancel appointment | Today actions | `24-appointment-lifecycle` |
+| Queue → Consult | Today | `25-queue-transitions` |
+| Settings / plan / export | `tab=settings` | `26-settings-plan-export` |
+| Reminders (API) | — | `27-reminders-api` |
+| Invoice + partial pay | Payments | `28-invoice-partial-payment` |
 
 **Roles (seed `seed-e2e-local.js`):** owner, receptionist, doctor, platform admin.
 

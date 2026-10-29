@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team';
+type TabId = 'overview' | 'today' | 'patients' | 'book' | 'payments' | 'reports' | 'doctors' | 'team' | 'settings' | 'audit';
 
 const TAB_LABELS: Record<TabId, string> = {
   overview: 'Home',
@@ -11,7 +11,11 @@ const TAB_LABELS: Record<TabId, string> = {
   reports: 'Reports',
   doctors: 'Doctors',
   team: 'Team',
+  settings: 'Settings',
+  audit: 'Activity',
 };
+
+const OWNER_ONLY_TABS = new Set<TabId>(['doctors', 'team', 'settings', 'audit']);
 
 /** Close full-screen patient detail (mobile hides bottom nav while open). */
 export async function closePatientDetailIfOpen(page: Page) {
@@ -76,6 +80,13 @@ export async function goToTab(page: Page, tab: TabId) {
   await closePatientDetailIfOpen(page);
   const label = TAB_LABELS[tab];
   const sidebar = page.locator('.clinic-sidebar');
+  if (OWNER_ONLY_TABS.has(tab) && !(await sidebar.isVisible().catch(() => false))) {
+    const url = new URL(page.url());
+    url.searchParams.set('tab', tab);
+    await page.goto(`${url.pathname}${url.search}`);
+    await page.waitForTimeout(400);
+    return;
+  }
   if (await sidebar.isVisible()) {
     await sidebar.getByRole('button', { name: label }).click();
   } else {

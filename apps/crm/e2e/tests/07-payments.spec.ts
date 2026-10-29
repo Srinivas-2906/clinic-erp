@@ -9,15 +9,15 @@ test.describe('Payments', () => {
   });
 
   test('shows payment summary stats', async ({ authedPage: page }) => {
-    await expect(page.locator('h1.page-title').filter({ hasText: 'Payments' })).toBeVisible();
+    await expect(page.locator('h1.page-title').filter({ hasText: /Invoices|Payments/i })).toBeVisible();
     await expect(page.locator('.stat-strip')).toBeVisible();
     await captureStep(page, 'payments-summary');
   });
 
   test('records a payment for first patient', async ({ authedPage: page }) => {
-    await page.getByRole('button', { name: '+ Add' }).click();
+    await page.getByRole('button', { name: '+ Payment' }).click();
     await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 8000 });
-    await expect(page.getByRole('heading', { name: 'Record payment' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /record payment/i })).toBeVisible();
 
     const patientSelect = page.locator('.modal-overlay select').first();
     await patientSelect.selectOption({ index: 1 });

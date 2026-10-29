@@ -5,8 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { execSync } from 'node:child_process';
+
 const defaultPath = path.join(__dirname, '../data/e2e/clinic.db');
 const dbPath = process.env.DATABASE_PATH || defaultPath;
+
+execSync('node scripts/assert-e2e-safe-env.js', {
+  cwd: path.join(__dirname, '..'),
+  stdio: 'inherit',
+  env: { ...process.env, DATABASE_PATH: dbPath },
+});
 
 for (const p of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
   try {

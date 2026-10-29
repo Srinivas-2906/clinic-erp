@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, '../..');
 
+if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(__dirname, '.pw-browsers');
+}
+
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:5185';
 const TENANT = process.env.E2E_TENANT || 'dentacare';
 const SCREENSHOT_DIR = path.join(__dirname, 'e2e', 'screenshots');
@@ -18,6 +22,7 @@ const apiEnv = {
   CLINIC_FILES_STORAGE: 'memory',
   CLINIC_FILES_PREFIX: 'clinic-files-e2e',
   DISABLE_REMINDER_WORKER: '1',
+  CLINIC_E2E_MODE: '1',
 };
 
 export default defineConfig({

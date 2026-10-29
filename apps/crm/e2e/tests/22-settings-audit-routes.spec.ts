@@ -5,13 +5,11 @@ import { captureStep } from '../helpers/screenshot';
 test.describe('Route coverage — settings & activity @smoke', () => {
   test('owner can open settings and activity tabs', async ({ authedPage: page }) => {
     await closeBlockingModalsIfOpen(page);
-    const sidebar = page.locator('.clinic-sidebar');
-    await expect(sidebar).toBeVisible();
-    await sidebar.getByRole('button', { name: 'Settings' }).click();
+    await goToTab(page, 'settings');
     await expect(page.locator('#clinicName, .settings-form').first()).toBeVisible({ timeout: 15_000 });
     await captureStep(page, 'route-settings');
 
-    await sidebar.getByRole('button', { name: 'Activity' }).click();
+    await goToTab(page, 'audit');
     await expect(page.locator('.audit-view').first()).toBeVisible({ timeout: 10_000 });
     await captureStep(page, 'route-audit');
   });

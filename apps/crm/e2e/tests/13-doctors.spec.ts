@@ -21,7 +21,7 @@ test.describe('Doctors management', () => {
     await page.getByLabel(/^display name/i).fill(`Dr Test ${suffix}`);
     await page.getByLabel(/specialty/i).fill('General Dentistry');
 
-    await page.getByRole('button', { name: /^add doctor$/i }).click();
+    await page.locator('.doctor-form-sheet form').getByRole('button', { name: /^add doctor$/i }).click();
     await expect(page.locator('.doctor-form-sheet')).toBeHidden({ timeout: 10_000 });
     await expect(page.getByText(`Dr Test ${suffix}`)).toBeVisible({ timeout: 10_000 });
   });
