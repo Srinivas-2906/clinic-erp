@@ -23,6 +23,14 @@ export function initFinanceSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_invoices_tenant_patient ON patient_invoices(tenant_id, patient_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_tenant_status ON patient_invoices(tenant_id, status);
 
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_active_appointment
+    ON patient_invoices(tenant_id, appointment_id)
+    WHERE appointment_id IS NOT NULL AND appointment_id != '' AND status != 'void';
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_active_encounter
+    ON patient_invoices(tenant_id, encounter_id)
+    WHERE encounter_id IS NOT NULL AND encounter_id != '' AND status != 'void';
+
     CREATE TABLE IF NOT EXISTS invoice_line_items (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
