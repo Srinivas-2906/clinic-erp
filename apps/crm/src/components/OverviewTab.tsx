@@ -1,4 +1,4 @@
-import { CalendarCheck, AlertCircle, Phone, MessageSquare, CalendarPlus, Activity, ChevronRight, Banknote } from 'lucide-react';
+import { CalendarCheck, AlertCircle, Phone, MessageSquare, CalendarPlus, Activity, ChevronRight, Banknote, MoreVertical } from 'lucide-react';
 import type { Appointment, AppointmentStatus, TodayStats } from '../types';
 import { STATUS_LABELS } from '../types';
 import { updateAppointment } from '../lib/api';
@@ -8,6 +8,8 @@ import { buildDoctorColorMap, doctorColorFor } from '../lib/doctorDisplay';
 import { countAppointmentsByDoctor } from '../lib/todayStats';
 import { useDoctors } from '../hooks/useDoctors';
 import { CompleteVisitDialog } from './CompleteVisitDialog';
+import { ConsultationDialog } from './ConsultationDialog';
+import { AppointmentActionsDialog } from './AppointmentActionsDialog';
 import { DoctorFilterChips } from './DoctorFilterChips';
 import { DoctorBadge } from './DoctorBadge';
 import { useMemo, useState } from 'react';
@@ -50,6 +52,7 @@ interface Props {
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onRefresh: () => void;
   canRecordPayments?: boolean;
+  onOpenPayments?: (patientId: string) => void;
 }
 
 export function OverviewTab({
@@ -64,8 +67,11 @@ export function OverviewTab({
   onToast,
   onRefresh,
   canRecordPayments = true,
+  onOpenPayments,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
+  const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
+  const [actionsAppt, setActionsAppt] = useState<Appointment | null>(null);
   const { data: doctorsList = [] } = useDoctors(false);
   const activeDoctors = useMemo(
     () => doctorsList.filter((d) => d.isActive !== false),
@@ -232,10 +238,13 @@ export function OverviewTab({
                       </button>
                     )}
                     {appt.status === 'arrived' && (
-                      <button type="button" className="action-btn action-done" onClick={() => advance(appt, 'visited')}>
-                        Complete
+                      <button type="button" className="action-btn action-done" onClick={() => setConsultAppt(appt)}>
+                        Consult
                       </button>
                     )}
+                    <button type="button" className="quick-action-btn" title="More actions" onClick={() => setActionsAppt(appt)}>
+                      <MoreVertical size={13} />
+                    </button>
                   </div>
                 </div>
               );
@@ -326,6 +335,21 @@ export function OverviewTab({
         </div>
       </div>
 
+      {consultAppt && (
+        <ConsultationDialog
+          appointment={consultAppt}
+          onClose={() => { setConsultAppt(null); onRefresh(); }}
+          onDone={() => { setConsultAppt(null); onRefresh(); }}
+          onConsultationFinalized={(appt) => {
+            if (canRecordPayments && onOpenPayments) {
+              onToast('Consultation finalized — record payment when ready');
+              onOpenPayments(appt.patientId);
+            }
+          }}
+          onToast={onToast}
+        />
+      )}
+
       {completeAppt && (
         <CompleteVisitDialog
           appointment={completeAppt}
@@ -333,6 +357,21 @@ export function OverviewTab({
           onDone={() => { setCompleteAppt(null); onRefresh(); }}
           onToast={onToast}
           canRecordPayments={canRecordPayments}
+        />
+      )}
+
+      {actionsAppt && (
+        <AppointmentActionsDialog
+          appointment={actionsAppt}
+          onClose={() => setActionsAppt(null)}
+          onDone={() => { setActionsAppt(null); onRefresh(); }}
+          onToast={onToast}
+          allowCompleteWithoutConsult={actionsAppt.status === 'arrived'}
+          onCompleteWithoutConsult={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            setCompleteAppt(appt);
+          }}
         />
       )}
     </div>

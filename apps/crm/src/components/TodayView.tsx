@@ -80,6 +80,7 @@ interface Props {
   onGoToBook: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   canRecordPayments?: boolean;
+  onOpenPayments?: (patientId: string) => void;
 }
 
 export function TodayView({
@@ -99,6 +100,7 @@ export function TodayView({
   onGoToBook,
   onToast,
   canRecordPayments = true,
+  onOpenPayments,
 }: Props) {
   const [viewMode, setViewMode] = useState<TodayViewMode>(() => (isMobileViewport() ? 'list' : 'board'));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -431,6 +433,12 @@ export function TodayView({
           appointment={consultAppt}
           onClose={() => { setConsultAppt(null); onRefresh(); }}
           onDone={() => { setConsultAppt(null); onRefresh(); }}
+          onConsultationFinalized={(appt) => {
+            if (canRecordPayments && onOpenPayments) {
+              onToast('Consultation finalized — record payment when ready');
+              onOpenPayments(appt.patientId);
+            }
+          }}
           onToast={onToast}
         />
       )}
@@ -451,6 +459,12 @@ export function TodayView({
           onClose={() => setActionsAppt(null)}
           onDone={() => { setActionsAppt(null); onRefresh(); }}
           onToast={onToast}
+          allowCompleteWithoutConsult={actionsAppt.status === 'arrived'}
+          onCompleteWithoutConsult={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            setCompleteAppt(appt);
+          }}
         />
       )}
     </div>

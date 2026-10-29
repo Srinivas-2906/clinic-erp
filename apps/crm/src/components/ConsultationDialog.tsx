@@ -19,6 +19,8 @@ interface Props {
   onClose: () => void;
   onDone: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
+  /** Fired after successful finalize (before onDone). */
+  onConsultationFinalized?: (appointment: Appointment) => void;
 }
 
 const DEFAULT_VITALS: VitalInput[] = [
@@ -27,7 +29,7 @@ const DEFAULT_VITALS: VitalInput[] = [
   { code: 'weight', value: '', unit: 'kg' },
 ];
 
-export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Props) {
+export function ConsultationDialog({ appointment, onClose, onDone, onToast, onConsultationFinalized }: Props) {
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,6 +153,7 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast }: Pr
         });
       }
       onToast('Consultation finalized');
+      onConsultationFinalized?.(appointment);
       onDone();
     } catch (e) {
       onToast(e instanceof Error ? e.message : 'Finalize failed', 'err');

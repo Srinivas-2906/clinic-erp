@@ -17,6 +17,7 @@ import {
   scheduleRecallReminder,
   clearAppointmentReminders,
 } from './reminders/index.js';
+import { assertAppointmentStatusTransition } from './appointmentStatus.js';
 import {
   PatientIdentityError,
   resolvePatientForInbound,
@@ -414,6 +415,10 @@ export function updateAppointment(id, tenantId, patch) {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM appointments WHERE id = ? AND tenant_id = ?').get(id, tenantId);
   if (!existing) return null;
+
+  if (patch.status !== undefined && patch.status !== existing.status) {
+    assertAppointmentStatusTransition(existing.status, patch.status);
+  }
 
   const fields = [];
   const values = [];

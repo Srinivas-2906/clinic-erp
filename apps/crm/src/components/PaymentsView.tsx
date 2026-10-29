@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Banknote, ChevronRight, FileText, Pencil, RotateCcw, Share2 } from 'lucide-react';
 import type { Payment, PaymentSummary, Patient, PatientInvoice } from '../types';
 import type { ClinicProfile } from '../lib/clinicBranding';
@@ -39,6 +39,9 @@ interface Props {
   onRecorded: () => void;
   onOpenPatient: (patientId: string) => void;
   onToast?: (msg: string, type?: 'ok' | 'err') => void;
+  /** When set, opens record-payment with this patient pre-selected (once). */
+  prefillRecordPatientId?: string | null;
+  onPrefillRecordConsumed?: () => void;
 }
 
 export function PaymentsView({
@@ -52,9 +55,20 @@ export function PaymentsView({
   onRecorded,
   onOpenPatient,
   onToast,
+  prefillRecordPatientId,
+  onPrefillRecordConsumed,
 }: Props) {
   const [section, setSection] = useState<'invoices' | 'payments'>('invoices');
   const [recordOpen, setRecordOpen] = useState(false);
+  const [recordPrefillId, setRecordPrefillId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!prefillRecordPatientId) return;
+    setSection('payments');
+    setRecordPrefillId(prefillRecordPatientId);
+    setRecordOpen(true);
+    onPrefillRecordConsumed?.();
+  }, [prefillRecordPatientId, onPrefillRecordConsumed]);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [sharePayment, setSharePayment] = useState<Payment | null>(null);
@@ -148,9 +162,13 @@ export function PaymentsView({
       {(recordOpen || payAgainstInvoice) && (
         <RecordPaymentDialog
           patients={patients}
-          prefillPatientId={payAgainstInvoice?.patientId}
+          prefillPatientId={payAgainstInvoice?.patientId || recordPrefillId}
           invoice={payAgainstInvoice}
-          onClose={() => { setRecordOpen(false); setPayAgainstInvoice(null); }}
+          onClose={() => {
+            setRecordOpen(false);
+            setPayAgainstInvoice(null);
+            setRecordPrefillId(undefined);
+          }}
           onSaved={onRecorded}
           onToast={onToast}
         />

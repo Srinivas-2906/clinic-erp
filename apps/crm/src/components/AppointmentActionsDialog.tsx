@@ -9,9 +9,18 @@ interface Props {
   onClose: () => void;
   onDone: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
+  allowCompleteWithoutConsult?: boolean;
+  onCompleteWithoutConsult?: () => void;
 }
 
-export function AppointmentActionsDialog({ appointment, onClose, onDone, onToast }: Props) {
+export function AppointmentActionsDialog({
+  appointment,
+  onClose,
+  onDone,
+  onToast,
+  allowCompleteWithoutConsult,
+  onCompleteWithoutConsult,
+}: Props) {
   const [showReschedule, setShowReschedule] = useState(false);
   const [saving, setSaving] = useState(false);
   const locked = appointment.status === 'visited';
@@ -75,6 +84,11 @@ export function AppointmentActionsDialog({ appointment, onClose, onDone, onToast
             <button type="button" className="btn btn-ghost" onClick={() => setStatus('cancelled' as Appointment['status'])} disabled={saving || locked}>
               <XCircle size={14} /> Cancel appointment
             </button>
+            {allowCompleteWithoutConsult && onCompleteWithoutConsult && (
+              <button type="button" className="btn btn-ghost" onClick={() => { onClose(); onCompleteWithoutConsult(); }} disabled={saving || locked}>
+                Complete visit without consultation
+              </button>
+            )}
           </div>
         </div>
 

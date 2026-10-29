@@ -103,6 +103,7 @@ function ClinicApp() {
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
+  const [paymentsPrefillPatientId, setPaymentsPrefillPatientId] = useState<string | null>(null);
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
   const [report, setReport] = useState<Awaited<ReturnType<typeof fetchClinicReport>> | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -336,6 +337,17 @@ function ClinicApp() {
     }
   }
 
+  function handleOpenPayments(patientId: string) {
+    setPaymentsPrefillPatientId(patientId);
+    setTab('payments');
+    setSelectedId(null);
+    setPatientDetail(null);
+    setPrefillPt(null);
+    writeAppRoute({ tab: 'payments', patientId });
+    void loadPayments();
+    void loadPatients();
+  }
+
   function handleTabChange(t: TabId) {
     setTab(t);
     setSelectedId(null);
@@ -551,6 +563,7 @@ function ClinicApp() {
               onToast={toast}
               onRefresh={() => { void loadToday(); }}
               canRecordPayments={userCaps.recordPayments}
+              onOpenPayments={userCaps.recordPayments ? handleOpenPayments : undefined}
             />
           ) : tab === 'today' ? (
             <TodayView
@@ -570,6 +583,7 @@ function ClinicApp() {
               onGoToBook={() => handleTabChange('book')}
               onToast={toast}
               canRecordPayments={userCaps.recordPayments}
+              onOpenPayments={userCaps.recordPayments ? handleOpenPayments : undefined}
             />
           ) : tab === 'patients' ? (
             <PatientsView
@@ -593,6 +607,8 @@ function ClinicApp() {
                 onRecorded={() => { loadPayments(); void loadToday(); loadPatients(); }}
                 onOpenPatient={handleOpenPatient}
                 onToast={toast}
+                prefillRecordPatientId={paymentsPrefillPatientId}
+                onPrefillRecordConsumed={() => setPaymentsPrefillPatientId(null)}
               />
             ) : (
               <div className="doctors-empty">Billing is handled by front desk staff.</div>
