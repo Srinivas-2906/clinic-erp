@@ -55,10 +55,20 @@ test.describe('Busy clinic day operations', () => {
     await page.getByRole('button', { name: /reschedule/i }).click();
     await expect(page.getByRole('heading', { name: /reschedule/i })).toBeVisible();
     const rescheduleModal = page.locator('.modal-overlay').filter({ has: page.getByRole('heading', { name: /reschedule/i }) });
+    await expect(rescheduleModal.locator('input[type="date"]')).toBeVisible();
     const slotChip = rescheduleModal.locator('.time-chip').first();
-    if (await slotChip.isVisible().catch(() => false)) await slotChip.click();
+    if (await slotChip.isVisible().catch(() => false)) {
+      await slotChip.click();
+    } else {
+      await rescheduleModal.locator('input[type="time"]').fill('15:30');
+    }
+    const rescheduleSave = page.waitForResponse(
+      (r) => r.url().includes('/api/appointments/') && r.request().method() === 'PATCH' && r.ok(),
+      { timeout: 20_000 },
+    );
     await rescheduleModal.getByRole('button', { name: /^save$/i }).click();
-    await expect(page.locator('.toast').filter({ hasText: /rescheduled/i }).first()).toBeVisible({ timeout: 15_000 });
+    await rescheduleSave;
+    await expect(rescheduleModal).toBeHidden({ timeout: 15_000 });
 
     await logoutViaUi(page);
     await loginClinicApp(page, 'doctor');
@@ -94,7 +104,7 @@ test.describe('Busy clinic day operations', () => {
     await logoutViaUi(page);
     await loginClinicApp(page, 'doctor');
     await goToTab(page, 'payments');
-    await expect(page.getByText(/billing is handled|front desk/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Billing is handled by front desk staff.')).toBeVisible({ timeout: 10_000 });
   });
 });
 
