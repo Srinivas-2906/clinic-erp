@@ -1,7 +1,8 @@
-import { test, expect } from '../fixtures/auth.fixture';
+import { test, expect } from '@playwright/test';
 import { goToTab } from '../helpers/navigation';
 import { advanceQueueToConsult } from '../helpers/queue';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
+import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
 import { authHeaders, createPatientAndAppointment } from '../helpers/clinicApi';
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
@@ -15,18 +16,27 @@ async function dismissPilotBanner(page: import('@playwright/test').Page) {
 }
 
 test.describe('Clinical consultation flow', () => {
-  test('Today → Consult → draft → reopen → finalize → PDF → visit history', async ({ authedPage: page, request }) => {
+  test('Today → Consult → draft → reopen → finalize → PDF → visit history', async ({ page, request }) => {
     const uniqueLabel = `E2E UI ${Date.now()}`;
-    const headers = await authHeaders(request, API, TENANT, E2E_CREDENTIALS.email, E2E_CREDENTIALS.password);
+    const headers = await authHeaders(
+      request,
+      API,
+      TENANT,
+      ROLE_CREDENTIALS.owner.email,
+      ROLE_CREDENTIALS.owner.password,
+    );
     const { patient } = await createPatientAndAppointment(request, API, headers, {
       name: uniqueLabel,
       status: 'arrived',
     });
 
+    await loginClinicApp(page, 'doctor');
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
-    await page.getByRole('button', { name: 'Refresh' }).first().click();
-    await expect(page.getByText(uniqueLabel).first()).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => {
+      await page.getByRole('button', { name: 'Refresh' }).first().click();
+      return page.getByText(uniqueLabel).first().isVisible();
+    }, { timeout: 25_000 }).toBe(true);
     const card = page.locator('.appt-card, .board-card').filter({ hasText: uniqueLabel }).first();
     await card.locator('button.board-card-advance, button.action-done').filter({ hasText: /^Consult$/i }).click();
     await expect(page.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
@@ -36,7 +46,9 @@ test.describe('Clinical consultation flow', () => {
     await page.getByPlaceholder('Medicine').first().fill('Paracetamol');
     await page.getByPlaceholder('Dose').first().fill('500mg');
 
-    const saveResp = page.waitForResponse((r) => r.url().includes('/encounters/') && r.request().method() === 'PATCH' && r.ok());
+    const saveResp = page.waitForResponse(
+      (r) => r.url().includes('/clinic/encounters/') && r.request().method() === 'PATCH' && r.ok(),
+    );
     await page.getByRole('button', { name: /save draft/i }).click();
     const savedBody = await (await saveResp).json();
     expect(savedBody.chiefComplaint).toBe('Sharp pain lower left');

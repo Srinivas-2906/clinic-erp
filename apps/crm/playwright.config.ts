@@ -72,7 +72,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'node scripts/seed-e2e-local.js && npm run dev',
+      command: 'npm run dev:e2e',
       cwd: path.join(__dirname, '../api'),
       url: 'http://localhost:3010/api/health',
       reuseExistingServer: process.env.E2E_REUSE_SERVERS === '1',

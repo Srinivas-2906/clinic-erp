@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
+import { nanoid } from 'nanoid';
 import { initDatabase, getDb } from '../src/db/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,13 +103,32 @@ if (doctor) {
 }
 
 const doctorCount = db.prepare(`SELECT COUNT(*) AS n FROM doctors WHERE tenant_id = ? AND is_active = 1`).get(tenantId).n;
-if (doctorCount < 2) {
+if (doctorCount < 2 && doctor) {
   const now = new Date().toISOString();
+  const secondId = 'doc-e2e-second';
   db.prepare(`
     INSERT OR IGNORE INTO doctors (id, tenant_id, name, display_name, email, user_id, is_active, sort_order, created_at, updated_at)
-    VALUES ('doc-e2e-second', ?, 'E2E Second Doctor', 'Dr. E2E Second', 'e2e-second@dentacare.in', NULL, 1, 2, ?, ?)
-  `).run(tenantId, now, now);
-  console.log('Ensured second doctor for multi-doctor E2E');
+    VALUES (?, ?, 'E2E Second Doctor', 'Dr. E2E Second', 'e2e-second@dentacare.in', NULL, 1, 2, ?, ?)
+  `).run(secondId, tenantId, now, now);
+  const sessions = db.prepare(
+    `SELECT day_of_week, start_time, end_time, slot_duration_minutes FROM doctor_sessions WHERE doctor_id = ?`,
+  ).all(doctor.id);
+  const insertSession = db.prepare(`
+    INSERT INTO doctor_sessions (id, tenant_id, doctor_id, day_of_week, start_time, end_time, slot_duration_minutes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const s of sessions) {
+    insertSession.run(
+      nanoid(12),
+      tenantId,
+      secondId,
+      s.day_of_week,
+      s.start_time,
+      s.end_time,
+      s.slot_duration_minutes,
+    );
+  }
+  console.log('Ensured second doctor (with sessions) for multi-doctor E2E');
 }
 
 getDb().pragma('wal_checkpoint(FULL)');
