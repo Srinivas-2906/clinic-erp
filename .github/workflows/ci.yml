@@ -94,8 +94,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npm run test:e2e:install --workspace=apps/crm
+      - name: Install Linux native modules for Vite (Playwright webServer)
+        run: |
+          npm install --no-save \
+            @rollup/rollup-linux-x64-gnu \
+            @rolldown/binding-linux-x64-gnu \
+            lightningcss-linux-x64-gnu
       - name: E2E smoke (@smoke)
         env:
           DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
@@ -121,6 +125,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Install Linux native modules for Vite (Playwright webServer)
+        run: |
+          npm install --no-save \
+            @rollup/rollup-linux-x64-gnu \
+            @rolldown/binding-linux-x64-gnu \
+            lightningcss-linux-x64-gnu
       - name: Install Playwright + full E2E
         env:
           DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
