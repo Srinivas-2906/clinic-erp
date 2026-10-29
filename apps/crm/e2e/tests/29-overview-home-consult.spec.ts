@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { goToTab } from '../helpers/navigation';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
 import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
-import { authHeaders, createPatientAndAppointment, setAppointmentStatus } from '../helpers/clinicApi';
+import { authHeaders, createPatientAndAppointment, setAppointmentStatus, clinicTodayYmd } from '../helpers/clinicApi';
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
 const TENANT = E2E_CREDENTIALS.tenant;
@@ -28,14 +28,26 @@ test.describe('Home overview clinical queue', () => {
       name: uniqueLabel,
       status: 'confirmed',
     });
+    const ymd = clinicTodayYmd();
+    await request.patch(`${API}/api/appointments/${appointment.id}`, {
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      data: { scheduledAt: `${ymd}T06:15:00+05:30` },
+    });
     await setAppointmentStatus(request, API, headers, appointment.id, 'arrived');
 
     await loginClinicApp(page, 'owner');
-    await goToTab(page, 'overview');
+    await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    await page.getByRole('button', { name: 'Refresh' }).first().click();
+    await goToTab(page, 'overview');
 
     const row = page.locator('.overview-appt-row').filter({ hasText: uniqueLabel });
-    await expect.poll(async () => row.count(), { timeout: 25_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => {
+      await goToTab(page, 'today');
+      await page.getByRole('button', { name: 'Refresh' }).first().click();
+      await goToTab(page, 'overview');
+      return row.count();
+    }, { timeout: 25_000 }).toBeGreaterThan(0);
 
     const encounterReady = page.waitForResponse(
       (r) => r.url().includes('/encounters') && ['POST', 'GET'].includes(r.request().method()) && r.ok(),
