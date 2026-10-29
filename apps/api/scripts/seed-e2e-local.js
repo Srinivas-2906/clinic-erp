@@ -100,16 +100,19 @@ const doctor = db.prepare(
 if (doctor) {
   db.prepare(`UPDATE doctors SET user_id = ? WHERE id = ?`).run('user-e2e-doctor', doctor.id);
   console.log(`Linked e2e-doctor to doctor ${doctor.id}`);
-}
 
-const doctorCount = db.prepare(`SELECT COUNT(*) AS n FROM doctors WHERE tenant_id = ? AND is_active = 1`).get(tenantId).n;
-if (doctorCount < 2 && doctor) {
-  const now = new Date().toISOString();
   const secondId = 'doc-e2e-second';
+  const now = new Date().toISOString();
   db.prepare(`
-    INSERT OR IGNORE INTO doctors (id, tenant_id, name, display_name, email, user_id, is_active, sort_order, created_at, updated_at)
+    INSERT INTO doctors (id, tenant_id, name, display_name, email, user_id, is_active, sort_order, created_at, updated_at)
     VALUES (?, ?, 'E2E Second Doctor', 'Dr. E2E Second', 'e2e-second@dentacare.in', NULL, 1, 2, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      is_active = 1,
+      sort_order = 2,
+      updated_at = excluded.updated_at
   `).run(secondId, tenantId, now, now);
+
+  db.prepare(`DELETE FROM doctor_sessions WHERE tenant_id = ? AND doctor_id = ?`).run(tenantId, secondId);
   const sessions = db.prepare(
     `SELECT day_of_week, start_time, end_time, slot_duration_minutes FROM doctor_sessions WHERE doctor_id = ?`,
   ).all(doctor.id);
@@ -128,7 +131,12 @@ if (doctorCount < 2 && doctor) {
       s.slot_duration_minutes,
     );
   }
-  console.log('Ensured second doctor (with sessions) for multi-doctor E2E');
+  console.log(`Ensured ${secondId} mirrors sessions from ${doctor.id} (${sessions.length} rows)`);
+}
+
+const doctorCount = db.prepare(`SELECT COUNT(*) AS n FROM doctors WHERE tenant_id = ? AND is_active = 1`).get(tenantId).n;
+if (doctorCount < 2 && doctor) {
+  console.warn('Expected at least 2 active doctors after E2E second-doctor sync');
 }
 
 closeDatabase();
