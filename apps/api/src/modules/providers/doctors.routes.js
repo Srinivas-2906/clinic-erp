@@ -8,6 +8,7 @@ import {
   getDoctorById,
   createDoctor,
   updateDoctor,
+  linkDoctorToCurrentUser,
 } from './doctors.service.js';
 import { listDoctorSessions, replaceDoctorSessions } from './doctorSessions.service.js';
 import { listDoctorTimeOff, createDoctorTimeOff, deleteDoctorTimeOff } from './doctorTimeOff.service.js';
@@ -64,6 +65,18 @@ export function doctorsRouter() {
       const doctor = updateDoctor(req.params.id, tenantId, req.user, req.body ?? {});
       const action = req.body?.isActive === false ? 'deactivate' : 'update';
       logAudit(tenantId, req.user.sub, action, 'doctor', doctor.id, req.body ?? {});
+      res.json(doctor);
+    } catch (err) {
+      handleServiceError(res, err);
+    }
+  });
+
+  router.post('/:id/link-my-account', (req, res) => {
+    const tenantId = tenantGuard(req, res);
+    if (!tenantId) return;
+    try {
+      const doctor = linkDoctorToCurrentUser(req.params.id, tenantId, req.user);
+      logAudit(tenantId, req.user.sub, 'link', 'doctor_user', doctor.id, { userId: req.user.sub });
       res.json(doctor);
     } catch (err) {
       handleServiceError(res, err);

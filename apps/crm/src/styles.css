@@ -4378,7 +4378,16 @@ body.modal-open .clinic-app {
   gap: 8px;
   flex-wrap: wrap;
 }
-.pilot-setup-list li span { flex: 1; min-width: 0; }
+.clinic-onboarding-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.clinic-onboarding-banner .signup-hint.ok { color: var(--success); }
 
 .login-forgot {
   display: block;
