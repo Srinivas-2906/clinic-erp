@@ -16,7 +16,15 @@ export async function authHeaders(request: APIRequestContext, apiBase: string, t
   return { Authorization: `Bearer ${token}`, 'X-Tenant-Slug': tenant };
 }
 
-/** First available slot today in clinic timezone (API canonical startsAt). */
+type SlotOption = { label?: string; time?: string; doctorId?: string; doctorName?: string };
+
+function slotOptionToScheduledAt(dateStr: string, opt: SlotOption) {
+  const time = opt.time?.trim();
+  if (!time || !/^\d{2}:\d{2}$/.test(time)) return null;
+  return `${dateStr}T${time}:00+05:30`;
+}
+
+/** Next available slot today in clinic timezone (canonical ISO scheduledAt). */
 export async function pickTodayScheduledAt(
   request: APIRequestContext,
   apiBase: string,
@@ -26,22 +34,26 @@ export async function pickTodayScheduledAt(
   const slotRes = await request.get(`${apiBase}/api/appointments/slots?date=${dateStr}`, { headers });
   expect(slotRes.ok()).toBeTruthy();
   const body = await slotRes.json();
-  const slots = body.slots ?? [];
-  const first = slots[0];
-  if (first && typeof first === 'object' && first.startsAt) {
-    return { dateStr, scheduledAt: first.startsAt as string };
+  const options = (body.slotOptions ?? []) as SlotOption[];
+  const nowMs = Date.now();
+
+  for (const opt of options) {
+    const scheduledAt = slotOptionToScheduledAt(dateStr, opt);
+    if (scheduledAt && new Date(scheduledAt).getTime() > nowMs - 60_000) {
+      return { dateStr, scheduledAt, doctorId: opt.doctorId };
+    }
   }
-  if (typeof first === 'string') {
-    return { dateStr, scheduledAt: `${dateStr}T${first}:00+05:30` };
+
+  const last = options[options.length - 1];
+  const fallback = last ? slotOptionToScheduledAt(dateStr, last) : null;
+  if (fallback) {
+    return { dateStr, scheduledAt: fallback, doctorId: last?.doctorId };
   }
-  const last = slots[slots.length - 1];
-  if (last && typeof last === 'object' && last.startsAt) {
-    return { dateStr, scheduledAt: last.startsAt as string };
-  }
-  if (typeof last === 'string') {
-    return { dateStr, scheduledAt: `${dateStr}T${last}:00+05:30` };
-  }
-  return { dateStr, scheduledAt: `${dateStr}T18:30:00+05:30` };
+  const hour = Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: CLINIC_TZ, hour: 'numeric', hour12: false }).format(new Date()),
+  );
+  const slotHour = Math.min(Math.max(hour + 1, 10), 18);
+  return { dateStr, scheduledAt: `${dateStr}T${String(slotHour).padStart(2, '0')}:00:00+05:30` };
 }
 
 export async function createPatientAndAppointment(
@@ -63,7 +75,8 @@ export async function createPatientAndAppointment(
   const doctors = docBody.doctors ?? docBody;
   const doctorId = Array.isArray(doctors) ? doctors[0]?.id : undefined;
 
-  const { dateStr, scheduledAt } = await pickTodayScheduledAt(request, apiBase, headers);
+  const { dateStr, scheduledAt, doctorId: slotDoctorId } = await pickTodayScheduledAt(request, apiBase, headers);
+  const assignedDoctorId = doctorId ?? slotDoctorId;
   const apptRes = await request.post(`${apiBase}/api/appointments`, {
     headers: { ...headers, 'Content-Type': 'application/json' },
     data: {
@@ -71,7 +84,7 @@ export async function createPatientAndAppointment(
       service: opts.service ?? 'Consultation',
       scheduledAt,
       status: opts.status ?? 'requested',
-      ...(doctorId ? { assignedDoctorId: doctorId } : {}),
+      ...(assignedDoctorId ? { assignedDoctorId } : {}),
     },
   });
   expect(apptRes.ok()).toBeTruthy();
