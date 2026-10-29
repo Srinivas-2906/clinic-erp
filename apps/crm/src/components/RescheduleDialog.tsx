@@ -69,7 +69,12 @@ export function RescheduleDialog({ appointment, onClose, onDone, onToast }: Prop
     setError('');
     try {
       const iso = `${date}T${time}:00`;
-      await updateAppointment(appointment.id, { scheduledAt: iso, status: 'confirmed' as Appointment['status'] });
+      // Keep queue status (e.g. arrived) — only unconfirmed bookings reset to confirmed.
+      const patch: { scheduledAt: string; status?: Appointment['status'] } = { scheduledAt: iso };
+      if (appointment.status === 'requested') {
+        patch.status = 'confirmed';
+      }
+      await updateAppointment(appointment.id, patch);
       onToast('Appointment rescheduled');
       onDone();
     } catch (e) {

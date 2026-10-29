@@ -92,10 +92,23 @@ test.describe('Busy clinic day operations', () => {
     const visitedCard = page.locator('.appt-card, .board-card').filter({ hasText: consultTarget.label }).first();
     await visitedCard.locator('button[title="Actions"], button.quick-action-btn').last().click();
     await page.getByRole('button', { name: /billing for this visit/i }).click();
-    await page.getByRole('button', { name: /create invoice/i }).click();
+    const handoff = page.getByTestId('visit-billing-handoff');
+    if (await handoff.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await handoff.getByRole('button', { name: /create invoice/i }).click();
+    }
+    await page.getByPlaceholder('Description').fill('Busy day consult');
     await page.locator('.modal-overlay input.invoice-line-price').first().fill('800');
     await page.getByRole('button', { name: /create invoice/i }).click();
-    await expect(page.locator('.toast').filter({ hasText: /invoice/i }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.toast').filter({ hasText: /invoice ready|invoice created/i }).first()).toBeVisible({ timeout: 20_000 });
+    const invoiceSheet = page.locator('.modal-overlay').filter({ hasText: 'Invoice ·' });
+    await expect(invoiceSheet).toBeVisible({ timeout: 10_000 });
+    await invoiceSheet.getByRole('button', { name: 'Close' }).click();
+    await expect(invoiceSheet).toBeHidden({ timeout: 10_000 });
+    const handoffOpen = page.getByTestId('visit-billing-handoff');
+    if (await handoffOpen.isVisible().catch(() => false)) {
+      await handoffOpen.getByRole('button', { name: /continue without billing/i }).click();
+      await expect(handoffOpen).toBeHidden({ timeout: 10_000 });
+    }
 
     await goToTab(page, 'payments');
     await page.getByRole('button', { name: /due now/i }).click();

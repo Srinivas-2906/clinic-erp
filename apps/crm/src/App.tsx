@@ -423,7 +423,7 @@ function ClinicApp() {
         brandSub="Clinic desk"
         userInitials={initials}
         showOwnerNav={userCaps.manageSettings}
-        showPaymentsNav={userCaps.recordPayments}
+        showPaymentsNav={userCaps.recordPayments || userRole === 'doctor'}
         showReportsNav={userCaps.viewReports}
       />
 
@@ -699,7 +699,7 @@ function ClinicApp() {
           <BottomNav
             active={tab}
             onChange={handleTabChange}
-            showPaymentsNav={userCaps.recordPayments}
+            showPaymentsNav={userCaps.recordPayments || userRole === 'doctor'}
             showReportsNav={userCaps.viewReports}
           />
         )}
