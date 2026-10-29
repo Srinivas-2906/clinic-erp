@@ -112,7 +112,12 @@ test.describe('Full clinical → billing journey', () => {
     await consultModal.locator('#consult-complaint').fill('Routine check');
     await consultModal.locator('#consult-diagnosis').fill('Healthy');
     await consultModal.getByPlaceholder('Medicine').first().fill('Vitamin D');
+    const finalizeReq = page.waitForResponse(
+      (r) => r.url().includes('/encounters/') && r.url().includes('/finalize') && r.request().method() === 'POST' && r.ok(),
+      { timeout: 30_000 },
+    );
     await consultModal.getByRole('button', { name: /finalize visit/i }).click();
+    await finalizeReq;
     await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 25_000 });
     const skipBilling = page.getByRole('button', { name: /continue without billing/i });
     if (await skipBilling.isVisible().catch(() => false)) {
