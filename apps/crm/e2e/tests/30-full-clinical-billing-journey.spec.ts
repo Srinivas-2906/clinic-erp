@@ -39,6 +39,26 @@ function appointmentCard(page: import('@playwright/test').Page, patientLabel: st
   return page.locator('.appt-card, .board-card').filter({ hasText: patientLabel }).first();
 }
 
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function e2eLinkedDoctorLabel(request: import('@playwright/test').APIRequestContext) {
+  const headers = await authHeaders(
+    request,
+    API,
+    TENANT,
+    ROLE_CREDENTIALS.receptionist.email,
+    ROLE_CREDENTIALS.receptionist.password,
+  );
+  const res = await request.get(`${API}/api/clinic/doctors`, { headers });
+  expect(res.ok()).toBeTruthy();
+  const doctors = (await res.json()).doctors as { userId?: string | null; displayName?: string; name: string }[];
+  const linked = doctors.find((d) => d.userId === 'user-e2e-doctor') ?? doctors[0];
+  expect(linked).toBeTruthy();
+  return linked.displayName || linked.name;
+}
+
 test.describe('Full clinical → billing journey', () => {
   test('register through payment with role handoffs', async ({ page, request }) => {
     const suffix = Date.now().toString().slice(-7);
@@ -66,15 +86,20 @@ test.describe('Full clinical → billing journey', () => {
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
 
     await goToTab(page, 'book');
+    const e2eDoctorLabel = await e2eLinkedDoctorLabel(request);
+    const e2eDoctorPattern = new RegExp(escapeRegex(e2eDoctorLabel), 'i');
     await page.locator('#book-search').fill(phone);
     await expect(page.getByRole('button', { name: /continue booking/i })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: /continue booking/i }).click();
     await page.locator('.form-select').first().selectOption({ index: 0 });
     await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
     if (await page.getByText('Choose doctor').isVisible({ timeout: 2500 }).catch(() => false)) {
-      const anyBtn = page.getByRole('button', { name: /any available doctor/i }).first();
-      if (await anyBtn.isVisible().catch(() => false)) await anyBtn.click();
-      else await page.locator('.book-doctor-option').first().click();
+      const namedDoctor = page.getByRole('button', { name: e2eDoctorPattern }).first();
+      if (await namedDoctor.isVisible().catch(() => false)) {
+        await namedDoctor.click();
+      } else {
+        await page.locator('.book-doctor-option').filter({ hasText: e2eDoctorPattern }).first().click();
+      }
       await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
     }
     if (await page.getByRole('button', { name: /^Review$/ }).isVisible().catch(() => false)) {
@@ -107,9 +132,27 @@ test.describe('Full clinical → billing journey', () => {
       return appointmentCard(page, name).isVisible();
     }, { timeout: 30_000 }).toBe(true);
 
+    const encounterReady = page.waitForResponse(
+      (r) => r.url().includes('/encounters') && ['POST', 'GET'].includes(r.request().method()) && r.ok(),
+      { timeout: 25_000 },
+    );
     await advanceQueueToConsult(page, name);
+    await encounterReady;
+
     const consultModal = page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') });
+    await expect(consultModal.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Loading consultation…')).toBeHidden({ timeout: 20_000 });
+
     await consultModal.locator('#consult-complaint').fill('Routine check');
+    const saveDraft = consultModal.getByRole('button', { name: /save draft/i });
+    await saveDraft.scrollIntoViewIfNeeded();
+    await saveDraft.click();
+    const errToast = page.locator('.toast-err');
+    await expect(page.getByText(/consultation saved/i).or(errToast)).toBeVisible({ timeout: 20_000 });
+    if (await errToast.isVisible().catch(() => false)) {
+      throw new Error(`Save draft failed: ${(await errToast.innerText()).trim()}`);
+    }
+
     await consultModal.locator('#consult-diagnosis').fill('Healthy');
     await consultModal.getByPlaceholder('Medicine').first().fill('Vitamin D');
     await consultModal.getByPlaceholder('Dose').first().fill('1 tab');
