@@ -16,11 +16,13 @@ const {
   voidInvoice,
   applyPaymentToInvoice,
   getInvoiceById,
+  findActiveInvoiceForVisit,
 } = await import('./patientInvoices.js');
 const { createPayment } = await import('./clinicPayments.js');
 
 const owner = { sub: 'u-owner', tenantId: 't1', role: 'owner', isPlatformAdmin: false };
 const receptionist = { sub: 'u-rec', tenantId: 't1', role: 'receptionist', isPlatformAdmin: false };
+const doctor = { sub: 'u-doc', tenantId: 't1', role: 'doctor', isPlatformAdmin: false };
 
 before(() => {
   initDatabase();
@@ -33,6 +35,16 @@ before(() => {
   db.prepare(`
     INSERT INTO users (id, tenant_id, email, password_hash, name, role) VALUES ('u-owner', 't1', 'o@test.invalid', ?, 'Owner', 'owner')
   `).run(hash);
+  db.prepare(`
+    INSERT INTO users (id, tenant_id, email, password_hash, name, role) VALUES ('u-rec', 't1', 'r@test.invalid', ?, 'Rec', 'receptionist')
+  `).run(hash);
+  db.prepare(`
+    INSERT INTO users (id, tenant_id, email, password_hash, name, role) VALUES ('u-doc', 't1', 'd@test.invalid', ?, 'Doc', 'doctor')
+  `).run(hash);
+  db.prepare(`INSERT INTO tenants (id, slug, name, status) VALUES ('t2', 'other', 'Other Clinic', 'active')`).run();
+  db.prepare(`
+    INSERT INTO patients (id, tenant_id, name, phone, phone_digits) VALUES ('p-t2', 't2', 'Other Patient', '8888888887', '8888888887')
+  `).run();
 });
 
 after(() => {
@@ -217,5 +229,92 @@ describe('patientInvoices', () => {
     const a = createRefund('t1', owner, { paymentId: pay.id, amount: 10, idempotencyKey: 'idem-ref' });
     const b = createRefund('t1', owner, { paymentId: pay.id, amount: 10, idempotencyKey: 'idem-ref' });
     assert.equal(a.id, b.id);
+  });
+
+  it('does not duplicate invoices for the same appointment or encounter', () => {
+    const first = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-bill-1',
+      encounterId: 'enc-bill-1',
+      lineItems: [{ description: 'Consultation', unitPrice: 600, quantity: 1 }],
+    });
+    const second = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-bill-1',
+      encounterId: 'enc-bill-1',
+      lineItems: [{ description: 'Should not apply', unitPrice: 999, quantity: 1 }],
+    });
+    assert.equal(first.id, second.id);
+    assert.equal(second.total, 600);
+    const rows = getDb().prepare(`
+      SELECT COUNT(*) AS c FROM patient_invoices
+      WHERE tenant_id = 't1' AND appointment_id = 'appt-bill-1' AND status != 'void'
+    `).get();
+    assert.equal(rows.c, 1);
+  });
+
+  it('allows new invoice after voiding visit invoice', () => {
+    const voided = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-void-1',
+      lineItems: [{ description: 'Old', unitPrice: 100, quantity: 1 }],
+    });
+    voidInvoice('t1', owner, voided.id, { reason: 'duplicate' });
+    const next = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-void-1',
+      lineItems: [{ description: 'Replacement', unitPrice: 200, quantity: 1 }],
+    });
+    assert.notEqual(voided.id, next.id);
+    assert.equal(next.total, 200);
+  });
+
+  it('resolves same visit via appointment or encounter lookup', () => {
+    const first = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-both',
+      encounterId: 'enc-both',
+      lineItems: [{ description: 'Visit', unitPrice: 300, quantity: 1 }],
+    });
+    const byEnc = findActiveInvoiceForVisit('t1', { patientId: 'p1', encounterId: 'enc-both' });
+    const byAppt = findActiveInvoiceForVisit('t1', { patientId: 'p1', appointmentId: 'appt-both' });
+    assert.equal(byEnc?.id, first.id);
+    assert.equal(byAppt?.id, first.id);
+  });
+
+  it('does not expose visit invoice across tenants', () => {
+    const inv = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-tenant',
+      lineItems: [{ description: 'T1', unitPrice: 50, quantity: 1 }],
+    });
+    assert.equal(getInvoiceById(inv.id, 't2'), null);
+    assert.equal(findActiveInvoiceForVisit('t2', { appointmentId: 'appt-tenant' }), null);
+  });
+
+  it('rejects invoice create for doctor role', () => {
+    assert.throws(
+      () => createInvoice('t1', doctor, {
+        patientId: 'p1',
+        lineItems: [{ description: 'X', unitPrice: 10, quantity: 1 }],
+      }),
+      /receptionist|Owner|required/i,
+    );
+  });
+
+  it('recovers from unique index when concurrent visit invoice insert races', () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO patient_invoices (
+        id, tenant_id, patient_id, appointment_id, encounter_id, status, total, amount_paid, currency, notes, created_by
+      ) VALUES ('race-inv', 't1', 'p1', 'appt-race', 'enc-race', 'open', 0, 0, 'INR', '', 'u-rec')
+    `).run();
+    const resolved = createInvoice('t1', receptionist, {
+      patientId: 'p1',
+      appointmentId: 'appt-race',
+      encounterId: 'enc-race',
+      lineItems: [{ description: 'Should not apply', unitPrice: 999, quantity: 1 }],
+    });
+    assert.equal(resolved.id, 'race-inv');
   });
 });

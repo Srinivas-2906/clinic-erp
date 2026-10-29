@@ -56,6 +56,8 @@ interface Props {
   onOpenPatient: (patientId: string) => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   canRecordPayments?: boolean;
+  onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
+  onOpenVisitBilling?: (appointment: Appointment, encounterId?: string | null) => void;
 }
 
 function BoardCard({
@@ -153,6 +155,8 @@ export function AppointmentBoard({
   onOpenPatient,
   onToast,
   canRecordPayments = true,
+  onConsultationFinalized,
+  onOpenVisitBilling,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
@@ -229,6 +233,7 @@ export function AppointmentBoard({
           appointment={consultAppt}
           onClose={() => { setConsultAppt(null); onRefresh(); }}
           onDone={() => { setConsultAppt(null); onRefresh(); }}
+          onConsultationFinalized={(appt, encounterId) => onConsultationFinalized?.(appt, encounterId)}
           onToast={onToast}
         />
       )}
@@ -249,6 +254,18 @@ export function AppointmentBoard({
           onClose={() => setActionsAppt(null)}
           onDone={() => { setActionsAppt(null); onRefresh(); }}
           onToast={onToast}
+          allowCompleteWithoutConsult={actionsAppt.status === 'arrived'}
+          onCompleteWithoutConsult={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            setCompleteAppt(appt);
+          }}
+          canOpenBilling={actionsAppt.status === 'visited' && canRecordPayments && Boolean(onOpenVisitBilling)}
+          onOpenBilling={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            onOpenVisitBilling?.(appt);
+          }}
         />
       )}
     </div>

@@ -74,7 +74,7 @@ test.describe('Clinical consultation flow', () => {
     await page.getByPlaceholder('Dose').first().fill('500mg');
 
     await page.getByRole('button', { name: /finalize visit/i }).click();
-    await expect(page.getByText(/consultation finalized/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 25_000 });
 
     await page.goto(`/?tenant=${TENANT}&tab=patients&patient=${patient.id}`);
     await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 20_000 });

@@ -18,6 +18,7 @@ import { AuditView } from './components/AuditView';
 import { ClinicSettingsView } from './components/ClinicSettingsView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
 import { PilotSetupChecklist } from './components/PilotSetupChecklist';
+import { VisitBillingHandoffDialog } from './components/VisitBillingHandoffDialog';
 import { useDoctors } from './hooks/useDoctors';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
@@ -104,6 +105,7 @@ function ClinicApp() {
   const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
   const [paymentsPrefillPatientId, setPaymentsPrefillPatientId] = useState<string | null>(null);
+  const [visitBillingHandoff, setVisitBillingHandoff] = useState<{ appointment: Appointment; encounterId?: string | null } | null>(null);
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
   const [report, setReport] = useState<Awaited<ReturnType<typeof fetchClinicReport>> | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -337,15 +339,21 @@ function ClinicApp() {
     }
   }
 
-  function handleOpenPayments(patientId: string) {
-    setPaymentsPrefillPatientId(patientId);
-    setTab('payments');
-    setSelectedId(null);
-    setPatientDetail(null);
-    setPrefillPt(null);
-    writeAppRoute({ tab: 'payments', patientId });
+  function openVisitBillingHandoff(appointment: Appointment, encounterId?: string | null) {
+    setVisitBillingHandoff({
+      appointment,
+      encounterId: encounterId ?? appointment.encounterId ?? null,
+    });
     void loadPayments();
     void loadPatients();
+  }
+
+  function handleConsultationFinalized(appointment: Appointment, encounterId: string) {
+    if (userCaps.recordPayments) {
+      openVisitBillingHandoff(appointment, encounterId);
+    } else {
+      toast('Consultation finalized — front desk can bill when ready');
+    }
   }
 
   function handleTabChange(t: TabId) {
@@ -563,7 +571,8 @@ function ClinicApp() {
               onToast={toast}
               onRefresh={() => { void loadToday(); }}
               canRecordPayments={userCaps.recordPayments}
-              onOpenPayments={userCaps.recordPayments ? handleOpenPayments : undefined}
+              onConsultationFinalized={handleConsultationFinalized}
+              onOpenVisitBilling={userCaps.recordPayments ? openVisitBillingHandoff : undefined}
             />
           ) : tab === 'today' ? (
             <TodayView
@@ -583,7 +592,8 @@ function ClinicApp() {
               onGoToBook={() => handleTabChange('book')}
               onToast={toast}
               canRecordPayments={userCaps.recordPayments}
-              onOpenPayments={userCaps.recordPayments ? handleOpenPayments : undefined}
+              onConsultationFinalized={handleConsultationFinalized}
+              onOpenVisitBilling={userCaps.recordPayments ? openVisitBillingHandoff : undefined}
             />
           ) : tab === 'patients' ? (
             <PatientsView
@@ -677,6 +687,22 @@ function ClinicApp() {
       </div>
 
       {/* Toast notifications */}
+      {visitBillingHandoff && (
+        <VisitBillingHandoffDialog
+          appointment={visitBillingHandoff.appointment}
+          encounterId={visitBillingHandoff.encounterId}
+          patients={patients}
+          clinicProfile={clinicProfile}
+          canRecordPayments={userCaps.recordPayments}
+          canManageFinancials={userCaps.manageFinancials}
+          onClose={() => setVisitBillingHandoff(null)}
+          onContinue={() => setVisitBillingHandoff(null)}
+          onGoToToday={() => handleTabChange('today')}
+          onToast={toast}
+          onDataChanged={() => { void loadPayments(); void loadToday(); }}
+        />
+      )}
+
       <Toaster toasts={toasts} onDismiss={dismissToast} />
 
       {showSearch && (

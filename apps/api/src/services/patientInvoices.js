@@ -82,6 +82,33 @@ export function getInvoiceById(id, tenantId) {
   return row ? rowToInvoice(row, loadLineItems(id, tenantId)) : null;
 }
 
+/** Non-void invoice already linked to this visit (appointment and/or encounter). */
+export function findActiveInvoiceForVisit(tenantId, { patientId, appointmentId, encounterId } = {}) {
+  const db = getDb();
+  const apptId = appointmentId ? String(appointmentId).trim() : '';
+  const encId = encounterId ? String(encounterId).trim() : '';
+  if (apptId) {
+    const row = db.prepare(`
+      SELECT * FROM patient_invoices
+      WHERE tenant_id = ? AND appointment_id = ? AND status != ?
+      ORDER BY datetime(created_at) DESC LIMIT 1
+    `).get(tenantId, apptId, INVOICE_STATUS.VOID);
+    if (row) return rowToInvoice(row, loadLineItems(row.id, tenantId));
+  }
+  if (encId) {
+    const row = db.prepare(`
+      SELECT * FROM patient_invoices
+      WHERE tenant_id = ? AND encounter_id = ? AND status != ?
+      ORDER BY datetime(created_at) DESC LIMIT 1
+    `).get(tenantId, encId, INVOICE_STATUS.VOID);
+    if (row) return rowToInvoice(row, loadLineItems(row.id, tenantId));
+  }
+  if (patientId && (apptId || encId)) {
+    return null;
+  }
+  return null;
+}
+
 export function listInvoices(tenantId, { patientId, status, limit = 100 } = {}) {
   let sql = `SELECT * FROM patient_invoices WHERE tenant_id = ?`;
   const params = [tenantId];
@@ -106,39 +133,64 @@ export function createInvoice(tenantId, user, data = {}) {
     err.status = 404;
     throw err;
   }
-  const id = nanoid(12);
+  const appointmentId = data.appointmentId ? String(data.appointmentId).trim() : null;
+  const encounterId = data.encounterId ? String(data.encounterId).trim() : null;
   const db = getDb();
-  db.prepare(`
-    INSERT INTO patient_invoices (
-      id, tenant_id, patient_id, appointment_id, encounter_id, status, total, amount_paid,
-      currency, notes, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'INR', ?, ?)
-  `).run(
-    id,
-    tenantId,
-    patientId,
-    data.appointmentId || null,
-    data.encounterId || null,
-    INVOICE_STATUS.OPEN,
-    String(data.notes || '').trim(),
-    user.sub,
-  );
 
-  const items = Array.isArray(data.lineItems) ? data.lineItems : [];
-  items.forEach((item, idx) => {
-    const desc = String(item.description || '').trim();
-    if (!desc) return;
-    const qty = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
-    const unit = roundMoney(item.unitPrice ?? item.amount ?? 0);
-    const amount = computeLineTotal(qty, unit);
-    db.prepare(`
-      INSERT INTO invoice_line_items (id, tenant_id, invoice_id, description, quantity, unit_price, amount, catalog_item_id, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(nanoid(12), tenantId, id, desc, qty, unit, amount, item.catalogItemId || null, idx);
-  });
-  recomputeInvoiceTotals(db, id, tenantId);
-  logAudit(tenantId, user.sub, 'create', 'invoice', id, { patientId });
-  return getInvoiceById(id, tenantId);
+  const run = () => {
+    if (appointmentId || encounterId) {
+      const existing = findActiveInvoiceForVisit(tenantId, { patientId, appointmentId, encounterId });
+      if (existing) return existing;
+    }
+    const id = nanoid(12);
+    try {
+      db.prepare(`
+        INSERT INTO patient_invoices (
+          id, tenant_id, patient_id, appointment_id, encounter_id, status, total, amount_paid,
+          currency, notes, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'INR', ?, ?)
+      `).run(
+        id,
+        tenantId,
+        patientId,
+        appointmentId,
+        encounterId,
+        INVOICE_STATUS.OPEN,
+        String(data.notes || '').trim(),
+        user.sub,
+      );
+    } catch (e) {
+      if (isActiveVisitInvoiceConflict(e) && (appointmentId || encounterId)) {
+        const existing = findActiveInvoiceForVisit(tenantId, { patientId, appointmentId, encounterId });
+        if (existing) return existing;
+      }
+      throw e;
+    }
+
+    const items = Array.isArray(data.lineItems) ? data.lineItems : [];
+    items.forEach((item, idx) => {
+      const desc = String(item.description || '').trim();
+      if (!desc) return;
+      const qty = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+      const unit = roundMoney(item.unitPrice ?? item.amount ?? 0);
+      const amount = computeLineTotal(qty, unit);
+      db.prepare(`
+        INSERT INTO invoice_line_items (id, tenant_id, invoice_id, description, quantity, unit_price, amount, catalog_item_id, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(nanoid(12), tenantId, id, desc, qty, unit, amount, item.catalogItemId || null, idx);
+    });
+    recomputeInvoiceTotals(db, id, tenantId);
+    logAudit(tenantId, user.sub, 'create', 'invoice', id, { patientId });
+    return getInvoiceById(id, tenantId);
+  };
+
+  return db.transaction(run)();
+}
+
+function isActiveVisitInvoiceConflict(err) {
+  const msg = String(err?.message || err || '');
+  return msg.includes('UNIQUE constraint failed')
+    && (msg.includes('idx_invoices_active_appointment') || msg.includes('idx_invoices_active_encounter'));
 }
 
 function getInvoiceBalanceDue(inv) {

@@ -52,7 +52,8 @@ interface Props {
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onRefresh: () => void;
   canRecordPayments?: boolean;
-  onOpenPayments?: (patientId: string) => void;
+  onConsultationFinalized?: (appointment: Appointment, encounterId: string) => void;
+  onOpenVisitBilling?: (appointment: Appointment, encounterId?: string | null) => void;
 }
 
 export function OverviewTab({
@@ -67,7 +68,8 @@ export function OverviewTab({
   onToast,
   onRefresh,
   canRecordPayments = true,
-  onOpenPayments,
+  onConsultationFinalized,
+  onOpenVisitBilling,
 }: Props) {
   const [completeAppt, setCompleteAppt] = useState<Appointment | null>(null);
   const [consultAppt, setConsultAppt] = useState<Appointment | null>(null);
@@ -87,11 +89,16 @@ export function OverviewTab({
   const upcomingLater = today?.upcomingLater ?? today?.pendingRequests ?? [];
   const pendingLater = upcomingLater.filter((a) => a.status === 'requested');
   const unconfirmedToday = today?.unconfirmedToday ?? appts.filter((a) => a.status === 'requested').length;
-  const upcoming = [...appts]
-    .filter((a) => isApptToday(a.scheduledAt))
-    .filter((a) => a.status !== 'visited' && a.status !== 'cancelled' && a.status !== 'no_show')
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 5);
+  const todayActive = useMemo(
+    () => [...appts]
+      .filter((a) => isApptToday(a.scheduledAt))
+      .filter((a) => a.status !== 'visited' && a.status !== 'cancelled' && a.status !== 'no_show')
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()),
+    [appts],
+  );
+  const arrivedQueue = useMemo(() => todayActive.filter((a) => a.status === 'arrived'), [todayActive]);
+  const nextUp = useMemo(() => todayActive.filter((a) => a.status !== 'arrived').slice(0, 5), [todayActive]);
+  const nextUpHidden = Math.max(0, todayActive.filter((a) => a.status !== 'arrived').length - nextUp.length);
 
   const confirmBanner =
     unconfirmedToday + pendingLater.length > 0
@@ -166,19 +173,63 @@ export function OverviewTab({
         </div>
       </div>
 
+      {/* Arrived — always show full queue (usually small) */}
+      {arrivedQueue.length > 0 && (
+        <div className="overview-section">
+          <div className="section-hd">
+            <div>
+              <p className="section-hd-title">In clinic — ready for doctor</p>
+              <p className="section-hd-sub">{arrivedQueue.length} arrived · needs consultation</p>
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onGoToToday}>
+              Today queue <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="panel" style={{ overflow: 'hidden' }}>
+            {arrivedQueue.map((appt) => {
+              const name = appt.patientName || 'Patient';
+              const [fg, bg] = ava(name);
+              return (
+                <div key={appt.id} className="overview-appt-row overview-appt-row-arrived">
+                  <span className="overview-appt-time">{fmtTime(appt.scheduledAt)}</span>
+                  <div className="overview-appt-ava" style={{ background: bg, color: fg }}>
+                    {name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="overview-appt-info">
+                    <button type="button" className="overview-appt-name" onClick={() => onOpenPatient(appt.patientId)}>
+                      {name}
+                    </button>
+                    <span className="overview-appt-svc">{appt.service || 'Check-up'}</span>
+                  </div>
+                  <span className={TAG_CLASS.arrived}>{STATUS_LABELS.arrived}</span>
+                  <div className="overview-appt-actions">
+                    <button type="button" className="action-btn action-done" onClick={() => setConsultAppt(appt)}>
+                      Consult
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Today's queue */}
       <div className="overview-section">
         <div className="section-hd">
           <div>
             <p className="section-hd-title">Next up today</p>
-            <p className="section-hd-sub">{upcoming.length} waiting</p>
+            <p className="section-hd-sub">
+              {nextUp.length} shown
+              {nextUpHidden > 0 ? ` · ${nextUpHidden} more on Today` : ''}
+            </p>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onGoToToday}>
             See all <ChevronRight size={12} />
           </button>
         </div>
 
-        {upcoming.length === 0 ? (
+        {nextUp.length === 0 && arrivedQueue.length === 0 ? (
           <div className="overview-empty-row">
             <CalendarCheck size={18} color="var(--muted)" />
             <span>No one booked for later today.</span>
@@ -186,7 +237,7 @@ export function OverviewTab({
           </div>
         ) : (
           <div className="panel" style={{ overflow: 'hidden' }}>
-            {upcoming.map((appt) => {
+            {nextUp.map((appt) => {
               const name = appt.patientName || 'Patient';
               const [fg, bg] = ava(name);
               const telUrl = toTelUrl(appt.patientPhone);
@@ -340,12 +391,7 @@ export function OverviewTab({
           appointment={consultAppt}
           onClose={() => { setConsultAppt(null); onRefresh(); }}
           onDone={() => { setConsultAppt(null); onRefresh(); }}
-          onConsultationFinalized={(appt) => {
-            if (canRecordPayments && onOpenPayments) {
-              onToast('Consultation finalized — record payment when ready');
-              onOpenPayments(appt.patientId);
-            }
-          }}
+          onConsultationFinalized={(appt, encounterId) => onConsultationFinalized?.(appt, encounterId)}
           onToast={onToast}
         />
       )}
@@ -371,6 +417,12 @@ export function OverviewTab({
             const appt = actionsAppt;
             setActionsAppt(null);
             setCompleteAppt(appt);
+          }}
+          canOpenBilling={actionsAppt.status === 'visited' && canRecordPayments && Boolean(onOpenVisitBilling)}
+          onOpenBilling={() => {
+            const appt = actionsAppt;
+            setActionsAppt(null);
+            onOpenVisitBilling?.(appt);
           }}
         />
       )}
