@@ -148,6 +148,12 @@ export function updateDoctor(id: string, patch: Partial<Doctor>) {
   });
 }
 
+export function linkMyDoctorAccount(doctorId: string) {
+  return request<Doctor>(`/clinic/doctors/${encodeURIComponent(doctorId)}/link-my-account`, {
+    method: 'POST',
+  });
+}
+
 export function fetchDoctorSessions(doctorId: string) {
   return request<{ sessions: DoctorSession[] }>(`/clinic/doctors/${encodeURIComponent(doctorId)}/sessions`);
 }
@@ -491,6 +497,33 @@ export function fetchEntitlements() {
     usage: { doctors: number; staff: number };
     features: { auditExport: boolean; multiBranch: boolean };
   }>('/clinic/entitlements');
+}
+
+export type ClinicOnboardingStep = {
+  id: string;
+  label: string;
+  done: boolean;
+  tab: string;
+};
+
+export type ClinicOnboardingStatus = {
+  steps: ClinicOnboardingStep[];
+  completed: number;
+  total: number;
+  allComplete: boolean;
+  plan: {
+    planId: string;
+    planLabel: string;
+    subscriptionStatus?: string;
+    trialEndsAt?: string | null;
+    canWrite?: boolean;
+    usage?: { doctors?: number; staff?: number };
+    limits?: { maxDoctors?: number | null; maxStaff?: number | null };
+  } | null;
+};
+
+export function fetchClinicOnboarding() {
+  return request<ClinicOnboardingStatus>('/clinic/onboarding');
 }
 
 export function getPaymentGatewayConfig() {

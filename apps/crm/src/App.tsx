@@ -17,9 +17,8 @@ import { DoctorsView } from './components/DoctorsView';
 import { AuditView } from './components/AuditView';
 import { ClinicSettingsView } from './components/ClinicSettingsView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
-import { PilotSetupChecklist } from './components/PilotSetupChecklist';
+import { ClinicOnboardingChecklist } from './components/ClinicOnboardingChecklist';
 import { VisitBillingHandoffDialog } from './components/VisitBillingHandoffDialog';
-import { useDoctors } from './hooks/useDoctors';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
 import { fetchPatients, fetchPatient, fetchClient, fetchPayments, fetchInvoices, fetchMe, fetchClinicReport, fetchAppointments } from './lib/api';
@@ -99,7 +98,7 @@ function ClinicApp() {
   const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
     () => localStorage.getItem('pilot-setup-dismissed') === '1',
   );
-  const { data: doctorsList = [] } = useDoctors(false);
+  const [onboardingRefresh, setOnboardingRefresh] = useState(0);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
@@ -362,6 +361,7 @@ function ClinicApp() {
     setPatientDetail(null);
     setPrefillPt(null);
     writeAppRoute({ tab: t, patientId: null });
+    if (userRole === 'owner') setOnboardingRefresh((k) => k + 1);
     if (t === 'patients') loadPatients();
     if (t === 'overview' || t === 'today') void loadToday();
     if (t === 'today') void refreshSchedule();
@@ -538,11 +538,12 @@ function ClinicApp() {
         {/* Content */}
         <main className={`main-content${hideBottomNav ? ' no-bottom-nav' : ''}`}>
           {!pilotSetupDismissed && userRole === 'owner' && (tab === 'overview' || tab === 'today') && !isPatientOpen && (
-            <PilotSetupChecklist
-              canSignClinical={canSignClinical}
-              hasDoctors={doctorsList.length > 0}
-              onGoDoctors={() => handleTabChange('doctors')}
-              onGoBook={() => handleTabChange('book')}
+            <ClinicOnboardingChecklist
+              refreshKey={onboardingRefresh}
+              onGoTab={(t) => {
+                handleTabChange(t);
+                setOnboardingRefresh((k) => k + 1);
+              }}
               onDismiss={dismissPilotSetup}
             />
           )}
@@ -643,7 +644,14 @@ function ClinicApp() {
             )
           ) : tab === 'doctors' ? (
             userCaps.manageSettings ? (
-              <DoctorsView onToast={toast} />
+              <DoctorsView
+                onToast={toast}
+                canSignClinical={canSignClinical}
+                onClinicalLinked={() => {
+                  fetchMe().then((m) => setCanSignClinical(!!m?.user?.canSignClinical));
+                  setOnboardingRefresh((k) => k + 1);
+                }}
+              />
             ) : (
               <div className="doctors-empty">Only the clinic owner can manage doctors.</div>
             )

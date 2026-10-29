@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, Pencil, Plus, Stethoscope, UserX, UserCheck } from 'lucide-react';
 import type { Doctor } from '../types';
 import { useCreateDoctor, useDoctors, useUpdateDoctor, useDoctorSessions } from '../hooks/useDoctors';
+import { linkMyDoctorAccount } from '../lib/api';
 import { summarizeSchedule } from '../lib/scheduleUtils';
 import { DoctorFormDialog } from './DoctorFormDialog';
 import { DoctorScheduleEditor } from './DoctorScheduleEditor';
@@ -10,6 +11,8 @@ import { DoctorServicesEditor } from './DoctorServicesEditor';
 
 interface Props {
   onToast: (text: string, type?: 'ok' | 'err') => void;
+  canSignClinical?: boolean;
+  onClinicalLinked?: () => void;
 }
 
 function DoctorSchedulePanel({
@@ -54,12 +57,16 @@ function DoctorCard({
   doctor,
   onEdit,
   onToggleActive,
+  onLinkMyAccount,
+  showLinkMyAccount,
   onToast,
   busy,
 }: {
   doctor: Doctor;
   onEdit: () => void;
   onToggleActive: () => void;
+  onLinkMyAccount?: () => void;
+  showLinkMyAccount?: boolean;
   onToast: Props['onToast'];
   busy: boolean;
 }) {
@@ -83,6 +90,11 @@ function DoctorCard({
           </div>
         </div>
         <div className="doctor-card-actions">
+          {showLinkMyAccount && !doctor.userId && doctor.isActive !== false && onLinkMyAccount && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={onLinkMyAccount} disabled={busy}>
+              Link my login
+            </button>
+          )}
           <button type="button" className="btn-secondary btn-sm" onClick={onEdit} disabled={busy}>
             <Pencil size={14} /> Edit
           </button>
@@ -111,7 +123,7 @@ function DoctorCard({
   );
 }
 
-export function DoctorsView({ onToast }: Props) {
+export function DoctorsView({ onToast, canSignClinical, onClinicalLinked }: Props) {
   const [showInactive, setShowInactive] = useState(false);
   const [formDoctor, setFormDoctor] = useState<Doctor | null | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -141,6 +153,20 @@ export function DoctorsView({ onToast }: Props) {
       onToast(next ? 'Doctor activated' : 'Doctor deactivated');
     } catch (err) {
       onToast(err instanceof Error ? err.message : 'Could not update doctor', 'err');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleLinkMyAccount(doctor: Doctor) {
+    setBusyId(doctor.id);
+    try {
+      await linkMyDoctorAccount(doctor.id);
+      onToast('Your login is linked to this doctor profile', 'ok');
+      await refetch();
+      onClinicalLinked?.();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Could not link profile', 'err');
     } finally {
       setBusyId(null);
     }
@@ -200,6 +226,8 @@ export function DoctorsView({ onToast }: Props) {
                 doctor={doc}
                 onEdit={() => setFormDoctor(doc)}
                 onToggleActive={() => handleToggleActive(doc)}
+                showLinkMyAccount={!canSignClinical}
+                onLinkMyAccount={() => void handleLinkMyAccount(doc)}
                 onToast={onToast}
                 busy={busyId === doc.id}
               />

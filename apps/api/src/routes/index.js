@@ -29,6 +29,7 @@ import {
   createRefund,
 } from '../services/patientInvoices.js';
 import { getClinicSettings, updateClinicSettings } from '../services/clinicSettings.js';
+import { getClinicOnboardingStatus } from '../services/clinicOnboarding.js';
 import {
   assertCapability,
   canManagePatients,
@@ -660,6 +661,18 @@ export function clinicRouter() {
       res.json(getTenantEntitlements(req.user.tenantId));
     } catch (err) {
       res.status(err.status || 500).json({ error: err.message || 'Could not load plan' });
+    }
+  });
+
+  api.get('/clinic/onboarding', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Owner access required for onboarding checklist' });
+    }
+    try {
+      res.json(getClinicOnboardingStatus(req.user.tenantId));
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || 'Could not load onboarding status' });
     }
   });
 

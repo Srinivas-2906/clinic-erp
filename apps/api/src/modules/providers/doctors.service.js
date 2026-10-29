@@ -241,6 +241,23 @@ export function getDefaultDoctorId(tenantId) {
   return row?.id ?? null;
 }
 
+/** Owner/clinician links their login to an existing doctor row (self-service onboarding). */
+export function linkDoctorToCurrentUser(doctorId, tenantId, user) {
+  if (!user?.sub) {
+    const err = new Error('Authentication required');
+    err.status = 401;
+    throw err;
+  }
+  if (user.role !== 'owner' && user.role !== 'doctor') {
+    const err = new Error('Only clinic owners or doctors can link a clinical profile');
+    err.status = 403;
+    throw err;
+  }
+  assertDoctorBelongsToTenant(doctorId, tenantId);
+  assertUserNotLinkedToOtherDoctor(tenantId, user.sub, doctorId);
+  return updateDoctor(doctorId, tenantId, user, { userId: user.sub });
+}
+
 export function resolveDoctorDisplayName(doctorId, tenantId) {
   const doc = getDoctorById(doctorId, tenantId);
   return doc ? (doc.displayName || doc.name) : '';
