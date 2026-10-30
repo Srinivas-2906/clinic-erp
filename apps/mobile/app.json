@@ -21,7 +21,7 @@
       }
     },
     "autolinking": {
-      "exclude": ["expo-file-system"]
+      "exclude": ["expo-file-system", "expo-asset"]
     },
     "extra": {
       "eas": {

@@ -50,6 +50,11 @@ gradle.beforeProject { proj ->
       }
     }
   }
+  proj.configurations.all { conf ->
+    conf.resolutionStrategy {
+      force 'io.github.lukmccall.pika:pika-compiler:0.3.2'
+    }
+  }
 }
 `;
 
