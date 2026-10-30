@@ -1,3 +1,4 @@
+# Fast PR / main verification (merge gate). Full Playwright suite: playwright-regression.yml
 name: CI
 
 on:
@@ -12,6 +13,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            android:
+              - 'apps/mobile/**'
+              - 'packages/api-client/**'
+              - 'packages/contracts/**'
+              - 'packages/design-tokens/**'
+              - 'package.json'
+              - 'package-lock.json'
+
   api-tests:
     name: API unit tests
     runs-on: ubuntu-latest
@@ -65,7 +85,10 @@ jobs:
   android-apk-build:
     name: Android APK build
     runs-on: ubuntu-latest
-    needs: [mobile-checks]
+    needs: [mobile-checks, detect-changes]
+    if: |
+      needs.mobile-checks.result == 'success' &&
+      (needs.detect-changes.outputs.android == 'true' || github.event_name == 'push')
     timeout-minutes: 45
     env:
       EXPO_PUBLIC_CLINIC_API: http://10.0.2.2:3010
@@ -138,10 +161,11 @@ jobs:
             --build-arg VITE_TENANT_SLUG=dentacare \
             .
 
-  playwright-smoke:
-    name: Playwright smoke (local, no GCP)
+  playwright-fast:
+    name: Playwright fast (smoke + auth)
     runs-on: ubuntu-latest
     needs: [api-tests, crm-build]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -163,53 +187,20 @@ jobs:
             @rollup/rollup-linux-x64-gnu \
             @rolldown/binding-linux-x64-gnu \
             lightningcss-linux-x64-gnu
-      - name: E2E smoke (@smoke)
+      - name: E2E smoke desktop + mobile (@smoke)
         env:
           DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/apps/crm/.pw-browsers
-        run: npm run test:e2e:install --workspace=apps/crm && npm run test:e2e:smoke --workspace=apps/crm
+        run: npm run test:e2e:install --workspace=apps/crm && npm run test:e2e:smoke:both --workspace=apps/crm
+      - name: E2E authorization + API contracts
+        env:
+          DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/apps/crm/.pw-browsers
+        run: npm run test:e2e:security --workspace=apps/crm
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-smoke-report
-          path: apps/crm/e2e/report
-          retention-days: 7
-
-  playwright-regression:
-    name: Playwright regression (desktop + mobile)
-    runs-on: ubuntu-latest
-    needs: [playwright-smoke]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: apps/crm/.pw-browsers
-          key: pw-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            pw-browsers-${{ runner.os }}-
-      - name: Install Linux native modules for Vite (Playwright webServer)
-        run: |
-          npm install --no-save \
-            @rollup/rollup-linux-x64-gnu \
-            @rolldown/binding-linux-x64-gnu \
-            lightningcss-linux-x64-gnu
-      - name: Install Playwright + full E2E
-        env:
-          DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/apps/crm/.pw-browsers
-        run: npm run test:e2e:install --workspace=apps/crm && npm run test:e2e:full --workspace=apps/crm
-      - name: Upload Playwright report on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-regression-report
+          name: playwright-fast-report
           path: apps/crm/e2e/report
           retention-days: 7
