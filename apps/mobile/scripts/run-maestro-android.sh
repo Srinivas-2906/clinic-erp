@@ -49,10 +49,13 @@ adb shell am force-stop in.kaana.clinicerp || true
 adb shell monkey -p in.kaana.clinicerp -c android.intent.category.LAUNCHER 1
 sleep 3
 
+export PATH="${MAESTRO_HOME:-$HOME/.maestro}/bin:$PATH"
 if ! command -v maestro >/dev/null; then
-  curl -Ls "https://get.mobile.dev" | bash
-  export PATH="$HOME/.maestro/bin:$PATH"
+  bash "$(dirname "$0")/setup-maestro-ci.sh"
+  export PATH="${MAESTRO_HOME:-$HOME/.maestro}/bin:$PATH"
 fi
+command -v maestro >/dev/null || { echo "Maestro CLI not on PATH"; exit 1; }
+maestro --version
 
 export MAESTRO_CLINIC_EMAIL="$MAESTRO_EMAIL"
 export MAESTRO_CLINIC_PASSWORD="$MAESTRO_PASSWORD"

@@ -115,6 +115,8 @@ jobs:
         with:
           name: clinic-mobile-release-apk
           path: apps/mobile/build
+      - name: Install Maestro CLI
+        run: chmod +x apps/mobile/scripts/setup-maestro-ci.sh && bash apps/mobile/scripts/setup-maestro-ci.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
