@@ -26,15 +26,16 @@ Sign in with workspace `dentacare` and E2E users from `apps/api/scripts/seed-e2e
 
 **Payments** tab (owner/receptionist only): list due invoices, create invoice with line items (optional catalog chips), open detail, record partial/full payment, void (owner only, no payments applied). Uses server totals and idempotent payment keys — no auto-invoice on consult finalize.
 
-## Android Maestro CI
+## Android Maestro (pre-launch)
 
-Job **Native Android Maestro** builds a release APK (`expo prebuild` + Gradle), seeds isolated E2E DB, and runs flows under `.maestro/`. Local:
+Not a PR merge blocker. Run manually in CI (**Android Maestro verify (manual)**) or locally:
 
 ```bash
-bash apps/mobile/scripts/run-android-maestro.sh
+npm run maestro:login          # single flow
+npm run maestro:android:full # build APK + full suite
 ```
 
-See `.maestro/README.md`.
+See `.maestro/README.md` and `docs/modernization/37_WEB_FIRST_STRATEGY.md`.
 
 ## Checks
 

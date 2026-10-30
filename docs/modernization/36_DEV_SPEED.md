@@ -6,8 +6,8 @@ Use the **smallest relevant check** while iterating; run **full CI** before merg
 
 | Run (approx.) | Duration | Notes |
 |---------------|----------|--------|
-| Full `CI` workflow | 21–38 min | 9 parallel jobs + Maestro emulator |
-| Native Android Maestro | 13–20 min | Emulator boot + APK install + all flows |
+| Full `CI` workflow | ~15–25 min | Maestro removed from PR path (pre-launch manual workflow) |
+| Native Android Maestro | 13–20 min | **Manual only:** workflow `Android Maestro verify (manual)` |
 | Android APK build | 8–15 min | prebuild + Gradle release |
 | Playwright smoke + regression | ~8–12 min each | Separate jobs, each `npm ci` |
 
@@ -49,7 +49,8 @@ API for Maestro: script starts API on `:3010` with `apps/api/data/e2e/clinic.db`
 
 ## CI behavior
 
-- **Pull request → `main`:** full required checks (unchanged job names for branch protection).
+- **Pull request → `main`:** required checks in `37_WEB_FIRST_STRATEGY.md` (no Maestro on PR).
+- **Pre-launch native:** Actions → **Android Maestro verify (manual)**.
 - **Push → `main`:** same workflow (post-merge verification).
 - **Push → feature branch without PR:** no CI (open/update PR to run checks).
 - **Concurrency:** newer run on same ref cancels in-progress run (`ci-${{ workflow }}-${{ ref }}`).

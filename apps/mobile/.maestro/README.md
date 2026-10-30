@@ -12,9 +12,11 @@ Requires [Maestro CLI](https://maestro.mobile.dev/) and a **release/debug APK** 
 | `doctor-consult-smoke.yaml` | Doctor opens seeded consult (`appt-maestro-consult`) |
 | `billing-smoke.yaml` | Create invoice + pay full (receptionist) |
 
-## CI
+## CI / pre-launch
 
-GitHub Actions job **Native Android Maestro** runs `apps/mobile/scripts/run-android-maestro.sh` on an API 30 x86_64 emulator with isolated `apps/api/data/e2e/clinic.db`.
+**PR merge gate:** Maestro is **not** run on every PR. Native flows are preserved under `.maestro/`.
+
+**Pre-launch verification:** GitHub Actions → **Android Maestro verify (manual)** (optional `maestro_flows` input). See `docs/modernization/37_WEB_FIRST_STRATEGY.md`.
 
 ## Local
 
