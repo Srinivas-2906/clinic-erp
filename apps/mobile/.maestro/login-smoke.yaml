@@ -1,3 +1,4 @@
+appId: in.kaana.clinicerp
 ---
 - launchApp:
     clearState: true

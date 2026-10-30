@@ -1,3 +1,4 @@
+appId: in.kaana.clinicerp
 ---
 - runFlow: login-smoke.yaml
 - tapOn:

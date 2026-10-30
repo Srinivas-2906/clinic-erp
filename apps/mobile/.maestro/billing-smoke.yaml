@@ -1,3 +1,4 @@
+appId: in.kaana.clinicerp
 ---
 # Owner/receptionist billing — uses MAESTRO_CLINIC_* (e2e-receptionist).
 - runFlow: login-smoke.yaml
