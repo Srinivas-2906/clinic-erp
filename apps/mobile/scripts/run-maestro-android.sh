@@ -75,6 +75,15 @@ install_apk_with_retry "$APK"
 adb shell pm clear in.kaana.clinicerp >/dev/null 2>&1 || true
 sleep 2
 
+stabilize_emulator_for_maestro() {
+  adb shell am force-stop com.android.settings >/dev/null 2>&1 || true
+  adb shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
+  adb shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
+  adb shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+  adb shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+}
+stabilize_emulator_for_maestro
+
 export PATH="${MAESTRO_HOME:-$HOME/.maestro}/maestro/bin:$PATH"
 if ! command -v maestro >/dev/null; then
   bash "$(dirname "$0")/setup-maestro-ci.sh"
@@ -89,6 +98,35 @@ export MAESTRO_CLINIC_TENANT="$MAESTRO_TENANT"
 export MAESTRO_PHONE_TAIL="${MAESTRO_PHONE_TAIL:-$(date +%s | tail -c 8)}"
 
 cd "$MOBILE"
+
+run_maestro_test() {
+  local flow="$1"
+  echo "==> Maestro $flow"
+  local marker
+  marker="$(mktemp)"
+  touch "$marker"
+  (
+    while [[ -f "$marker" ]]; do
+      adb shell input tap 540 1320 >/dev/null 2>&1 || true
+      sleep 5
+    done
+  ) &
+  local guard_pid=$!
+  if ! maestro test ".maestro/$flow"; then
+    rm -f "$marker"
+    kill "$guard_pid" 2>/dev/null || true
+    wait "$guard_pid" 2>/dev/null || true
+    echo "==> Maestro failed; filtered logcat (clinicerp / ReactNative)"
+    adb logcat -d -v time 2>/dev/null \
+      | grep -Ei 'clinicerp|ReactNativeJS|AndroidRuntime|FATAL|ExponentConstants|AppRegistry|expo-asset|main.*not registered' \
+      | tail -200 || true
+    exit 1
+  fi
+  rm -f "$marker"
+  kill "$guard_pid" 2>/dev/null || true
+  wait "$guard_pid" 2>/dev/null || true
+}
+
 FLOWS=(
   login-smoke.yaml
   reception-register.yaml
@@ -99,20 +137,15 @@ FLOWS=(
 )
 
 for f in "${FLOWS[@]}"; do
-  echo "==> Maestro $f"
-  if ! maestro test ".maestro/$f"; then
-    echo "==> Maestro failed; filtered logcat (clinicerp / ReactNative)"
-    adb logcat -d -v time 2>/dev/null | rg -i "clinicerp|ReactNativeJS|AndroidRuntime|FATAL|ExponentConstants|AppRegistry|expo-asset|main.*not registered" | tail -200 || true
-    exit 1
-  fi
+  run_maestro_test "$f"
 done
 
 echo "==> Maestro doctor consult"
-MAESTRO_CLINIC_EMAIL="${MAESTRO_DOCTOR_EMAIL:-e2e-doctor@dentacare.in}" \
-MAESTRO_CLINIC_PASSWORD="$MAESTRO_PASSWORD" \
-  maestro test .maestro/doctor-consult-smoke.yaml
+export MAESTRO_CLINIC_EMAIL="${MAESTRO_DOCTOR_EMAIL:-e2e-doctor@dentacare.in}"
+run_maestro_test "doctor-consult-smoke.yaml"
+export MAESTRO_CLINIC_EMAIL="$MAESTRO_EMAIL"
 
 echo "==> Maestro billing partial"
-maestro test .maestro/billing-partial.yaml
+run_maestro_test "billing-partial.yaml"
 
 echo "==> All Maestro flows passed"

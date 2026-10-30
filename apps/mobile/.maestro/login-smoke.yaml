@@ -2,6 +2,7 @@ appId: in.kaana.clinicerp
 ---
 - launchApp:
     clearState: true
+- runFlow: dismiss-android-anr.yaml
 - extendedWaitUntil:
     visible:
       id: "login-screen"

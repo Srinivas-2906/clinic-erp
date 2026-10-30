@@ -134,6 +134,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          emulator-options: -no-snapshot-save -memory 4096 -no-boot-anim
           script: chmod +x apps/mobile/scripts/run-maestro-android.sh && bash apps/mobile/scripts/run-maestro-android.sh
       - name: Upload Maestro artifacts on failure
         if: failure()
