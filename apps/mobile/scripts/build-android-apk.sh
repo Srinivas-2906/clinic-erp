@@ -15,6 +15,7 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 echo "==> Expo prebuild (android)"
 cd "$MOBILE"
 npx expo prebuild --platform android --no-install --clean
+node scripts/strip-expo-file-system.js
 node scripts/patch-android-settings.js
 
 echo "==> Gradle assembleRelease (arch=$ARCH)"
