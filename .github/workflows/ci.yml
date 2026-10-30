@@ -115,12 +115,12 @@ jobs:
         with:
           name: clinic-mobile-release-apk
           path: apps/mobile/build
-      - name: Install Maestro CLI
-        run: chmod +x apps/mobile/scripts/setup-maestro-ci.sh && bash apps/mobile/scripts/setup-maestro-ci.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+      - name: Install Maestro CLI
+        run: chmod +x apps/mobile/scripts/setup-maestro-ci.sh && bash apps/mobile/scripts/setup-maestro-ci.sh
       - name: Run Maestro on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:

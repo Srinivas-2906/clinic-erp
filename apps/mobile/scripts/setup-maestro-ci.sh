@@ -7,7 +7,9 @@ MAESTRO_HOME="${MAESTRO_HOME:-$HOME/.maestro}"
 BIN="$MAESTRO_HOME/bin/maestro"
 
 if [[ -x "$BIN" ]]; then
-  "$BIN" --version
+  if command -v java >/dev/null 2>&1; then
+    "$BIN" --version
+  fi
   exit 0
 fi
 
@@ -22,4 +24,8 @@ unzip -q "$zip" -d "$tmpdir"
 mkdir -p "$MAESTRO_HOME/bin"
 cp -a "$tmpdir/maestro/bin/"* "$MAESTRO_HOME/bin/"
 chmod +x "$BIN"
-"$BIN" --version
+if command -v java >/dev/null 2>&1; then
+  "$BIN" --version
+else
+  echo "Maestro installed at $BIN (install Java before running)"
+fi
