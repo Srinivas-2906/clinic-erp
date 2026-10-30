@@ -6,7 +6,9 @@
   "expo": {
     "autolinking": {
       "exclude": [
-        "expo-file-system"
+        "expo-file-system",
+        "expo-font",
+        "expo-keep-awake"
       ]
     }
   },
