@@ -89,6 +89,20 @@ export function TodayScreen({
     }
   }
 
+  async function cancelAppointment(appt: ClinicAppointment) {
+    if (!canManageAppointments || actionBusyId) return;
+    if (['cancelled', 'visited', 'no_show'].includes(appt.status)) return;
+    setActionBusyId(appt.id);
+    try {
+      await client.updateAppointment(appt.id, { status: 'cancelled' });
+      await load();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Could not cancel');
+    } finally {
+      setActionBusyId(null);
+    }
+  }
+
   function renderItem({ item }: { item: ClinicAppointment }) {
     const tone = statusTone(item.status);
     const action = queueActionLabel(item.status);
@@ -126,6 +140,16 @@ export function TodayScreen({
               testID={`today-consult-${item.id}`}
             >
               <Text style={styles.actionPrimaryText}>Consult</Text>
+            </TouchableOpacity>
+          ) : null}
+          {canManageAppointments && !['cancelled', 'visited', 'no_show'].includes(item.status) ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => void cancelAppointment(item)}
+              disabled={busy}
+              testID={`today-cancel-${item.id}`}
+            >
+              <Text style={[styles.actionText, { color: colors.danger }]}>Cancel</Text>
             </TouchableOpacity>
           ) : null}
         </View>

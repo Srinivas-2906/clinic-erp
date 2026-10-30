@@ -1,0 +1,18 @@
+appId: host.exp.exponent
+---
+# Receptionist smoke — requires MAESTRO_CLINIC_EMAIL for e2e-receptionist@dentacare.in
+- launchApp
+- tapOn:
+    id: "login-email"
+- inputText: "${MAESTRO_CLINIC_EMAIL}"
+- tapOn:
+    id: "login-password"
+- inputText: "${MAESTRO_CLINIC_PASSWORD}"
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "today-screen"
+- tapOn:
+    id: "tab-book"
+- assertVisible:
+    id: "book-screen"

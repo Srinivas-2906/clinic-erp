@@ -95,6 +95,7 @@ export function useClinicSession() {
     meLabel: me?.user?.name || me?.user?.email || '',
     role,
     canManageAppointments: !!(caps?.manageAppointments ?? (role === 'owner' || role === 'receptionist')),
+    canManagePatients: !!(caps?.managePatients ?? (role === 'owner' || role === 'receptionist')),
     canSignClinical: !!me?.user?.canSignClinical,
     canRecordPayments: !!caps?.recordPayments,
     login,

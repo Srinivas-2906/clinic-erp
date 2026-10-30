@@ -1,0 +1,31 @@
+appId: host.exp.exponent
+---
+# Receptionist: Book tab → register synthetic patient (requires MAESTRO_CLINIC_*).
+- launchApp
+- tapOn:
+    id: "login-submit"
+    optional: true
+- tapOn:
+    id: "login-email"
+    optional: true
+- inputText: "${MAESTRO_CLINIC_EMAIL}"
+- tapOn:
+    id: "login-password"
+    optional: true
+- inputText: "${MAESTRO_CLINIC_PASSWORD}"
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "tab-book"
+- tapOn:
+    id: "tab-book"
+- assertVisible:
+    id: "book-screen"
+- tapOn:
+    id: "book-new-name"
+- inputText: "Maestro Walk-in"
+- tapOn:
+    id: "book-new-phone"
+- inputText: "9876543210"
+- tapOn:
+    id: "book-register"
