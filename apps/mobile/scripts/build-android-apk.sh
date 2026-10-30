@@ -12,6 +12,29 @@ export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
+align_react_native_for_bundle() {
+  local mobile_rn="$MOBILE/node_modules/react-native/package.json"
+  if [[ ! -f "$mobile_rn" ]]; then
+    echo "Missing $mobile_rn — run npm ci from repo root"
+    exit 1
+  fi
+  local want
+  want="$(node -p "require('$mobile_rn').version")"
+  local root_rn="$ROOT/node_modules/react-native/package.json"
+  local have=""
+  if [[ -f "$root_rn" ]]; then
+    have="$(node -p "require('$root_rn').version")"
+  fi
+  if [[ "$have" != "$want" ]]; then
+    echo "==> Align hoisted react-native (${have:-none}) -> $want for release bundle"
+    rm -rf "$ROOT/node_modules/react-native"
+    cp -a "$MOBILE/node_modules/react-native" "$ROOT/node_modules/react-native"
+  fi
+  node -e "const v=require(process.argv[1]).version; const w=process.argv[2]; if(v!==w){console.error('react-native version mismatch',v,'expected',w); process.exit(1)}" "$ROOT/node_modules/react-native/package.json" "$want"
+}
+
+align_react_native_for_bundle
+
 echo "==> Expo prebuild (android)"
 cd "$MOBILE"
 npx expo prebuild --platform android --no-install --clean

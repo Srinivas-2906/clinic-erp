@@ -8,6 +8,12 @@
     "apps/mobile",
     "packages/*"
   ],
+  "overrides": {
+    "react-native": "0.76.9",
+    "@react-native/codegen": "0.76.9",
+    "@react-native/babel-plugin-codegen": "0.76.9",
+    "@react-native/babel-preset": "0.76.9"
+  },
   "scripts": {
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:crm": "npm run dev --workspace=apps/crm",
