@@ -100,7 +100,11 @@ FLOWS=(
 
 for f in "${FLOWS[@]}"; do
   echo "==> Maestro $f"
-  maestro test ".maestro/$f"
+  if ! maestro test ".maestro/$f"; then
+    echo "==> Maestro failed; adb logcat tail"
+    adb logcat -d -t 200 2>/dev/null || true
+    exit 1
+  fi
 done
 
 echo "==> Maestro doctor consult"

@@ -44,12 +44,25 @@ export function useClinicSession() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+    const bootTimeout = setTimeout(() => {
+      if (!cancelled) setBooting(false);
+    }, 8000);
     (async () => {
-      const [t, tok] = await Promise.all([getStored(TENANT_KEY), getStored(TOKEN_KEY)]);
-      if (t) setTenant(t);
-      if (tok) setToken(tok);
-      setBooting(false);
+      try {
+        const [t, tok] = await Promise.all([getStored(TENANT_KEY), getStored(TOKEN_KEY)]);
+        if (cancelled) return;
+        if (t) setTenant(t);
+        if (tok) setToken(tok);
+      } finally {
+        if (!cancelled) setBooting(false);
+        clearTimeout(bootTimeout);
+      }
     })();
+    return () => {
+      cancelled = true;
+      clearTimeout(bootTimeout);
+    };
   }, []);
 
   const refreshMe = useCallback(async () => {
