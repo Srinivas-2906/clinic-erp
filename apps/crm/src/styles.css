@@ -201,12 +201,18 @@ img, video, canvas { max-width: 100%; height: auto; }
   font-size: 12px;
   font-weight: 700;
   color: var(--text);
-  padding: 6px 8px 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  padding: 6px 8px 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.user-menu-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
 }
 
 .user-menu-item {
