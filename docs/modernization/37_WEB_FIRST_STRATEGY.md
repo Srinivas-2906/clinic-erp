@@ -12,13 +12,12 @@
 | Android APK build | `CI` | Yes (compile native bundle; no emulator) |
 | CRM production build | `CI` | Yes |
 | Docker build (no push) | `CI` | Yes |
-| Playwright smoke | `CI` | Yes |
-| Playwright regression (desktop + mobile browser) | `CI` | Yes |
+| Playwright fast (smoke + auth; desktop + mobile @smoke) | `CI` | Yes |
+| Android APK build | `CI` | When mobile/shared paths change (skipped on web-only PRs) |
+| Playwright regression (full desktop + mobile) | `Playwright extended regression` | **Async** — nightly, `main`, manual; **required before release** |
 | **Native Android Maestro** | **`Android Maestro verify (manual)`** | **No — run before launch** |
 
-**Manual Maestro:** Actions → **Android Maestro verify (manual)** → Run workflow. Optional input `maestro_flows` (e.g. `login-smoke.yaml`).
-
-**Branch protection:** If `Native Android Maestro` is still listed as a required check on `main`, remove it in GitHub **Settings → Branches** so it does not block merges after this workflow split.
+See **`39_CI_FAST_AND_EXTENDED.md`** for branch protection and parallel development.
 
 ## Testing policy
 
