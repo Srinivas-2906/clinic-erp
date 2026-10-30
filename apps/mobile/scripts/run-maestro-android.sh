@@ -71,9 +71,13 @@ install_apk_with_retry() {
 
 echo "==> Install APK"
 wait_for_emulator_ready
-install_apk_with_retry "$APK"
-adb shell pm clear in.kaana.clinicerp >/dev/null 2>&1 || true
-sleep 2
+if [[ "${SKIP_APK_INSTALL:-0}" != "1" ]]; then
+  install_apk_with_retry "$APK"
+  adb shell pm clear in.kaana.clinicerp >/dev/null 2>&1 || true
+  sleep 2
+else
+  echo "SKIP_APK_INSTALL=1 — reusing installed app"
+fi
 
 stabilize_emulator_for_maestro() {
   adb shell am force-stop com.android.settings >/dev/null 2>&1 || true
@@ -127,18 +131,36 @@ run_maestro_test() {
   wait "$guard_pid" 2>/dev/null || true
 }
 
-FLOWS=(
-  login-smoke.yaml
-  reception-register.yaml
-  reception-book-tab.yaml
-  reception-book-appointment.yaml
-  reception-check-in.yaml
-  billing-smoke.yaml
-)
+FLOWS=()
+if [[ -n "${MAESTRO_FLOWS:-}" ]]; then
+  IFS=',' read -ra _raw_flows <<< "${MAESTRO_FLOWS}"
+  for f in "${_raw_flows[@]}"; do
+    f="${f// /}"
+    [[ "$f" == *.yaml ]] || f="${f}.yaml"
+    FLOWS+=("$f")
+  done
+elif [[ "${MAESTRO_FULL_SUITE:-1}" == "1" ]]; then
+  FLOWS=(
+    login-smoke.yaml
+    reception-register.yaml
+    reception-book-tab.yaml
+    reception-book-appointment.yaml
+    reception-check-in.yaml
+    billing-smoke.yaml
+  )
+else
+  echo "Set MAESTRO_FLOWS or MAESTRO_FULL_SUITE=1"
+  exit 1
+fi
 
 for f in "${FLOWS[@]}"; do
   run_maestro_test "$f"
 done
+
+if [[ -n "${MAESTRO_FLOWS:-}" ]]; then
+  echo "==> Maestro flow subset finished"
+  exit 0
+fi
 
 echo "==> Maestro doctor consult"
 export MAESTRO_CLINIC_EMAIL="${MAESTRO_DOCTOR_EMAIL:-e2e-doctor@dentacare.in}"

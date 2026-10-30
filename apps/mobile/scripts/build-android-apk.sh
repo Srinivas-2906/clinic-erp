@@ -7,7 +7,7 @@ MOBILE="$ROOT/apps/mobile"
 ARCH="${ANDROID_APK_ARCH:-x86_64}"
 export EXPO_PUBLIC_CLINIC_API="${EXPO_PUBLIC_CLINIC_API:-http://10.0.2.2:3010}"
 export NODE_PATH="${NODE_PATH:-$ROOT/node_modules}"
-export CI=1
+export CI="${CI:-1}"
 export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
@@ -34,6 +34,13 @@ align_react_native_for_bundle() {
 }
 
 align_react_native_for_bundle
+
+mkdir -p "$MOBILE/build"
+OUT="$MOBILE/build/clinic-mobile-release.apk"
+if [[ "${FORCE_ANDROID_APK_BUILD:-0}" != "1" && -f "$OUT" ]]; then
+  echo "Using existing APK at $OUT (FORCE_ANDROID_APK_BUILD=1 to rebuild)"
+  exit 0
+fi
 
 echo "==> Expo prebuild (android)"
 cd "$MOBILE"

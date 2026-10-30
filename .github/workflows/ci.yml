@@ -4,11 +4,8 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'fix/**'
-      - 'chore/**'
+    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -88,7 +85,19 @@ jobs:
           java-version: 17
       - name: Setup Android SDK
         run: chmod +x apps/mobile/scripts/setup-android-sdk-ci.sh apps/mobile/scripts/build-android-apk.sh && bash apps/mobile/scripts/setup-android-sdk-ci.sh
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            apps/mobile/android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'apps/mobile/package.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
       - name: Build release APK
+        env:
+          FORCE_ANDROID_APK_BUILD: "1"
         run: bash apps/mobile/scripts/build-android-apk.sh
       - name: Verify APK artifact
         run: test -f apps/mobile/build/clinic-mobile-release.apk
@@ -189,6 +198,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: apps/crm/.pw-browsers
+          key: pw-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            pw-browsers-${{ runner.os }}-
       - name: Install Linux native modules for Vite (Playwright webServer)
         run: |
           npm install --no-save \
@@ -220,6 +236,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: apps/crm/.pw-browsers
+          key: pw-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            pw-browsers-${{ runner.os }}-
       - name: Install Linux native modules for Vite (Playwright webServer)
         run: |
           npm install --no-save \
