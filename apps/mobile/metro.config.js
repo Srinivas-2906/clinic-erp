@@ -10,10 +10,6 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.transformer = {
-  ...config.transformer,
-  hermesParser: true,
-};
 
 const virtualViewPattern = /[\\/]virtualview[\\/]VirtualView\.js$/;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
