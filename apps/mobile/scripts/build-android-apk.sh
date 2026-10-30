@@ -37,9 +37,29 @@ align_react_native_for_bundle
 
 mkdir -p "$MOBILE/build"
 OUT="$MOBILE/build/clinic-mobile-release.apk"
-if [[ "${FORCE_ANDROID_APK_BUILD:-0}" != "1" && -f "$OUT" ]]; then
-  echo "Using existing APK at $OUT (FORCE_ANDROID_APK_BUILD=1 to rebuild)"
-  exit 0
+STAMP="$MOBILE/build/.apk-build-inputs.sha256"
+
+apk_inputs_hash() {
+  (
+    cd "$ROOT"
+    {
+      cat apps/mobile/package.json
+      cat apps/mobile/app.json 2>/dev/null || true
+      cat apps/mobile/metro.config.js 2>/dev/null || true
+      cat apps/mobile/index.js 2>/dev/null || true
+      find apps/mobile/src apps/mobile -maxdepth 1 \( -name '*.tsx' -o -name '*.ts' -o -name '*.js' \) -type f 2>/dev/null | sort | while read -r f; do cat "$f"; done
+    } | shasum -a 256 | awk '{print $1}'
+  )
+}
+
+if [[ "${FORCE_ANDROID_APK_BUILD:-0}" != "1" && -f "$OUT" && -f "$STAMP" ]]; then
+  want="$(apk_inputs_hash)"
+  have="$(cat "$STAMP")"
+  if [[ "$want" == "$have" ]]; then
+    echo "Using existing APK at $OUT (inputs unchanged; FORCE_ANDROID_APK_BUILD=1 to rebuild)"
+    exit 0
+  fi
+  echo "Mobile build inputs changed — rebuilding APK"
 fi
 
 echo "==> Expo prebuild (android)"
@@ -66,5 +86,6 @@ fi
 mkdir -p "$MOBILE/build"
 OUT="$MOBILE/build/clinic-mobile-release.apk"
 cp "$APK" "$OUT"
+apk_inputs_hash > "$STAMP"
 echo "APK_BUILT=$OUT"
 echo "Built $(du -h "$OUT" | cut -f1) release APK at $OUT"

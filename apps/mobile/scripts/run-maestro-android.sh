@@ -76,7 +76,11 @@ if [[ "${SKIP_APK_INSTALL:-0}" != "1" ]]; then
   adb shell pm clear in.kaana.clinicerp >/dev/null 2>&1 || true
   sleep 2
 else
-  echo "SKIP_APK_INSTALL=1 — reusing installed app"
+  if [[ ! -f "$MOBILE/build/.apk-build-inputs.sha256" ]] || [[ ! -f "$APK" ]]; then
+    echo "SKIP_APK_INSTALL=1 requires a built APK; run android:apk first"
+    exit 1
+  fi
+  echo "SKIP_APK_INSTALL=1 — keeping current install (relaunch via Maestro launchApp)"
 fi
 
 stabilize_emulator_for_maestro() {

@@ -62,5 +62,8 @@ Gradle and Playwright browser caches are keyed on lockfiles to speed repeat runs
 2. **Fix (d99327e):** Link `expo-asset` + `expo-constants`; keep `expo-font` excluded (Gradle `pika-compiler` missing on CI).
 3. **Maestro (d99327e CI):** App reached login UI; emulator **Settings ANR** dialog blocked `login-screen` visibility for Maestro (screenshot artifact).
 4. **Mitigation (5f19257):** Dismiss ANR flow + emulator stabilize; logcat via `grep` (not `rg`) on failure.
+5. **CI infra (5880a60):** Emulator QEMU failed on missing `libpulse.so.0` — install `libpulse0`, `-no-audio`, longer boot timeout.
 
 Do not weaken Maestro assertions; fix startup or environment blockers.
+
+Local APK reuse: `apps/mobile/build/.apk-build-inputs.sha256` must match current JS/mobile inputs or rebuild with `FORCE_ANDROID_APK_BUILD=1`.

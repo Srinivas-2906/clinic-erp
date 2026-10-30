@@ -130,6 +130,8 @@ jobs:
           java-version: 17
       - name: Install Maestro CLI
         run: chmod +x apps/mobile/scripts/setup-maestro-ci.sh && bash apps/mobile/scripts/setup-maestro-ci.sh
+      - name: Emulator runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpulse0
       - name: Run Maestro on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -143,7 +145,8 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-snapshot-save -memory 4096 -no-boot-anim
+          emulator-options: -no-snapshot-save -memory 4096 -no-boot-anim -no-audio
+          emulator-boot-timeout: 900
           script: chmod +x apps/mobile/scripts/run-maestro-android.sh && bash apps/mobile/scripts/run-maestro-android.sh
       - name: Upload Maestro artifacts on failure
         if: failure()
