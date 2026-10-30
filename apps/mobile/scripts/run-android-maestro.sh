@@ -2,7 +2,7 @@
 # Native Android Maestro — isolated E2E API + release APK (no staging/prod).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 MOBILE="$ROOT/apps/mobile"
 API="$ROOT/apps/api"
 DB_PATH="${DATABASE_PATH:-$ROOT/apps/api/data/e2e/clinic.db}"
