@@ -15,4 +15,15 @@ config.transformer = {
   hermesParser: true,
 };
 
+const virtualViewPattern = /[\\/]virtualview[\\/]VirtualView\.js$/;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (virtualViewPattern.test(moduleName) || moduleName.includes('virtualview/VirtualView')) {
+    return {
+      filePath: path.resolve(projectRoot, 'shims/VirtualView.js'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;
