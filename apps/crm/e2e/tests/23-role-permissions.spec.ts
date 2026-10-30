@@ -14,6 +14,12 @@ test.describe('Role-based access', () => {
     await expect(page.locator('h1.page-title').filter({ hasText: 'Patients' })).toBeVisible();
   });
 
+  test('doctor does not see Payments in primary navigation', async ({ page }) => {
+    await loginClinicApp(page, 'doctor');
+    await expect(page.locator('.bottom-nav').getByRole('button', { name: 'Payments' })).toHaveCount(0);
+    await expect(page.locator('.clinic-sidebar').getByRole('button', { name: 'Payments' })).toHaveCount(0);
+  });
+
   test('receptionist cannot open owner-only financial refunds UI', async ({ page }) => {
     await loginClinicApp(page, 'receptionist');
     await goToTab(page, 'payments');
