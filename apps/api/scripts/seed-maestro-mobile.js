@@ -18,6 +18,7 @@ execSync('node scripts/assert-e2e-safe-env.js', {
 const tenantId = 'denta-care';
 const MAESTRO_PATIENT_ID = 'pat-maestro-mobile';
 const MAESTRO_APPT_ID = 'appt-maestro-consult';
+const MAESTRO_CHECKIN_ID = 'appt-maestro-checkin';
 
 initDatabase();
 const db = getDb();
@@ -49,12 +50,22 @@ db.prepare(`
   ) VALUES (?, ?, ?, 'Consultation', ?, 'arrived', ?, 'Maestro consult fixture')
 `).run(MAESTRO_APPT_ID, tenantId, MAESTRO_PATIENT_ID, scheduledAt, doctor.id);
 
+const checkinAt = `${y}-${m}-${d}T11:00:00+05:30`;
+db.prepare(`DELETE FROM appointments WHERE id = ?`).run(MAESTRO_CHECKIN_ID);
+db.prepare(`
+  INSERT INTO appointments (
+    id, tenant_id, patient_id, service, scheduled_at, status, assigned_doctor_id, notes
+  ) VALUES (?, ?, ?, 'Consultation', ?, 'confirmed', ?, 'Maestro check-in fixture')
+`).run(MAESTRO_CHECKIN_ID, tenantId, MAESTRO_PATIENT_ID, checkinAt, doctor.id);
+
 closeDatabase();
 
 console.log(JSON.stringify({
   patientId: MAESTRO_PATIENT_ID,
   appointmentId: MAESTRO_APPT_ID,
+  checkInAppointmentId: MAESTRO_CHECKIN_ID,
   doctorId: doctor.id,
   scheduledAt,
   todayConsultTestId: `today-consult-${MAESTRO_APPT_ID}`,
+  todayCheckInTestId: `today-action-${MAESTRO_CHECKIN_ID}`,
 }, null, 2));

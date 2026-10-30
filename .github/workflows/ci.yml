@@ -65,11 +65,15 @@ jobs:
       - run: npm run typecheck --workspace=apps/mobile
       - run: npm test --workspace=apps/mobile
 
-  mobile-maestro-android:
-    name: Native Android Maestro
+  android-apk-build:
+    name: Android APK build
     runs-on: ubuntu-latest
-    needs: [mobile-checks, api-tests]
-    timeout-minutes: 60
+    needs: [mobile-checks]
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_CLINIC_API: http://10.0.2.2:3010
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -82,10 +86,44 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Setup Android SDK
+        run: chmod +x apps/mobile/scripts/setup-android-sdk-ci.sh apps/mobile/scripts/build-android-apk.sh && bash apps/mobile/scripts/setup-android-sdk-ci.sh
+      - name: Build release APK
+        run: bash apps/mobile/scripts/build-android-apk.sh
+      - name: Verify APK artifact
+        run: test -f apps/mobile/build/clinic-mobile-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clinic-mobile-release-apk
+          path: apps/mobile/build/clinic-mobile-release.apk
+          retention-days: 7
+
+  mobile-maestro-android:
+    name: Native Android Maestro
+    runs-on: ubuntu-latest
+    needs: [android-apk-build, api-tests]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: clinic-mobile-release-apk
+          path: apps/mobile/build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
       - name: Run Maestro on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
           DATABASE_PATH: ${{ github.workspace }}/apps/api/data/e2e/clinic.db
+          APK_PATH: ${{ github.workspace }}/apps/mobile/build/clinic-mobile-release.apk
           MAESTRO_CLINIC_EMAIL: e2e-receptionist@dentacare.in
           MAESTRO_CLINIC_PASSWORD: E2eTest@2026
           MAESTRO_CLINIC_TENANT: dentacare
@@ -94,8 +132,8 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: chmod +x apps/mobile/scripts/run-android-maestro.sh && bash apps/mobile/scripts/run-android-maestro.sh
-      - name: Upload Maestro logs on failure
+          script: chmod +x apps/mobile/scripts/run-maestro-android.sh && bash apps/mobile/scripts/run-maestro-android.sh
+      - name: Upload Maestro artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
