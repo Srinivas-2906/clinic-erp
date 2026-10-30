@@ -1,22 +1,5 @@
-appId: host.exp.exponent
 ---
-# Receptionist: Book tab → register synthetic patient (requires MAESTRO_CLINIC_*).
-- launchApp
-- tapOn:
-    id: "login-submit"
-    optional: true
-- tapOn:
-    id: "login-email"
-    optional: true
-- inputText: "${MAESTRO_CLINIC_EMAIL}"
-- tapOn:
-    id: "login-password"
-    optional: true
-- inputText: "${MAESTRO_CLINIC_PASSWORD}"
-- tapOn:
-    id: "login-submit"
-- assertVisible:
-    id: "tab-book"
+- runFlow: login-smoke.yaml
 - tapOn:
     id: "tab-book"
 - assertVisible:
@@ -26,6 +9,6 @@ appId: host.exp.exponent
 - inputText: "Maestro Walk-in"
 - tapOn:
     id: "book-new-phone"
-- inputText: "9876543210"
+- inputText: "98${MAESTRO_PHONE_TAIL}"
 - tapOn:
     id: "book-register"

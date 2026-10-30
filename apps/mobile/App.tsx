@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import type { ClinicAppointment } from '@clinic-erp/api-client';
+import type { ClinicAppointment, PatientInvoice } from '@clinic-erp/api-client';
 import { colors, spacing, typography } from '@clinic-erp/design-tokens';
 import { clinicTodayYmd } from './src/clinicTime';
 import { useClinicSession } from './src/useClinicSession';
@@ -16,8 +16,11 @@ import { TodayScreen } from './src/screens/TodayScreen';
 import { ConsultScreen } from './src/screens/ConsultScreen';
 import { PatientsScreen } from './src/screens/PatientsScreen';
 import { BookScreen } from './src/screens/BookScreen';
+import { PaymentsScreen } from './src/screens/PaymentsScreen';
+import { InvoiceDetailScreen } from './src/screens/InvoiceDetailScreen';
+import { CreateInvoiceScreen } from './src/screens/CreateInvoiceScreen';
 
-type Tab = 'today' | 'patients' | 'book';
+type Tab = 'today' | 'patients' | 'book' | 'payments';
 
 export default function App() {
   const session = useClinicSession();
@@ -28,8 +31,15 @@ export default function App() {
   const [banner, setBanner] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null);
   const [consultAppt, setConsultAppt] = useState<ClinicAppointment | null>(null);
   const [bookPatientId, setBookPatientId] = useState<string | null>(null);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [createInvoiceCtx, setCreateInvoiceCtx] = useState<{
+    patientId?: string | null;
+    appointmentId?: string | null;
+    encounterId?: string | null;
+  } | null>(null);
   const [scheduleDate, setScheduleDate] = useState(clinicTodayYmd());
   const [todayKey, setTodayKey] = useState(0);
+  const [paymentsKey, setPaymentsKey] = useState(0);
 
   useEffect(() => {
     if (!session.token) return;
@@ -45,6 +55,7 @@ export default function App() {
   }
 
   const showBookTab = session.canManageAppointments && session.canManagePatients;
+  const showPaymentsTab = session.canRecordPayments;
 
   if (session.booting) {
     return (
@@ -105,7 +116,52 @@ export default function App() {
     );
   }
 
-  const tabTitle = tab === 'today' ? 'Today' : tab === 'patients' ? 'Patients' : 'Book';
+  if (invoiceId) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        {banner ? (
+          <Text style={banner.kind === 'err' ? styles.bannerErr : styles.bannerOk}>{banner.text}</Text>
+        ) : null}
+        <InvoiceDetailScreen
+          client={session.client}
+          invoiceId={invoiceId}
+          canManageFinancials={session.canManageFinancials}
+          onBack={() => setInvoiceId(null)}
+          onError={(msg) => flash(msg, 'err')}
+          onMessage={(msg) => flash(msg, 'ok')}
+          onUpdated={() => setPaymentsKey((k) => k + 1)}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (createInvoiceCtx) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        {banner ? (
+          <Text style={banner.kind === 'err' ? styles.bannerErr : styles.bannerOk}>{banner.text}</Text>
+        ) : null}
+        <CreateInvoiceScreen
+          client={session.client}
+          prefillPatientId={createInvoiceCtx.patientId}
+          appointmentId={createInvoiceCtx.appointmentId}
+          encounterId={createInvoiceCtx.encounterId}
+          onBack={() => setCreateInvoiceCtx(null)}
+          onCreated={(id) => {
+            setCreateInvoiceCtx(null);
+            setInvoiceId(id);
+            setTab('payments');
+            setPaymentsKey((k) => k + 1);
+          }}
+          onError={(msg) => flash(msg, 'err')}
+          onMessage={(msg) => flash(msg, 'ok')}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  const tabTitle =
+    tab === 'today' ? 'Today' : tab === 'patients' ? 'Patients' : tab === 'book' ? 'Book' : 'Payments';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -139,6 +195,15 @@ export default function App() {
             <Text style={tab === 'book' ? styles.tabTextActive : styles.muted}>Book</Text>
           </TouchableOpacity>
         ) : null}
+        {showPaymentsTab ? (
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === 'payments' && styles.tabBtnActive]}
+            onPress={() => setTab('payments')}
+            testID="tab-payments"
+          >
+            <Text style={tab === 'payments' ? styles.tabTextActive : styles.muted}>Payments</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <Text style={styles.subtitle}>
         {session.tenant} · {session.meLabel || email}{session.role ? ` · ${session.role}` : ''}
@@ -163,11 +228,13 @@ export default function App() {
         <PatientsScreen
           client={session.client}
           canManageAppointments={session.canManageAppointments}
+          canRecordPayments={session.canRecordPayments}
           onBookForPatient={(id) => { setBookPatientId(id); setTab('book'); }}
+          onCreateInvoice={(patientId) => setCreateInvoiceCtx({ patientId })}
           onError={(msg) => flash(msg, 'err')}
           onMessage={(msg) => flash(msg, 'ok')}
         />
-      ) : showBookTab ? (
+      ) : tab === 'book' && showBookTab ? (
         <BookScreen
           client={session.client}
           prefillPatientId={bookPatientId}
@@ -178,6 +245,14 @@ export default function App() {
           }}
           onError={(msg) => flash(msg, 'err')}
           onMessage={(msg) => flash(msg, 'ok')}
+        />
+      ) : tab === 'payments' && showPaymentsTab ? (
+        <PaymentsScreen
+          key={paymentsKey}
+          client={session.client}
+          onOpenInvoice={(inv: PatientInvoice) => setInvoiceId(inv.id)}
+          onCreateInvoice={() => setCreateInvoiceCtx({})}
+          onError={(msg) => flash(msg, 'err')}
         />
       ) : null}
     </SafeAreaView>

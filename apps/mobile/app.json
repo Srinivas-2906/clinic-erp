@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "in.kaana.clinicerp",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#1565C0"
       }

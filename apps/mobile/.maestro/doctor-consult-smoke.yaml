@@ -1,14 +1,12 @@
-appId: host.exp.exponent
 ---
-# Doctor consult smoke — run against E2E API + seeded e2e-doctor account.
-# MAESTRO_CLINIC_EMAIL=e2e-doctor@dentacare.in MAESTRO_CLINIC_PASSWORD=...
 - runFlow: login-smoke.yaml
 - tapOn:
-    text: "Consult"
-    optional: true
-- assertVisible:
-    id: "consult-screen"
-    optional: true
+    id: "today-refresh"
+- tapOn:
+    id: "today-consult-appt-maestro-consult"
+- extendedWaitUntil:
+    visible:
+      id: "consult-screen"
+    timeout: 45000
 - tapOn:
     id: "consult-back"
-    optional: true

@@ -16,6 +16,7 @@ export type StaffSession = {
   canManageAppointments: boolean;
   canSignClinical: boolean;
   canRecordPayments: boolean;
+  canManageFinancials: boolean;
   role: string;
 };
 
@@ -98,6 +99,7 @@ export function useClinicSession() {
     canManagePatients: !!(caps?.managePatients ?? (role === 'owner' || role === 'receptionist')),
     canSignClinical: !!me?.user?.canSignClinical,
     canRecordPayments: !!caps?.recordPayments,
+    canManageFinancials: !!caps?.manageFinancials,
     login,
     logout,
     refreshMe,
