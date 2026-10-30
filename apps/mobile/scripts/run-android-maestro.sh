@@ -10,6 +10,7 @@ export DATABASE_PATH="$DB_PATH"
 export SKIP_DEMO_SEED="${SKIP_DEMO_SEED:-0}"
 export PORT="${PORT:-3010}"
 export EXPO_PUBLIC_CLINIC_API="${EXPO_PUBLIC_CLINIC_API:-http://10.0.2.2:${PORT}}"
+export NODE_PATH="${NODE_PATH:-$ROOT/node_modules}"
 
 MAESTRO_EMAIL="${MAESTRO_CLINIC_EMAIL:-e2e-receptionist@dentacare.in}"
 MAESTRO_PASSWORD="${MAESTRO_CLINIC_PASSWORD:-E2eTest@2026}"
@@ -46,8 +47,9 @@ export EXPO_PUBLIC_CLINIC_API
 npx expo prebuild --platform android --no-install --clean
 
 echo "==> Build release APK (bundled JS, x86_64 for emulator)"
-cd "$MOBILE/android"
-./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 -x lint -x test
+cd "$MOBILE"
+export EXPO_PUBLIC_CLINIC_API
+npx expo run:android --variant release --no-install --no-bundler --non-interactive -- -PreactNativeArchitectures=x86_64 -x lint -x test
 
 APK="$MOBILE/android/app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$APK" ]]; then
