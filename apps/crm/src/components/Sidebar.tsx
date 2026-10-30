@@ -26,6 +26,8 @@ interface Props {
   brandName: string;
   brandSub: string;
   userInitials: string;
+  userDisplayName?: string;
+  userRoleLabel?: string;
   showOwnerNav?: boolean;
   showPaymentsNav?: boolean;
   showReportsNav?: boolean;
@@ -39,6 +41,8 @@ export function Sidebar({
   brandName,
   brandSub,
   userInitials,
+  userDisplayName = 'Staff',
+  userRoleLabel = 'Staff',
   showOwnerNav,
   showPaymentsNav = true,
   showReportsNav = true,
@@ -90,8 +94,8 @@ export function Sidebar({
               <div className="sidebar-user">
                 <div className="sidebar-user-ava">{userInitials}</div>
                 <div className="sidebar-user-meta">
-                  <div className="sidebar-user-name">Admin</div>
-                  <div className="sidebar-user-role">Workspace owner</div>
+                  <div className="sidebar-user-name">{userDisplayName}</div>
+                  <div className="sidebar-user-role">{userRoleLabel}</div>
                 </div>
               </div>
               <button type="button" className="collapse-btn" onClick={onToggle} aria-label="Toggle sidebar">

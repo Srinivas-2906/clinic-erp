@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LogOut, RefreshCw, Search, Rows3 } from 'lucide-react';
+import { LogOut, RefreshCw, Search, Rows3, Settings, Shield } from 'lucide-react';
 import { LoginGate } from './components/LoginGate';
 import { SignupWizard } from './components/SignupWizard';
 import { Sidebar } from './components/Sidebar';
@@ -410,6 +410,8 @@ function ClinicApp() {
   /** Keep bottom nav visible while typing — users must switch tabs without dismissing the keyboard first. */
   const hideBottomNav = isPatientOpen;
   const initials = clinicName.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'AD';
+  const userRoleLabel =
+    userRole === 'owner' ? 'Clinic owner' : userRole === 'receptionist' ? 'Reception' : userRole === 'doctor' ? 'Doctor' : userRole || 'Staff';
 
   return (
     <div className={`clinic-app${keyboardOpen ? ' keyboard-open' : ''}`}>
@@ -422,6 +424,8 @@ function ClinicApp() {
         brandName={`${clinicEmoji} ${clinicName}`}
         brandSub="Clinic desk"
         userInitials={initials}
+        userDisplayName={displayName || clinicName}
+        userRoleLabel={userRoleLabel}
         showOwnerNav={userCaps.manageSettings}
         showPaymentsNav={userCaps.recordPayments || userRole === 'doctor'}
         showReportsNav={userCaps.viewReports}
@@ -475,7 +479,8 @@ function ClinicApp() {
                 </button>
                 {showUserMenu && (
                   <div className="user-menu">
-                    <div className="user-menu-name">{clinicName}</div>
+                    <div className="user-menu-name">{displayName || clinicName}</div>
+                    <div className="user-menu-sub">{userRoleLabel}</div>
                     <button type="button" className="user-menu-item" onClick={logout}>
                       <LogOut size={14} /> Log out
                     </button>
@@ -486,6 +491,12 @@ function ClinicApp() {
                         </button>
                         <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); handleTabChange('team'); }}>
                           Team
+                        </button>
+                        <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); handleTabChange('settings'); }}>
+                          <Settings size={14} /> Settings
+                        </button>
+                        <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); handleTabChange('audit'); }}>
+                          <Shield size={14} /> Activity
                         </button>
                       </>
                     )}
