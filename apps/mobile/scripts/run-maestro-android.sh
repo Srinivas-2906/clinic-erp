@@ -101,8 +101,8 @@ FLOWS=(
 for f in "${FLOWS[@]}"; do
   echo "==> Maestro $f"
   if ! maestro test ".maestro/$f"; then
-    echo "==> Maestro failed; adb logcat tail"
-    adb logcat -d -t 200 2>/dev/null || true
+    echo "==> Maestro failed; filtered logcat (clinicerp / ReactNative)"
+    adb logcat -d -v time 2>/dev/null | rg -i "clinicerp|ReactNativeJS|AndroidRuntime|FATAL|ExponentConstants|AppRegistry|expo-asset|main.*not registered" | tail -200 || true
     exit 1
   fi
 done
