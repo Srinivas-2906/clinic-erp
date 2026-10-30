@@ -5,13 +5,17 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "clinicerp",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "bundleIdentifier": "in.kaana.clinicerp",
       "supportsTablet": true
     },
     "android": {
       "package": "in.kaana.clinicerp",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#1565C0"
       }

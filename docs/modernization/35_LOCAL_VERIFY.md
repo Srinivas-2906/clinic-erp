@@ -35,6 +35,8 @@ Tenant slug: `dentacare` → http://localhost:5185?tenant=dentacare
 
 Pull requests: API tests, CRM unit tests, build, **Playwright smoke** (no GCP).
 
+See **`docs/modernization/36_DEV_SPEED.md`** for focused local commands and CI timing notes.
+
 Cloud/staging workflows remain separate (`staging-ops`, `staging-e2e`).
 
 ## Mobile (Maestro)

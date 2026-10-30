@@ -1,20 +1,28 @@
-appId: host.exp.exponent
+appId: in.kaana.clinicerp
 ---
-# Requires Metro + Expo Go; set MAESTRO_CLINIC_* env vars.
-- launchApp
+- launchApp:
+    clearState: true
+- runFlow: dismiss-android-anr.yaml
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 90000
+- tapOn:
+    id: "login-tenant"
+    optional: true
+- eraseText
+- inputText: "${MAESTRO_CLINIC_TENANT}"
 - tapOn:
     id: "login-email"
-    optional: true
+- eraseText
 - inputText: "${MAESTRO_CLINIC_EMAIL}"
 - tapOn:
     id: "login-password"
-    optional: true
+- eraseText
 - inputText: "${MAESTRO_CLINIC_PASSWORD}"
 - tapOn:
     id: "login-submit"
-- assertVisible:
-    id: "today-screen"
-- tapOn:
-    id: "today-refresh"
-- assertVisible:
-    id: "tab-today"
+- extendedWaitUntil:
+    visible:
+      id: "today-screen"
+    timeout: 60000

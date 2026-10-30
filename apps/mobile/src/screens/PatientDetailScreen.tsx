@@ -18,8 +18,10 @@ type Props = {
   client: ClinicApiClient;
   patientId: string;
   canManageAppointments: boolean;
+  canRecordPayments: boolean;
   onBack: () => void;
   onBook: () => void;
+  onCreateInvoice: () => void;
   onError: (msg: string) => void;
   onMessage: (msg: string) => void;
 };
@@ -28,8 +30,10 @@ export function PatientDetailScreen({
   client,
   patientId,
   canManageAppointments,
+  canRecordPayments,
   onBack,
   onBook,
+  onCreateInvoice,
   onError,
   onMessage,
 }: Props) {
@@ -121,6 +125,11 @@ export function PatientDetailScreen({
           <Text style={styles.bookBtnText}>Book appointment</Text>
         </TouchableOpacity>
       ) : null}
+      {canRecordPayments ? (
+        <TouchableOpacity style={styles.invoiceBtn} onPress={onCreateInvoice} testID="patient-new-invoice">
+          <Text style={styles.invoiceBtnText}>New invoice</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {rescheduleAppt ? (
         <View style={styles.panel}>
@@ -175,6 +184,8 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, marginBottom: spacing.sm },
   bookBtn: { backgroundColor: colors.brand, padding: spacing.sm, borderRadius: 8, marginBottom: spacing.md, alignSelf: 'flex-start' },
   bookBtnText: { color: '#fff', fontWeight: typography.weightSemibold },
+  invoiceBtn: { borderWidth: 1, borderColor: colors.brand, padding: spacing.sm, borderRadius: 8, marginBottom: spacing.md, alignSelf: 'flex-start' },
+  invoiceBtnText: { color: colors.brand, fontWeight: typography.weightSemibold },
   card: { backgroundColor: colors.surface, padding: spacing.md, borderRadius: 10, marginBottom: spacing.sm },
   cardTitle: { fontWeight: typography.weightMedium },
   row: { flexDirection: 'row', gap: 16, marginTop: 8 },

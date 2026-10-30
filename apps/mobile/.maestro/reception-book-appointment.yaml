@@ -1,0 +1,29 @@
+appId: in.kaana.clinicerp
+---
+- runFlow: login-smoke.yaml
+- tapOn:
+    id: "tab-book"
+- assertVisible:
+    id: "book-screen"
+- tapOn:
+    id: "book-search"
+- inputText: "Maestro Mobile"
+- tapOn:
+    id: "book-patient-pat-maestro-mobile"
+- tapOn:
+    id: "book-doctor-doc-denta-care-default"
+    optional: true
+- tapOn:
+    text: "Dr"
+    optional: true
+- tapOn:
+    id: "book-next-slot"
+- tapOn:
+    id: "book-slot-0"
+    optional: true
+- tapOn:
+    id: "book-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "today-screen"
+    timeout: 60000

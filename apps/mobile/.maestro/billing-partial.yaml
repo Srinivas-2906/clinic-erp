@@ -1,0 +1,36 @@
+appId: in.kaana.clinicerp
+---
+- runFlow: login-smoke.yaml
+- tapOn:
+    id: "tab-payments"
+- tapOn:
+    id: "payments-new-invoice"
+- tapOn:
+    id: "create-invoice-search"
+- inputText: "Maestro Mobile"
+- tapOn:
+    id: "create-invoice-patient-pat-maestro-mobile"
+- tapOn:
+    id: "create-invoice-line-desc"
+- inputText: "Partial pay test"
+- tapOn:
+    id: "create-invoice-line-price"
+- inputText: "1000"
+- tapOn:
+    id: "create-invoice-submit"
+- extendedWaitUntil:
+    visible:
+      id: "invoice-detail"
+    timeout: 45000
+- tapOn:
+    id: "invoice-record-pay"
+- tapOn:
+    id: "invoice-pay-amount"
+- eraseText
+- inputText: "400"
+- tapOn:
+    id: "invoice-pay-submit"
+- extendedWaitUntil:
+    visible:
+      text: "Partial"
+    timeout: 30000

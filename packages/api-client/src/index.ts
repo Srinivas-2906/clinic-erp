@@ -61,6 +61,37 @@ export type TodayStats = {
   unconfirmedToday?: number;
 };
 
+export type InvoiceLineItem = {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  catalogItemId?: string | null;
+};
+
+export type PatientInvoice = {
+  id: string;
+  patientId: string;
+  appointmentId?: string | null;
+  encounterId?: string | null;
+  status: 'open' | 'partial' | 'paid' | 'void';
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  currency?: string;
+  notes?: string;
+  createdAt?: string;
+  lineItems: InvoiceLineItem[];
+};
+
+export type CatalogItem = {
+  id: string;
+  title: string;
+  priceNum?: number;
+  price?: number | string;
+};
+
 export type EncounterDetail = {
   id: string;
   patientId: string;
@@ -201,6 +232,45 @@ export function createClinicApiClient({ baseUrl, auth }: ClinicApiClientOptions)
       request<{ allergies: { substance: string; severity?: string }[] }>(
         `/api/clinic/patients/${encodeURIComponent(patientId)}/allergies`,
       ),
+    fetchCatalog: () =>
+      request<{ items: CatalogItem[] } | CatalogItem[]>(`/api/catalog`),
+    fetchInvoices: (opts?: { patientId?: string; status?: string }) => {
+      const q = new URLSearchParams();
+      if (opts?.patientId) q.set('patientId', opts.patientId);
+      if (opts?.status) q.set('status', opts.status);
+      const qs = q.toString();
+      return request<{ invoices: PatientInvoice[] }>(`/api/clinic/invoices${qs ? `?${qs}` : ''}`);
+    },
+    fetchInvoice: (id: string) => request<PatientInvoice>(`/api/clinic/invoices/${encodeURIComponent(id)}`),
+    createInvoice: (body: {
+      patientId: string;
+      appointmentId?: string;
+      encounterId?: string;
+      notes?: string;
+      lineItems: { description: string; quantity?: number; unitPrice: number; catalogItemId?: string }[];
+    }) =>
+      request<PatientInvoice>(`/api/clinic/invoices`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    voidInvoice: (id: string, reason?: string) =>
+      request<PatientInvoice>(`/api/clinic/invoices/${encodeURIComponent(id)}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason || '' }),
+      }),
+    recordPayment: (body: {
+      patientId: string;
+      amount: number;
+      method?: string;
+      reference?: string;
+      notes?: string;
+      invoiceId?: string;
+      idempotencyKey?: string;
+    }) =>
+      request<{ id: string }>(`/api/clinic/payments`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   };
 }
 
