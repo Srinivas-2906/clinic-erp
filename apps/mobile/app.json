@@ -20,13 +20,13 @@
         "backgroundColor": "#1565C0"
       }
     },
+    "autolinking": {
+      "exclude": ["expo-file-system"]
+    },
     "extra": {
       "eas": {
         "projectId": "REPLACE_AFTER_EAS_INIT"
       }
-    },
-    "plugins": [
-      "expo-asset"
-    ]
+    }
   }
 }
