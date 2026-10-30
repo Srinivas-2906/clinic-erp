@@ -14,7 +14,9 @@ import { PatientDetailScreen } from './PatientDetailScreen';
 type Props = {
   client: ClinicApiClient;
   canManageAppointments: boolean;
+  canRecordPayments: boolean;
   onBookForPatient: (patientId: string) => void;
+  onCreateInvoice: (patientId: string) => void;
   onError: (msg: string) => void;
   onMessage: (msg: string) => void;
 };
@@ -22,7 +24,9 @@ type Props = {
 export function PatientsScreen({
   client,
   canManageAppointments,
+  canRecordPayments,
   onBookForPatient,
+  onCreateInvoice,
   onError,
   onMessage,
 }: Props) {
@@ -45,10 +49,12 @@ export function PatientsScreen({
         client={client}
         patientId={selectedId}
         canManageAppointments={canManageAppointments}
+        canRecordPayments={canRecordPayments}
         onBack={() => setSelectedId(null)}
         onBook={() => {
           onBookForPatient(selectedId);
         }}
+        onCreateInvoice={() => onCreateInvoice(selectedId)}
         onError={onError}
         onMessage={onMessage}
       />

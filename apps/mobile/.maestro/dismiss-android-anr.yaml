@@ -1,0 +1,9 @@
+appId: in.kaana.clinicerp
+---
+# CI emulators sometimes show a system ANR over the app; dismiss without closing Clinic ERP.
+- tapOn:
+    text: "Wait"
+    optional: true
+- tapOn:
+    text: "Wait"
+    optional: true

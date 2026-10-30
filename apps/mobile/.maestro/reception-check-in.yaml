@@ -1,21 +1,11 @@
-appId: host.exp.exponent
+appId: in.kaana.clinicerp
 ---
-# Receptionist: Today queue check-in when action visible (data-dependent).
-- launchApp
-- tapOn:
-    id: "login-email"
-    optional: true
-- inputText: "${MAESTRO_CLINIC_EMAIL}"
-- tapOn:
-    id: "login-password"
-    optional: true
-- inputText: "${MAESTRO_CLINIC_PASSWORD}"
-- tapOn:
-    id: "login-submit"
-- assertVisible:
-    id: "today-screen"
+- runFlow: login-smoke.yaml
 - tapOn:
     id: "today-refresh"
 - tapOn:
-    id: "today-action-.*"
-    optional: true
+    id: "today-action-appt-maestro-checkin"
+- extendedWaitUntil:
+    visible:
+      text: "Arrived"
+    timeout: 30000

@@ -1,0 +1,37 @@
+appId: in.kaana.clinicerp
+---
+# Owner/receptionist billing — uses MAESTRO_CLINIC_* (e2e-receptionist).
+- runFlow: login-smoke.yaml
+- assertVisible:
+    id: "tab-payments"
+- tapOn:
+    id: "tab-payments"
+- assertVisible:
+    id: "payments-screen"
+- tapOn:
+    id: "payments-new-invoice"
+- assertVisible:
+    id: "create-invoice"
+- tapOn:
+    id: "create-invoice-search"
+- inputText: "Maestro Mobile"
+- tapOn:
+    id: "create-invoice-patient-pat-maestro-mobile"
+- tapOn:
+    id: "create-invoice-line-desc"
+- inputText: "Maestro consultation fee"
+- tapOn:
+    id: "create-invoice-line-price"
+- inputText: "500"
+- tapOn:
+    id: "create-invoice-submit"
+- extendedWaitUntil:
+    visible:
+      id: "invoice-detail"
+    timeout: 45000
+- tapOn:
+    id: "invoice-pay-full"
+- extendedWaitUntil:
+    visible:
+      text: "Paid"
+    timeout: 30000
