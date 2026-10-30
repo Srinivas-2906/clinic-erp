@@ -72,9 +72,8 @@ install_apk_with_retry() {
 echo "==> Install APK"
 wait_for_emulator_ready
 install_apk_with_retry "$APK"
-adb shell am force-stop in.kaana.clinicerp || true
-adb shell monkey -p in.kaana.clinicerp -c android.intent.category.LAUNCHER 1
-sleep 3
+adb shell pm clear in.kaana.clinicerp >/dev/null 2>&1 || true
+sleep 2
 
 export PATH="${MAESTRO_HOME:-$HOME/.maestro}/maestro/bin:$PATH"
 if ! command -v maestro >/dev/null; then

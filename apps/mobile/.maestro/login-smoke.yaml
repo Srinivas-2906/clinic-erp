@@ -2,6 +2,10 @@ appId: in.kaana.clinicerp
 ---
 - launchApp:
     clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 90000
 - tapOn:
     id: "login-tenant"
     optional: true

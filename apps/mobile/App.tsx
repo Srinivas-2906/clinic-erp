@@ -59,7 +59,7 @@ export default function App() {
 
   if (session.booting) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.centered} testID="boot-screen">
         <ActivityIndicator color={colors.brand} />
       </View>
     );
