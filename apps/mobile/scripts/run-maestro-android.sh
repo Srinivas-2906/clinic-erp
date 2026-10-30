@@ -42,9 +42,36 @@ done
 curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null
 echo "API health OK"
 
+wait_for_emulator_ready() {
+  adb wait-for-device
+  for _ in $(seq 1 120); do
+    boot="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+    if [[ "$boot" == "1" ]]; then
+      break
+    fi
+    sleep 2
+  done
+  adb shell getprop sys.boot_completed | tr -d '\r'
+  sleep 5
+}
+
+install_apk_with_retry() {
+  local apk="$1"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    echo "==> adb install attempt $attempt"
+    if adb install -r -g "$apk"; then
+      return 0
+    fi
+    sleep "$((attempt * 5))"
+    wait_for_emulator_ready
+  done
+  return 1
+}
+
 echo "==> Install APK"
-adb wait-for-device
-adb install -r "$APK"
+wait_for_emulator_ready
+install_apk_with_retry "$APK"
 adb shell am force-stop in.kaana.clinicerp || true
 adb shell monkey -p in.kaana.clinicerp -c android.intent.category.LAUNCHER 1
 sleep 3
