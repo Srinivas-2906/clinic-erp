@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/appointmentUi.test.ts src/lib/slots.test.ts src/lib/billingUi.test.ts"
   },
@@ -15,6 +15,7 @@
     "@clinic-erp/contracts": "0.1.0",
     "@clinic-erp/design-tokens": "0.1.0",
     "expo": "~52.0.30",
+    "expo-asset": "~11.0.5",
     "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~2.0.1",
     "react": "18.3.1",

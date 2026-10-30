@@ -5,7 +5,10 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "clinicerp",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "bundleIdentifier": "in.kaana.clinicerp",
       "supportsTablet": true
@@ -21,6 +24,9 @@
       "eas": {
         "projectId": "REPLACE_AFTER_EAS_INIT"
       }
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
