@@ -2343,6 +2343,16 @@ img, video, canvas { max-width: 100%; height: auto; }
   color: var(--brand-dark);
 }
 
+@media (max-width: 767px) {
+  .team-access-filters {
+    flex-wrap: wrap;
+  }
+  .team-filter-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+}
+
 .team-invite-banner {
   display: flex;
   align-items: flex-start;
@@ -2474,6 +2484,21 @@ img, video, canvas { max-width: 100%; height: auto; }
 .audit-table th, .audit-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
 .audit-table th { background: var(--surface-2, #f8fafc); font-weight: 600; color: var(--muted); }
 .audit-detail-cell { max-width: 280px; word-break: break-word; font-family: ui-monospace, monospace; font-size: 11px; }
+
+@media (max-width: 767px) {
+  .audit-filters {
+    width: 100%;
+  }
+  .audit-filters .login-input {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .audit-filters .login-submit,
+  .audit-filters .login-switch-mode {
+    min-height: 44px;
+  }
+}
 .muted-text { color: var(--muted); font-size: 14px; }
 
 .doctors-empty,
@@ -4851,6 +4876,17 @@ body.modal-open .clinic-app {
   padding: 8px 0 4px;
 }
 
+.reports-loading-card {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
 .reports-summary-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -4986,6 +5022,100 @@ body.modal-open .clinic-app {
 @media (max-width: 520px) {
   .reports-date-grid {
     grid-template-columns: 1fr;
+  }
+
+  .reports-download-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-preset,
+  .reports-preview-tab {
+    min-height: 44px;
+  }
+
+  .reports-show-all {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  .reports-table-wrap,
+  .audit-table-wrap {
+    overflow: visible;
+    max-height: none;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .reports-table,
+  .reports-table thead,
+  .reports-table tbody,
+  .reports-table tr,
+  .reports-table th,
+  .reports-table td,
+  .audit-table,
+  .audit-table thead,
+  .audit-table tbody,
+  .audit-table tr,
+  .audit-table th,
+  .audit-table td {
+    display: block;
+  }
+
+  .reports-table thead,
+  .audit-table thead {
+    display: none;
+  }
+
+  .reports-table tbody tr,
+  .audit-table tbody tr {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .reports-table tbody tr:hover,
+  .audit-table tbody tr:hover {
+    background: var(--surface);
+  }
+
+  .reports-table td,
+  .audit-table td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    border: none;
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: right;
+  }
+
+  .reports-table td:first-child,
+  .audit-table td:first-child {
+    border-top: none;
+  }
+
+  .reports-table td::before,
+  .audit-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    text-align: left;
+  }
+
+  .audit-detail-cell {
+    max-width: none;
+    word-break: break-word;
   }
 }
 

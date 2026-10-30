@@ -103,11 +103,11 @@ export function AuditView() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.createdAt}</td>
-                    <td>{row.action}</td>
-                    <td>{row.entityType || '—'}</td>
-                    <td>{row.userEmail || row.userName || '—'}</td>
-                    <td className="audit-detail-cell">
+                    <td data-label="When">{row.createdAt}</td>
+                    <td data-label="Action">{row.action}</td>
+                    <td data-label="Type">{row.entityType || '—'}</td>
+                    <td data-label="User">{row.userEmail || row.userName || '—'}</td>
+                    <td className="audit-detail-cell" data-label="Detail">
                       {Object.keys(row.detail || {}).length
                         ? JSON.stringify(row.detail)
                         : '—'}
