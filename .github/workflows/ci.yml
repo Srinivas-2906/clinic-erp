@@ -82,7 +82,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - name: Run Maestro on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
