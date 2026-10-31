@@ -4,7 +4,7 @@ import { getPatientById } from '../../services/clinicStore.js';
 import { assertDoctorBelongsToTenant, getDoctorById } from '../providers/doctors.service.js';
 import { logAudit } from '../../services/clinicAudit.js';
 import { requireClinician, resolveClinicianDoctorId } from './clinicalPermissions.js';
-import { assertCapability, canStartConsultation } from '../identity/rolePolicy.js';
+import { assertCapability, canStartConsultation, canManageAppointments } from '../identity/rolePolicy.js';
 import { buildPrescriptionPdfBuffer } from './prescriptionPdf.js';
 import { saveBinaryUpload, deleteBinaryUpload } from '../../services/uploads.js';
 import { enqueueReminder } from '../../services/reminders/index.js';
@@ -597,7 +597,106 @@ export function scheduleFollowUp(encounterId, tenantId, user, { dueDate, instruc
     dueDate: due,
     instructions: String(instructions || '').trim(),
     reminderJobId,
+    status: 'pending',
   };
+}
+
+function mapFollowUpRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    encounterId: row.encounter_id,
+    patientId: row.patient_id,
+    dueDate: row.due_date,
+    instructions: row.instructions || '',
+    status: row.status || 'pending',
+    scheduledAppointmentId: row.scheduled_appointment_id || null,
+    createdAt: row.created_at,
+    patientName: row.patient_name || '',
+    patientPhone: row.patient_phone || '',
+    chiefComplaint: row.chief_complaint || '',
+    encounterFinalizedAt: row.finalized_at || null,
+    scheduledAt: row.scheduled_at || null,
+    appointmentStatus: row.appointment_status || null,
+  };
+}
+
+export function listClinicFollowUps(tenantId, { status = 'pending', patientId, limit = 100 } = {}) {
+  let sql = `
+    SELECT fu.*, p.name AS patient_name, p.phone AS patient_phone,
+      e.chief_complaint, e.finalized_at,
+      a.scheduled_at, a.status AS appointment_status
+    FROM follow_ups fu
+    JOIN patients p ON p.id = fu.patient_id AND p.tenant_id = fu.tenant_id
+    JOIN encounters e ON e.id = fu.encounter_id AND e.tenant_id = fu.tenant_id
+    LEFT JOIN appointments a ON a.id = fu.scheduled_appointment_id AND a.tenant_id = fu.tenant_id
+    WHERE fu.tenant_id = ?
+  `;
+  const params = [tenantId];
+  if (patientId) {
+    sql += ' AND fu.patient_id = ?';
+    params.push(patientId);
+  }
+  if (status === 'pending') {
+    sql += ` AND fu.status = 'pending'`;
+  } else if (status === 'scheduled') {
+    sql += ` AND fu.status = 'scheduled' AND (a.status IS NULL OR a.status NOT IN ('cancelled', 'no_show'))`;
+  } else if (status !== 'all') {
+    sql += ' AND fu.status = ?';
+    params.push(status);
+  }
+  sql += ' ORDER BY fu.due_date ASC, fu.created_at ASC LIMIT ?';
+  params.push(limit);
+  return getDb().prepare(sql).all(...params).map(mapFollowUpRow);
+}
+
+export function linkFollowUpToAppointment(followUpId, tenantId, user, appointmentId) {
+  assertCapability(user, canManageAppointments, 'Front desk access required to schedule follow-ups');
+  const fu = getDb().prepare(
+    `SELECT * FROM follow_ups WHERE id = ? AND tenant_id = ?`,
+  ).get(followUpId, tenantId);
+  if (!fu) {
+    const err = new Error('Follow-up not found');
+    err.status = 404;
+    throw err;
+  }
+  if (fu.status === 'cancelled') throw new Error('Follow-up is cancelled');
+  const appt = getDb().prepare(
+    `SELECT id, patient_id, status, scheduled_at FROM appointments WHERE id = ? AND tenant_id = ?`,
+  ).get(appointmentId, tenantId);
+  if (!appt) {
+    const err = new Error('Appointment not found');
+    err.status = 404;
+    throw err;
+  }
+  if (appt.patient_id !== fu.patient_id) throw new Error('Appointment must be for the same patient');
+  if (appt.status === 'cancelled' || appt.status === 'no_show') {
+    throw new Error('Cannot link to a cancelled appointment');
+  }
+  if (fu.scheduled_appointment_id === appointmentId && fu.status === 'scheduled') {
+    return mapFollowUpRow(getDb().prepare(`
+      SELECT fu.*, p.name AS patient_name, p.phone AS patient_phone,
+        e.chief_complaint, e.finalized_at, a.scheduled_at, a.status AS appointment_status
+      FROM follow_ups fu
+      JOIN patients p ON p.id = fu.patient_id AND p.tenant_id = fu.tenant_id
+      JOIN encounters e ON e.id = fu.encounter_id AND e.tenant_id = fu.tenant_id
+      LEFT JOIN appointments a ON a.id = fu.scheduled_appointment_id AND a.tenant_id = fu.tenant_id
+      WHERE fu.id = ? AND fu.tenant_id = ?
+    `).get(followUpId, tenantId));
+  }
+  getDb().prepare(`
+    UPDATE follow_ups SET status = 'scheduled', scheduled_appointment_id = ? WHERE id = ? AND tenant_id = ?
+  `).run(appointmentId, followUpId, tenantId);
+  logAudit(tenantId, user.sub, 'update', 'follow_up', followUpId, { appointmentId, action: 'link_appointment' });
+  return mapFollowUpRow(getDb().prepare(`
+    SELECT fu.*, p.name AS patient_name, p.phone AS patient_phone,
+      e.chief_complaint, e.finalized_at, a.scheduled_at, a.status AS appointment_status
+    FROM follow_ups fu
+    JOIN patients p ON p.id = fu.patient_id AND p.tenant_id = fu.tenant_id
+    JOIN encounters e ON e.id = fu.encounter_id AND e.tenant_id = fu.tenant_id
+    LEFT JOIN appointments a ON a.id = fu.scheduled_appointment_id AND a.tenant_id = fu.tenant_id
+    WHERE fu.id = ? AND fu.tenant_id = ?
+  `).get(followUpId, tenantId));
 }
 
 export function listPatientAllergies(patientId, tenantId) {
