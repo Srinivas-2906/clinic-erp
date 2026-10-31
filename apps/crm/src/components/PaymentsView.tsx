@@ -253,7 +253,7 @@ export function PaymentsView({
       {section === 'invoices' ? (
         <ul className="payment-list">
           {visibleInvoices.length === 0 ? (
-            <li className="muted">
+            <li className="payments-empty-card">
               {invoiceFilter === 'due' ? 'No invoices with balance due.' : 'No invoices yet. Create one to track balances, or keep using quick payments without invoices.'}
             </li>
           ) : visibleInvoices.map((inv) => (
@@ -288,7 +288,7 @@ export function PaymentsView({
       ) : (
         <ul className="payment-list">
           {payments.length === 0 ? (
-            <li className="muted">No payments yet.</li>
+            <li className="payments-empty-card">No payments yet.</li>
           ) : payments.map((p) => {
             const isRefund = p.kind === 'refund';
             const canEdit = canRecordPayments && !isRefund && p.kind !== 'refund';
