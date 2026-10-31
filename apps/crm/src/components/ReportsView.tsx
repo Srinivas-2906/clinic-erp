@@ -414,6 +414,12 @@ export function ReportsView({
         </button>
       </div>
 
+      {loading && !hasPreview && (
+        <div className="reports-loading-card" role="status" aria-live="polite">
+          Loading report…
+        </div>
+      )}
+
       {!hasPreview && !loading && (
         <p className="reports-tap-hint">Pick dates and tap Load report to see preview.</p>
       )}
@@ -470,10 +476,10 @@ export function ReportsView({
                     <tbody>
                       {visibleAppointments.map((a) => (
                         <tr key={a.id}>
-                          <td>{new Date(a.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                          <td>{a.patientName || 'Patient'}</td>
-                          <td>{a.service || 'Check-up'}</td>
-                          <td>{STATUS_LABELS[a.status]}</td>
+                          <td data-label="Date">{new Date(a.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                          <td data-label="Patient">{a.patientName || 'Patient'}</td>
+                          <td data-label="Treatment">{a.service || 'Check-up'}</td>
+                          <td data-label="Status">{STATUS_LABELS[a.status]}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -507,10 +513,10 @@ export function ReportsView({
                   <tbody>
                     {visiblePayments.map((p) => (
                       <tr key={p.id}>
-                        <td>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
-                        <td>{p.patientName || 'Patient'}</td>
-                        <td>{formatRs(p.amount || 0)}</td>
-                        <td>{p.method || '—'}</td>
+                        <td data-label="Date">{p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                        <td data-label="Patient">{p.patientName || 'Patient'}</td>
+                        <td data-label="Amount">{formatRs(p.amount || 0)}</td>
+                        <td data-label="Method">{p.method || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
