@@ -27,6 +27,8 @@ const {
   encounterDetail,
   listEncountersForPatient,
   scheduleFollowUp,
+  listClinicFollowUps,
+  linkFollowUpToAppointment,
   amendFinalizedEncounter,
   setFinalizeTxnBeforeCommitForTests,
   resetFinalizeTxnBeforeCommitForTests,
@@ -264,6 +266,49 @@ describe('clinical encounters', () => {
       `SELECT COUNT(*) AS c FROM follow_ups WHERE tenant_id = ? AND encounter_id = ? AND due_date = ?`,
     ).get(ctx.tenantId, enc.id, due);
     assert.equal(rows.c, 1);
+  });
+
+  it('lists pending follow-ups and links return appointment', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'receptionist' };
+    const enc = createEncounter(ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      prescriptionItems: [{ drugName: 'Paracetamol', dose: '500mg' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' });
+    const due = '2030-07-01';
+    const fu = scheduleFollowUp(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      dueDate: due,
+      instructions: 'Review healing',
+    });
+
+    const pending = listClinicFollowUps(ctx.tenantId, { status: 'pending' });
+    assert.ok(pending.some((r) => r.id === fu.id));
+
+    const otherTenant = listClinicFollowUps('other-tenant-id', { status: 'pending' });
+    assert.equal(otherTenant.length, 0);
+
+    const db = getDb();
+    const apptId = `appt-fu-${Date.now()}`;
+    db.prepare(`
+      INSERT INTO appointments (id, tenant_id, patient_id, service, scheduled_at, status)
+      VALUES (?, ?, ?, 'Follow-up visit', datetime('now', '+3 days'), 'confirmed')
+    `).run(apptId, ctx.tenantId, ctx.patientId);
+
+    const linked = linkFollowUpToAppointment(fu.id, ctx.tenantId, user, apptId);
+    assert.equal(linked.status, 'scheduled');
+    assert.equal(linked.scheduledAppointmentId, apptId);
+
+    const pendingAfter = listClinicFollowUps(ctx.tenantId, { status: 'pending' });
+    assert.ok(!pendingAfter.some((r) => r.id === fu.id));
+
+    const { updateAppointment } = await import('../../services/clinicStore.js');
+    updateAppointment(apptId, ctx.tenantId, { status: 'cancelled' });
+
+    const reopened = listClinicFollowUps(ctx.tenantId, { status: 'pending' });
+    assert.ok(reopened.some((r) => r.id === fu.id));
   });
 
   it('amendment is auditable and limited to permitted fields', () => {

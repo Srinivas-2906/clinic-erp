@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, MessageSquare, UserCheck, Clock, FileText, PlusCircle, Phone, Pencil, Banknote, Share2 } from 'lucide-react';
 import type { Appointment, Patient, Payment, Encounter } from '../types';
-import { fetchPatientAllergies, addPatientAllergy, updatePatientAllergy, deletePatientAllergy, openPrescriptionPdf, fetchMe, regeneratePrescriptionPdf } from '../lib/api';
+import { fetchPatientAllergies, addPatientAllergy, updatePatientAllergy, deletePatientAllergy, openPrescriptionPdf, fetchMe, regeneratePrescriptionPdf, fetchClinicFollowUps } from '../lib/api';
+import type { ClinicFollowUp } from '../types';
 import { EncounterAmendDialog } from './EncounterAmendDialog';
 import { STATUS_LABELS } from '../types';
 import { updatePatient, updateAppointment, fetchPatientPayments } from '../lib/api';
@@ -39,7 +40,7 @@ interface Props {
   onBack: () => void;
   onUpdated: () => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
-  onBookFollowup?: (patient: Patient) => void;
+  onBookFollowup?: (patient: Patient, followUpId?: string) => void;
   canRecordPayments?: boolean;
 }
 
@@ -58,6 +59,7 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
   const [editingAllergyId, setEditingAllergyId] = useState<string | null>(null);
   const [canSignClinical, setCanSignClinical] = useState(false);
   const [amendEncounter, setAmendEncounter] = useState<Encounter | null>(null);
+  const [pendingFollowUps, setPendingFollowUps] = useState<ClinicFollowUp[]>([]);
   const [fg, bg] = ava(patient.name);
   const telUrl = toTelUrl(patient.phone);
   const waUrl = toWhatsAppUrl(patient.phone);
@@ -95,6 +97,9 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
     fetchMe()
       .then((m) => { if (alive) setCanSignClinical(!!m.user?.canSignClinical); })
       .catch(() => { if (alive) setCanSignClinical(false); });
+    fetchClinicFollowUps({ status: 'pending', patientId: patient.id })
+      .then((data) => { if (alive) setPendingFollowUps(data.followUps || []); })
+      .catch(() => { if (alive) setPendingFollowUps([]); });
     return () => { alive = false; };
   }, [patient.id]);
 
@@ -309,6 +314,33 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
                     <dd>{patient.source || '—'}</dd>
                   </dl>
                 </div>
+
+                {pendingFollowUps.length > 0 && (
+                  <div className="patient-follow-ups-block">
+                    <p className="panel-title" style={{ marginBottom: 8 }}>Recommended follow-up</p>
+                    <ul className="follow-ups-list">
+                      {pendingFollowUps.map((fu) => (
+                        <li key={fu.id}>
+                          <div className="follow-ups-row">
+                            <div className="follow-ups-row-main">
+                              <span className="follow-ups-due">Due {fu.dueDate}</span>
+                              {fu.instructions ? <span className="follow-ups-note">{fu.instructions}</span> : null}
+                            </div>
+                            {onBookFollowup && (
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm follow-ups-schedule-btn"
+                                onClick={() => onBookFollowup(patient, fu.id)}
+                              >
+                                Schedule
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {waUrl && (

@@ -11,6 +11,8 @@ import {
   encounterDetail,
   listEncountersForPatient,
   scheduleFollowUp,
+  listClinicFollowUps,
+  linkFollowUpToAppointment,
   listPatientAllergies,
   addPatientAllergy,
   updatePatientAllergy,
@@ -93,7 +95,30 @@ export function clinicalRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     try {
       const fu = scheduleFollowUp(req.params.id, req.user.tenantId, req.user, req.body ?? {});
-      res.status(201).json(fu);
+      res.status(fu.idempotentReplay ? 200 : 201).json(fu);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  r.get('/follow-ups', (req, res) => {
+    if (!req.user.tenantId || !canViewClinical(req.user)) {
+      return res.status(403).json({ error: 'Tenant access required' });
+    }
+    const status = String(req.query.status || 'pending').trim() || 'pending';
+    const patientId = req.query.patientId ? String(req.query.patientId) : undefined;
+    res.json({
+      followUps: listClinicFollowUps(req.user.tenantId, { status, patientId }),
+    });
+  });
+
+  r.post('/follow-ups/:id/link-appointment', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const appointmentId = String(req.body?.appointmentId || '').trim();
+      if (!appointmentId) return res.status(400).json({ error: 'appointmentId required' });
+      const row = linkFollowUpToAppointment(req.params.id, req.user.tenantId, req.user, appointmentId);
+      res.json(row);
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }

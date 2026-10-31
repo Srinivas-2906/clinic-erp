@@ -82,6 +82,8 @@ function ClinicApp() {
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(() => resolveClinicProfile(null));
   const [toasts,        setToasts]        = useState<ToastMsg[]>([]);
   const [prefillPt,     setPrefillPt]     = useState<Patient | null>(null);
+  const [prefillFollowUpId, setPrefillFollowUpId] = useState<string | null>(null);
+  const [followUpsRefreshKey, setFollowUpsRefreshKey] = useState(0);
   const [showUserMenu,  setShowUserMenu]  = useState(false);
   const [showSearch,    setShowSearch]    = useState(false);
   const [displayName,   setDisplayName]   = useState<string>('');
@@ -386,8 +388,9 @@ function ClinicApp() {
     setShowSearch(true);
   }
 
-  function handleBookFollowup(patient: Patient) {
+  function handleBookFollowup(patient: Patient, followUpId?: string) {
     setPrefillPt(patient);
+    setPrefillFollowUpId(followUpId || null);
     setSelectedId(null);
     setPatientDetail(null);
     setTab('book');
@@ -396,6 +399,7 @@ function ClinicApp() {
   function handleCancelBookPrefill() {
     const pt = prefillPt;
     setPrefillPt(null);
+    setPrefillFollowUpId(null);
     if (pt) {
       setTab('patients');
       loadPatientDetail(pt.id);
@@ -700,7 +704,10 @@ function ClinicApp() {
               onBooked={handleBooked}
               onToast={toast}
               prefillPatient={prefillPt}
+              prefillFollowUpId={prefillFollowUpId}
               onCancelPrefill={prefillPt ? handleCancelBookPrefill : undefined}
+              onFollowUpLinked={() => setFollowUpsRefreshKey((k) => k + 1)}
+              followUpsRefreshKey={followUpsRefreshKey}
             />
           )}
         </main>

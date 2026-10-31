@@ -462,6 +462,11 @@ export function updateAppointment(id, tenantId, patch) {
 
   if (patch.status === 'cancelled' || patch.status === 'no_show') {
     clearAppointmentReminders(tenantId, id);
+    getDb().prepare(`
+      UPDATE follow_ups
+      SET status = 'pending', scheduled_appointment_id = NULL
+      WHERE tenant_id = ? AND scheduled_appointment_id = ? AND status = 'scheduled'
+    `).run(tenantId, id);
   } else if (patch.status === 'confirmed') {
     scheduleAppointmentReminders(tenantId, id);
     scheduleAppointmentConfirmation(tenantId, id);
