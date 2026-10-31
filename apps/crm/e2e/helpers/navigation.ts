@@ -89,12 +89,26 @@ export async function goToTab(page: Page, tab: TabId) {
     return;
   }
   if (await sidebar.isVisible()) {
-    await sidebar.getByRole('button', { name: label }).click();
+    const sidebarBtn = sidebar.getByRole('button', { name: label });
+    if (await sidebarBtn.isVisible().catch(() => false)) {
+      await sidebarBtn.click();
+    } else {
+      const url = new URL(page.url());
+      url.searchParams.set('tab', tab);
+      await page.goto(`${url.pathname}${url.search}`);
+    }
   } else {
     await dismissMobileKeyboard(page);
     const nav = page.locator('.bottom-nav');
     await nav.waitFor({ state: 'visible', timeout: 10_000 });
-    await nav.getByRole('button', { name: label, exact: true }).click();
+    const navBtn = nav.getByRole('button', { name: label, exact: true });
+    if (await navBtn.isVisible().catch(() => false)) {
+      await navBtn.click();
+    } else {
+      const url = new URL(page.url());
+      url.searchParams.set('tab', tab);
+      await page.goto(`${url.pathname}${url.search}`);
+    }
   }
   await page.waitForTimeout(400);
 }

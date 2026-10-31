@@ -2498,6 +2498,57 @@ img, video, canvas { max-width: 100%; height: auto; }
   .audit-filters .login-switch-mode {
     min-height: 44px;
   }
+
+  .payments-view .stat-strip,
+  .overview-view .stat-strip {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .payments-view .page-header-actions .btn {
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .payments-view .team-access-filters {
+    gap: 6px;
+  }
+
+  .payment-row-btn {
+    min-height: 48px;
+    align-items: center;
+  }
+
+  .payment-row > div:first-child {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .payment-row .ref {
+    display: block;
+    margin-top: 4px;
+    font-weight: 600;
+    color: var(--danger);
+  }
+
+  .overview-billing-alert {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .overview-billing-alert .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .overview-greeting {
+    gap: 12px;
+  }
+
+  .overview-greeting .btn {
+    min-height: 44px;
+  }
 }
 .muted-text { color: var(--muted); font-size: 14px; }
 
@@ -4465,11 +4516,63 @@ body.modal-open .clinic-app {
 }
 .allergy-chip-actions { display: flex; gap: 4px; }
 
+/* Invoice line items — mobile-first stack; desktop grid at ≥640px */
+.invoice-line-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.invoice-line-desc,
+.invoice-line-qty,
+.invoice-line-price {
+  width: 100%;
+}
+
+.invoice-catalog-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.invoice-detail-lines { list-style: none; padding: 0; margin: 12px 0; }
+.invoice-detail-lines li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border, #eee); }
+.invoice-detail-totals { text-align: right; margin-top: 12px; }
+
+.payments-empty-card {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
 @media (min-width: 640px) {
   .modal-overlay { align-items: center; padding: 20px; }
   .modal-sheet   { width: 100%; max-width: 480px; border-radius: var(--radius-lg); max-height: 88vh; }
   .modal-sheet-tall { max-height: 92vh; }
-  .invoice-line-row { display: grid; grid-template-columns: 1fr 64px 88px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .invoice-line-row {
+    display: grid;
+    grid-template-columns: 1fr 64px 88px auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+  .invoice-line-desc,
+  .invoice-line-qty,
+  .invoice-line-price {
+    width: auto;
+  }
   .invoice-catalog-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .invoice-detail-lines { list-style: none; padding: 0; margin: 12px 0; }
   .invoice-detail-lines li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border, #eee); }

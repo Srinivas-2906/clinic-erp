@@ -151,8 +151,9 @@ export function CreateInvoiceDialog({ patients, prefillPatientId, appointmentId,
               {lines.map((li, idx) => (
                 <div key={li.key} className="invoice-line-row">
                   <input
-                    className="form-input"
+                    className="form-input invoice-line-desc"
                     placeholder="Description"
+                    aria-label="Line description"
                     value={li.description}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -163,6 +164,7 @@ export function CreateInvoiceDialog({ patients, prefillPatientId, appointmentId,
                     className="form-input invoice-line-qty"
                     type="number"
                     min="1"
+                    aria-label="Quantity"
                     value={li.quantity}
                     onChange={(e) => {
                       const v = e.target.value;
@@ -174,6 +176,7 @@ export function CreateInvoiceDialog({ patients, prefillPatientId, appointmentId,
                     type="number"
                     min="0"
                     placeholder="₹"
+                    aria-label="Unit price"
                     value={li.unitPrice}
                     onChange={(e) => {
                       const v = e.target.value;
