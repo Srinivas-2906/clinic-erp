@@ -1,4 +1,4 @@
-# Fast PR / main verification (merge gate). Full Playwright suite: playwright-regression.yml
+# Web SaaS merge gate (API + CRM + Docker + Playwright fast). Native Android: native-android-verify.yml (manual).
 name: CI
 
 on:
@@ -13,25 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-changes:
-    name: Detect changed areas
-    runs-on: ubuntu-latest
-    outputs:
-      android: ${{ steps.filter.outputs.android }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            android:
-              - 'apps/mobile/**'
-              - 'packages/api-client/**'
-              - 'packages/contracts/**'
-              - 'packages/design-tokens/**'
-              - 'package.json'
-              - 'package-lock.json'
-
   api-tests:
     name: API unit tests
     runs-on: ubuntu-latest
@@ -67,68 +48,6 @@ jobs:
             @rolldown/binding-linux-x64-gnu \
             lightningcss-linux-x64-gnu
       - run: npm test --workspace=apps/crm
-
-  mobile-checks:
-    name: Mobile typecheck + unit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npm run typecheck --workspace=apps/mobile
-      - run: npm test --workspace=apps/mobile
-
-  android-apk-build:
-    name: Android APK build
-    runs-on: ubuntu-latest
-    needs: [mobile-checks, detect-changes]
-    if: |
-      needs.mobile-checks.result == 'success' &&
-      (needs.detect-changes.outputs.android == 'true' || github.event_name == 'push')
-    timeout-minutes: 45
-    env:
-      EXPO_PUBLIC_CLINIC_API: http://10.0.2.2:3010
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - name: Setup Android SDK
-        run: chmod +x apps/mobile/scripts/setup-android-sdk-ci.sh apps/mobile/scripts/build-android-apk.sh && bash apps/mobile/scripts/setup-android-sdk-ci.sh
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            apps/mobile/android/.gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'apps/mobile/package.json') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-      - name: Build release APK
-        env:
-          FORCE_ANDROID_APK_BUILD: "1"
-        run: bash apps/mobile/scripts/build-android-apk.sh
-      - name: Verify APK artifact
-        run: test -f apps/mobile/build/clinic-mobile-release.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: clinic-mobile-release-apk
-          path: apps/mobile/build/clinic-mobile-release.apk
-          retention-days: 7
 
   crm-build:
     name: CRM production build
