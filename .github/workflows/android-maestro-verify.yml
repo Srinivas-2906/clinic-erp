@@ -1,4 +1,4 @@
-# Pre-launch / manual native Android verification (not a PR merge gate).
+# Deferred native Android — Maestro on emulator (manual only). Not part of web SaaS CI.
 name: Android Maestro verify (manual)
 
 on:

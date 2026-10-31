@@ -1,77 +1,89 @@
-# Web-first product strategy
+# Web-first launch strategy (2026-10-31)
 
-**Principle:** One shared backend. Desktop web and mobile web = same CRM (`apps/crm`). Native Android = functional parity client (`apps/mobile`). Android emulator Maestro is **pre-launch** verification, not a PR merge gate.
+**Decision:** Ship Clinic ERP as **web SaaS** first (desktop + responsive mobile browser). **Native Android and iOS are deferred** until web completion and market validation.
+
+**One product:** Same React CRM (`apps/crm`), same API (`apps/api`). Mobile web is responsive layout, not a separate app.
+
+**Out of scope for active development:** New native screens, native parity work, Maestro/APK on every PR, EAS/Play Store releases.
+
+Native source (`apps/mobile`), Maestro flows, and Gradle scripts **remain in the repo** — see **`40_NATIVE_DEFERRED_BACKLOG.md`**.
+
+---
 
 ## CI merge requirements (PR → `main`)
 
-| Check | Workflow | Required for merge |
-|-------|----------|-------------------|
-| API unit tests | `CI` | Yes |
-| CRM unit tests | `CI` | Yes |
-| Mobile typecheck + unit | `CI` | Yes |
-| Android APK build | `CI` | Yes (compile native bundle; no emulator) |
-| CRM production build | `CI` | Yes |
-| Docker build (no push) | `CI` | Yes |
-| Playwright fast (smoke + auth; desktop + mobile @smoke) | `CI` | Yes |
-| Android APK build | `CI` | When mobile/shared paths change (skipped on web-only PRs) |
-| Playwright regression (full desktop + mobile) | `Playwright extended regression` | **Async** — nightly, `main`, manual; **required before release** |
-| **Native Android Maestro** | **`Android Maestro verify (manual)`** | **No — run before launch** |
+| Check | Workflow | Required |
+|-------|----------|----------|
+| API unit tests (+ billing smoke, release preflight) | `CI` | **Yes** |
+| CRM unit tests | `CI` | **Yes** |
+| CRM production build | `CI` | **Yes** |
+| Docker build (no push) | `CI` | **Yes** |
+| Playwright fast (smoke + auth; desktop + mobile @smoke) | `CI` | **Yes** |
+| Playwright regression (full) | `Playwright extended regression` | **Async** — required before **web release** |
+| Mobile typecheck + unit | `Native Android verify (manual)` | **No** |
+| Android APK build | `Native Android verify (manual)` | **No** |
+| Native Maestro | `Android Maestro verify (manual)` | **No** |
 
 See **`39_CI_FAST_AND_EXTENDED.md`** for branch protection and parallel development.
+
+**Typical web PR CI wall time:** ~4–8 min (no native jobs).
+
+---
+
+## Deployment (web/backend only)
+
+| Workflow | Trigger | Builds native? |
+|----------|---------|----------------|
+| `deploy-staging.yml` | Manual + approval | **No** — `cloudbuild.staging.yaml` → API + CRM Cloud Run |
+| `deploy-production.yml` | Manual + approval | **No** — `cloudbuild.yaml` → API + CRM only |
+| `staging-ops.yml` / `staging-e2e.yml` | Manual / scheduled | Web staging E2E only |
+
+No Expo/EAS, APK publish, or iOS steps in deploy pipelines.
+
+---
+
+## Active product scope (this phase)
+
+Shared backend, desktop CRM, responsive mobile-browser CRM, SaaS onboarding, clinical + billing + reporting, security, commercial readiness.
+
+**Do not** block web delivery on native compatibility except where API contracts must stay stable (document in native backlog).
+
+---
+
+## Responsive mobile-web parity (same features, layout adapts)
+
+| Area | Desktop | Mobile web | Notes |
+|------|---------|------------|--------|
+| Auth / roles | Yes | Yes | Bottom nav + account menu for owner-only tabs |
+| Patients, book, today, consult | Yes | Yes | List-first today; FAB patients |
+| Billing / payments | Yes | Yes | Doctor Payments nav gated by capability (#49) |
+| Reports / activity | Yes | Yes | Table UX — **PR #51** stacked rows |
+| Settings / team / doctors | Yes | Yes | Owner account menu (#48) |
+| Owner home / SaaS | Yes | Yes | Overview tab |
+| Platform admin | Yes | Usable; desktop-oriented | P4 polish |
+| Follow-ups | Partial | Partial | P2 |
+| Clinical uploads | Yes | Weaker UX | P1–P2 |
+
+Prioritized backlog: **`41_WEB_LAUNCH_PRIORITIES.md`**.
+
+---
 
 ## Testing policy
 
 | Phase | Scope |
 |-------|--------|
-| **Development** | Focused tests for touched code (`docs/modernization/36_DEV_SPEED.md`) |
-| **Before merge** | Full web CI row above |
-| **Pre-launch** | Manual Maestro workflow, physical Android devices, iOS, native perf polish |
+| Development | Focused tests (`36_DEV_SPEED.md`) |
+| PR merge | Fast `CI` row above |
+| Web release | Green extended regression + security/infra gates + manual deploy approval |
 
-## Parity matrix (high level)
+---
 
-| Workflow | Desktop web | Mobile web (responsive CRM) | Native Android | Device verified |
-|----------|-------------|----------------------------|----------------|-----------------|
-| Login / tenant | Yes | Yes | Yes | Web CI; native compile only |
-| Today / queue | Yes | Yes (list-first) | Yes | Web CI |
-| Patients + detail | Yes | Yes | Yes (Patients tab) | Web CI |
-| Book / register | Yes | Yes | Yes | Web CI |
-| Check-in / consult | Yes | Yes | Yes (Consult) | Web CI |
-| Prescriptions / clinical | Yes | Yes | Partial (consult screen) | Web E2E |
-| Invoices / payments | Yes | Yes | Yes (Payments V1 in PR #47) | Web CI; native not Maestro-gated |
-| Reports | Yes | Yes | No dedicated tab | Web |
-| Doctors / schedule admin | Yes | Yes (owner menu; not bottom nav) | No | Web |
-| Team / roles | Yes | Yes (owner menu) | No | Web |
-| Clinic settings / onboarding | Yes | Yes | No | Web |
-| Audit log | Yes | Yes (owner) | No | Web |
-| Owner dashboard / SaaS plan | Yes | Yes | No | Web |
-| Platform admin (`/platform`) | Yes | Usable but desktop-oriented | N/A | Staging/manual |
-
-**Native gaps to track incrementally:** reports, doctors admin, team, settings, audit, platform console, deep clinical amend flows.
-
-## Responsive mobile-web notes
-
-- Breakpoint **768px**: sidebar + desktop topbar vs mobile top bar + **bottom nav** (`apps/crm/src/styles.css`, `BottomNav.tsx`).
-- Bottom nav: Home, Today, Patients, Book, Payments, Reports — **not** Doctors, Team, Settings, Activity; owner reaches those via **user menu** (`App.tsx`).
-- Today: mobile defaults to **list** not board; calendar collapses (`TodayView.tsx`).
-- Patients: mobile **FAB** for add; header add hidden (`styles.css`).
-- Playwright **chromium-mobile** (Pixel 7) runs in CI regression job — same specs as desktop where applicable.
-
-## Recommended implementation batches (web-first)
-
-1. **Owner mobile discoverability** — Settings, Team, Doctors reachable in ≤2 taps on mobile (nav or menu), without new backend.
-2. **Consultation + Rx completeness** — align mobile-web consult dialog with API capabilities; close gaps flagged in `26_PR12_REVIEW_AND_PARITY.md`.
-3. **Billing polish** — web partial pay, void, idempotency UX; native follows after web stable.
-4. **Onboarding checklist** — owner path on mobile-web; tie to existing APIs.
-5. **Reports** — ensure mobile-web tables scroll/export; no native until web complete.
-6. **Pre-launch** — manual Maestro full suite + physical Android smoke.
-
-## Launch risks (current)
+## Launch risks (web-first)
 
 | Risk | Mitigation |
 |------|------------|
-| Native Android unverified on device | Defer to pre-launch; keep APK build on PR |
-| Owner-only tabs harder on mobile web | Batch 1 above |
-| Staging GCP / reminders / paid SaaS | Documented in modernization docs; not blocking local web |
-| Legacy Denta Care repo | Out of scope |
+| Extended regression flake (`32-busy-clinic-day`) | Fix before release; async visibility |
+| Branch protection still lists native job names | Update GitHub required checks after CI PR |
+| Owner workflows on small phones | Continue responsive batches; no feature hiding |
 
-See also: `35_LOCAL_VERIFY.md`, `36_DEV_SPEED.md`, `apps/mobile/.maestro/README.md`.
+See also: `38_PRODUCT_COMPLETION_AUDIT.md`, `40_NATIVE_DEFERRED_BACKLOG.md`, `41_WEB_LAUNCH_PRIORITIES.md`.
