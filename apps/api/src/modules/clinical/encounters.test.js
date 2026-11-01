@@ -311,6 +311,40 @@ describe('clinical encounters', () => {
     assert.ok(reopened.some((r) => r.id === fu.id));
   });
 
+  it('rescheduling linked appointment keeps follow-up scheduled', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'receptionist' };
+    const enc = createEncounter(ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      prescriptionItems: [{ drugName: 'Paracetamol', dose: '500mg' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' });
+    const fu = scheduleFollowUp(enc.id, ctx.tenantId, { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' }, {
+      dueDate: '2030-08-01',
+      instructions: 'Review',
+    });
+
+    const db = getDb();
+    const apptId = `appt-fu-resched-${Date.now()}`;
+    db.prepare(`
+      INSERT INTO appointments (id, tenant_id, patient_id, service, scheduled_at, status)
+      VALUES (?, ?, ?, 'Follow-up visit', datetime('now', '+3 days'), 'confirmed')
+    `).run(apptId, ctx.tenantId, ctx.patientId);
+
+    linkFollowUpToAppointment(fu.id, ctx.tenantId, user, apptId);
+
+    const { updateAppointment } = await import('../../services/clinicStore.js');
+    updateAppointment(apptId, ctx.tenantId, { scheduledAt: '2030-08-15T10:00:00+05:30' });
+
+    const scheduled = listClinicFollowUps(ctx.tenantId, { status: 'scheduled' });
+    const row = scheduled.find((r) => r.id === fu.id);
+    assert.ok(row);
+    assert.equal(row.scheduledAppointmentId, apptId);
+    assert.equal(row.status, 'scheduled');
+  });
+
   it('amendment is auditable and limited to permitted fields', () => {
     const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
     const enc = createEncounter(ctx.tenantId, user, {

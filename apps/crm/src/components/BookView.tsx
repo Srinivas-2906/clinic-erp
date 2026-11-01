@@ -659,13 +659,13 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
   async function beginScheduleFollowUp(patientId: string, followUpId: string) {
     setError('');
     try {
-      const p = await fetchPatient(patientId);
-      setFoundPatient(p);
+      const detail = await fetchPatient(patientId);
+      setFoundPatient(detail.patient);
       setLinkedFollowUpId(followUpId);
       setService('Follow-up visit');
       setStep('treatment');
       setSearchQuery('');
-      void loadPatientContext(p);
+      void loadPatientContext(detail.patient);
     } catch (e) {
       onToast(e instanceof Error ? e.message : 'Could not load patient', 'err');
     }
