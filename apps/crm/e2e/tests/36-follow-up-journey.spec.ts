@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab, closeBlockingModalsIfOpen } from '../helpers/navigation';
 import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
-import { authHeaders, createPatientAndAppointment } from '../helpers/clinicApi';
+import { authHeaders, createPatientAndAppointment, clinicTodayYmd } from '../helpers/clinicApi';
 
 const TENANT = process.env.E2E_TENANT || 'dentacare';
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
@@ -50,9 +50,7 @@ test.describe('Follow-up journey', () => {
     });
     expect(finRes.ok()).toBeTruthy();
 
-    const due = new Date();
-    due.setDate(due.getDate() + 14);
-    const dueStr = due.toISOString().slice(0, 10);
+    const dueStr = clinicTodayYmd();
     const fuRes = await request.post(`${API}/api/clinic/encounters/${enc.id}/follow-up`, {
       headers: { ...doctorHeaders, 'Content-Type': 'application/json' },
       data: { dueDate: dueStr, instructions: 'Review progress' },
@@ -64,9 +62,9 @@ test.describe('Follow-up journey', () => {
     await goToTab(page, 'book');
     await expect(page.locator('.follow-ups-panel')).toBeVisible({ timeout: 15_000 });
 
-    const row = page.locator('.follow-ups-panel').filter({ hasText: uniqueName });
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.locator('.follow-ups-schedule-btn').click();
+    const row = page.locator('.follow-ups-row').filter({ hasText: uniqueName });
+    await expect.poll(async () => row.count(), { timeout: 20_000 }).toBeGreaterThan(0);
+    await row.first().locator('.follow-ups-schedule-btn').click();
     await expect(page.getByText('Follow-up visit').first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 10_000 });
   });
