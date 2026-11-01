@@ -4,7 +4,7 @@ import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
 import { authHeaders, createPatientAndAppointment } from '../helpers/clinicApi';
 
 const TENANT = process.env.E2E_TENANT || 'dentacare';
-const API = process.env.E2E_API_BASE || process.env.PLAYWRIGHT_API_BASE || 'http://127.0.0.1:3001';
+const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
 
 test.describe('Follow-up journey', () => {
   test('receptionist schedules return visit from pending follow-up', async ({ page, request }) => {
