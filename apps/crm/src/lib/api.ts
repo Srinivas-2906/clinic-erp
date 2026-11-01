@@ -271,10 +271,26 @@ export function regeneratePrescriptionPdf(encounterId: string) {
 }
 
 export function scheduleEncounterFollowUp(encounterId: string, body: { dueDate: string; instructions?: string; phone?: string }) {
-  return request<{ id: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
+  return request<{ id: string; idempotentReplay?: boolean; status?: string }>(`/clinic/encounters/${encodeURIComponent(encounterId)}/follow-up`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+export function fetchClinicFollowUps(params?: { status?: string; patientId?: string }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set('status', params.status);
+  if (params?.patientId) q.set('patientId', params.patientId);
+  const qs = q.toString();
+  return request<{ followUps: import('../types').ClinicFollowUp[] }>(`/clinic/follow-ups${qs ? `?${qs}` : ''}`);
+}
+
+export function linkFollowUpAppointment(followUpId: string, appointmentId: string) {
+  return request<import('../types').ClinicFollowUp>(`/clinic/follow-ups/${encodeURIComponent(followUpId)}/link-appointment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appointmentId }),
   });
 }
 

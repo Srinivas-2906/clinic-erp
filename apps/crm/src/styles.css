@@ -4486,6 +4486,106 @@ body.modal-open .clinic-app {
 .overview-billing-alert strong { display: block; }
 .overview-billing-alert span { font-size: 0.85rem; color: var(--muted); }
 
+.follow-ups-panel {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.follow-ups-panel-hd {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.follow-ups-panel-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.follow-ups-panel-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.follow-ups-panel-loading,
+.follow-ups-panel-empty,
+.follow-ups-panel-error {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.follow-ups-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.follow-ups-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.follow-ups-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.follow-ups-due {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.follow-ups-note,
+.follow-ups-ref {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.follow-ups-schedule-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+.patient-follow-ups-block {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 767px) {
+  .follow-ups-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .follow-ups-schedule-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .login-forgot {
   display: block;
   margin: 8px 0 4px;

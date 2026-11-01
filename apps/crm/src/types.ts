@@ -241,6 +241,22 @@ export const PATIENT_SOURCES = ['Walk-in', 'WhatsApp', 'Phone call', 'Referral',
 
 export const PAYMENT_METHODS = ['Cash', 'UPI', 'Card', 'Online', 'Other'];
 
+export interface ClinicFollowUp {
+  id: string;
+  encounterId: string;
+  patientId: string;
+  dueDate: string;
+  instructions: string;
+  status: 'pending' | 'scheduled' | 'cancelled' | string;
+  scheduledAppointmentId?: string | null;
+  patientName?: string;
+  patientPhone?: string;
+  chiefComplaint?: string;
+  encounterFinalizedAt?: string | null;
+  scheduledAt?: string | null;
+  appointmentStatus?: string | null;
+}
+
 export interface CatalogItem {
   id: string;
   title: string;

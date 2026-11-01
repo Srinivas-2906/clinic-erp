@@ -18,8 +18,10 @@ import {
   fetchPatient,
   fetchPatientPayments,
   fetchPatients,
+  linkFollowUpAppointment,
   updatePatient,
 } from '../lib/api';
+import { FollowUpsPanel } from './FollowUpsPanel';
 import { useDoctors } from '../hooks/useDoctors';
 import { BookDoctorPicker, type DoctorChoice } from './BookDoctorPicker';
 import {
@@ -92,7 +94,10 @@ interface BookProps {
   onBooked: (scheduledAt: string) => void;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   prefillPatient?: Patient | null;
+  prefillFollowUpId?: string | null;
   onCancelPrefill?: () => void;
+  onFollowUpLinked?: () => void;
+  followUpsRefreshKey?: number;
 }
 
 function isPhoneQuery(q: string) {
@@ -265,7 +270,7 @@ function PatientContextCard({
   );
 }
 
-export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }: BookProps) {
+export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId, onCancelPrefill, onFollowUpLinked, followUpsRefreshKey = 0 }: BookProps) {
   const [mode, setMode] = useState<BookMode>('schedule');
   const [step, setStep] = useState<BookStep>(prefillPatient ? 'treatment' : 'lookup');
   const [searchQuery, setSearchQuery] = useState('');
@@ -290,6 +295,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
   const [doctorChoice, setDoctorChoice] = useState<DoctorChoice>('any');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [linkedFollowUpId, setLinkedFollowUpId] = useState<string | null>(prefillFollowUpId || null);
   const [error, setError] = useState('');
 
   const searchGen = useRef(0);
@@ -384,6 +390,14 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
     [servicesList, serviceId],
   );
 
+  const applyFollowUpServiceSelection = useCallback(() => {
+    const match = servicesList.find((s) => /follow[- ]?up/i.test(s.title));
+    const item = match || servicesList.find((s) => s.title === DEFAULT_BOOKING_SERVICE) || servicesList[0];
+    if (!item) return;
+    setService(item.title);
+    setServiceId(item.id.startsWith('fallback-') ? '' : item.id);
+  }, [servicesList]);
+
   useEffect(() => {
     if (mode === 'walkin' || step !== 'schedule') return;
     let alive = true;
@@ -460,6 +474,13 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
       void loadPatientContext(prefillPatient);
     }
   }, [prefillPatient, loadPatientContext]);
+
+  useEffect(() => {
+    if (prefillFollowUpId) {
+      setLinkedFollowUpId(prefillFollowUpId);
+      applyFollowUpServiceSelection();
+    }
+  }, [prefillFollowUpId, applyFollowUpServiceSelection]);
 
   // Auto-search as user types (lookup step only)
   useEffect(() => {
@@ -595,7 +616,7 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
         });
       }
 
-      await createAppointment({
+      const appt = await createAppointment({
         patientId: patient.id,
         service,
         serviceId: serviceId || undefined,
@@ -604,6 +625,15 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
         source: 'Walk-in',
         assignedDoctorId: assignedDoctorId || undefined,
       });
+
+      if (prefillFollowUpId || linkedFollowUpId) {
+        const fuId = linkedFollowUpId || prefillFollowUpId;
+        if (fuId) {
+          await linkFollowUpAppointment(fuId, appt.id);
+          setLinkedFollowUpId(null);
+          onFollowUpLinked?.();
+        }
+      }
 
       onToast(mode === 'walkin' ? `${patient.name} checked in` : `Booked for ${patient.name}`);
       resetForm();
@@ -631,6 +661,23 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
     setDoctorChoice(activeDoctors.length === 1 ? activeDoctors[0]?.id || 'any' : 'any');
     setSlotKey('');
     setSlotOptions([]);
+    setLinkedFollowUpId(null);
+  }
+
+  async function beginScheduleFollowUp(patientId: string, followUpId: string) {
+    setError('');
+    try {
+      const detail = await fetchPatient(patientId);
+      setFoundPatient(detail.patient);
+      setLinkedFollowUpId(followUpId);
+      applyFollowUpServiceSelection();
+      setMode('schedule');
+      setStep('treatment');
+      setSearchQuery('');
+      void loadPatientContext(detail.patient);
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : 'Could not load patient', 'err');
+    }
   }
 
   function switchMode(next: BookMode) {
@@ -658,6 +705,11 @@ export function BookView({ onBooked, onToast, prefillPatient, onCancelPrefill }:
 
   return (
     <div className="view book-view">
+      <FollowUpsPanel
+        refreshKey={followUpsRefreshKey}
+        onSchedule={(patientId, followUpId) => { void beginScheduleFollowUp(patientId, followUpId); }}
+        onToast={onToast}
+      />
       <header className="page-header page-header-compact">
         <div className="page-header-main">
           <h1 className="page-title">New booking</h1>

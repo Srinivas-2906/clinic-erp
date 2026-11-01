@@ -135,4 +135,19 @@ export function initClinicalSchema(db) {
   } catch {
     /* exists */
   }
+  try {
+    db.exec(`ALTER TABLE follow_ups ADD COLUMN scheduled_appointment_id TEXT REFERENCES appointments(id)`);
+  } catch {
+    /* exists */
+  }
+  try {
+    db.exec(`ALTER TABLE follow_ups ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'`);
+  } catch {
+    /* exists */
+  }
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_follow_ups_tenant_status ON follow_ups(tenant_id, status, due_date)`);
+  } catch {
+    /* exists */
+  }
 }

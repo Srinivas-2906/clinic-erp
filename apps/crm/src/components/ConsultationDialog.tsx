@@ -151,8 +151,10 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast, onCo
           instructions: followUpNote.trim() || undefined,
           phone: appointment.patientPhone,
         });
+        onToast('Follow-up recommendation saved');
+      } else {
+        onToast('Consultation finalized');
       }
-      onToast('Consultation finalized');
       onConsultationFinalized?.(appointment, finalized.id);
       onDone();
     } catch (e) {
@@ -282,7 +284,7 @@ export function ConsultationDialog({ appointment, onClose, onDone, onToast, onCo
                   </div>
                   <div className="form-field">
                     <label className="form-label">Follow-up note</label>
-                    <input className="form-input" value={followUpNote} onChange={(e) => setFollowUpNote(e.target.value)} />
+                    <input className="form-input" aria-label="Follow-up note" value={followUpNote} onChange={(e) => setFollowUpNote(e.target.value)} />
                   </div>
                 </div>
               )}
