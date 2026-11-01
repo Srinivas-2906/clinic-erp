@@ -390,6 +390,14 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
     [servicesList, serviceId],
   );
 
+  const applyFollowUpServiceSelection = useCallback(() => {
+    const match = servicesList.find((s) => /follow[- ]?up/i.test(s.title));
+    const item = match || servicesList.find((s) => s.title === DEFAULT_BOOKING_SERVICE) || servicesList[0];
+    if (!item) return;
+    setService(item.title);
+    setServiceId(item.id.startsWith('fallback-') ? '' : item.id);
+  }, [servicesList]);
+
   useEffect(() => {
     if (mode === 'walkin' || step !== 'schedule') return;
     let alive = true;
@@ -470,9 +478,9 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
   useEffect(() => {
     if (prefillFollowUpId) {
       setLinkedFollowUpId(prefillFollowUpId);
-      setService('Follow-up visit');
+      applyFollowUpServiceSelection();
     }
-  }, [prefillFollowUpId]);
+  }, [prefillFollowUpId, applyFollowUpServiceSelection]);
 
   // Auto-search as user types (lookup step only)
   useEffect(() => {
@@ -662,7 +670,8 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
       const detail = await fetchPatient(patientId);
       setFoundPatient(detail.patient);
       setLinkedFollowUpId(followUpId);
-      setService('Follow-up visit');
+      applyFollowUpServiceSelection();
+      setMode('schedule');
       setStep('treatment');
       setSearchQuery('');
       void loadPatientContext(detail.patient);

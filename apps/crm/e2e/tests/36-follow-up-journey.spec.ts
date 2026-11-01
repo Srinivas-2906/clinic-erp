@@ -65,7 +65,7 @@ test.describe('Follow-up journey', () => {
     const row = page.locator('.follow-ups-row').filter({ hasText: uniqueName });
     await expect.poll(async () => row.count(), { timeout: 20_000 }).toBeGreaterThan(0);
     await row.first().locator('.follow-ups-schedule-btn').click();
-    await expect(page.getByText('Follow-up visit').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.form-label').filter({ hasText: 'Service' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 10_000 });
   });
 });
