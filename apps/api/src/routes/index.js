@@ -78,6 +78,15 @@ import {
 import { processDueReminders } from '../services/reminders/index.js';
 import { buildTenantExportBundle } from '../services/tenantExport.js';
 import { getPaymentGatewayConfig } from '../modules/billing/paymentGateway.js';
+import {
+  createSubscriptionCheckout,
+  listAvailablePlans,
+  listBillingTransactions,
+  listSubscriptionEvents,
+  transitionTenantSubscription,
+} from '../modules/billing/subscriptionBilling.service.js';
+import { buildOwnerOpsSummary } from '../services/ownerOpsReport.js';
+import { SUBSCRIPTION_STATUS } from '../modules/identity/subscription.js';
 import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
 import {
   listTenantsForPlatformAdmin,
@@ -505,7 +514,8 @@ export function clinicRouter() {
     const payments = getPaymentsRange(req.user.tenantId, { from, to, limit: 5000 });
     const summary = getPaymentSummary(req.user.tenantId);
     const total = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    res.json({ from, to, appointments, payments, summary: { ...summary, total } });
+    const opsSummary = buildOwnerOpsSummary(req.user.tenantId, { from, to });
+    res.json({ from, to, appointments, payments, summary: { ...summary, total }, opsSummary });
   });
 
   api.post('/clinic/payments', authMiddleware, requireLiveTenant, (req, res) => {
@@ -708,6 +718,43 @@ export function clinicRouter() {
 
   api.get('/clinic/billing/gateway', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
     res.json(getPaymentGatewayConfig());
+  });
+
+  api.get('/clinic/billing/plans', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
+    res.json({ plans: listAvailablePlans(), gateway: getPaymentGatewayConfig() });
+  });
+
+  api.post('/clinic/billing/checkout', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, (req, res) => {
+    try {
+      const checkout = createSubscriptionCheckout(req.user.tenantId, req.user, {
+        planId: req.body?.planId,
+        idempotencyKey: req.body?.idempotencyKey,
+      });
+      res.status(201).json(checkout);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message, code: err.code });
+    }
+  });
+
+  api.get('/clinic/billing/transactions', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
+    res.json({ transactions: listBillingTransactions(req.user.tenantId) });
+  });
+
+  api.get('/clinic/subscription/events', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
+    res.json({ events: listSubscriptionEvents(req.user.tenantId) });
+  });
+
+  api.post('/clinic/subscription/cancel', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, (req, res) => {
+    try {
+      transitionTenantSubscription(req.user.tenantId, req.user.sub, {
+        subscriptionStatus: SUBSCRIPTION_STATUS.CANCELED,
+        source: 'owner',
+        note: String(req.body?.reason || 'Owner requested cancellation').slice(0, 500),
+      });
+      res.json(getTenantEntitlements(req.user.tenantId));
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message, code: err.code });
+    }
   });
 
   api.get('/clinic/audit/export', authMiddleware, requireLiveTenant, (req, res) => {

@@ -17,6 +17,8 @@ process.env.SKIP_DEMO_SEED = '1';
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'clinic-http-security-secret';
 process.env.CLINIC_FILES_STORAGE = 'memory';
+process.env.CLINIC_PAYMENT_GATEWAY = 'razorpay_sandbox';
+process.env.CLINIC_RAZORPAY_WEBHOOK_SECRET = 'http-sec-webhook-secret';
 
 const { initDatabase, getDb } = await import('../db/index.js');
 const { signToken } = await import('../middleware/auth.js');
@@ -183,6 +185,7 @@ describe('clinic report HTTP', () => {
     assert.equal(res.json.to, '2026-01-31');
     assert.ok(Array.isArray(res.json.appointments));
     assert.ok(Array.isArray(res.json.payments));
+    assert.ok(res.json.opsSummary?.appointments);
   });
 
   it('GET /clinic/report does not leak another tenant rows when token is tenant A', async () => {
@@ -229,6 +232,34 @@ describe('clinic report HTTP', () => {
     assert.equal(res.status, 200);
     const names = (res.json.appointments || []).map((a) => a.patientName || a.patient?.name);
     assert.ok(!names.includes('Secret A Report'));
+  });
+});
+
+describe('clinic billing HTTP', () => {
+  it('GET /clinic/billing/plans rejects receptionist', async () => {
+    const app = createApp();
+    const res = await request(app, 'GET', '/api/clinic/billing/plans', { token: receptionistA });
+    assert.equal(res.status, 403);
+  });
+
+  it('POST /clinic/billing/checkout creates sandbox order for owner', async () => {
+    const app = createApp();
+    const res = await request(app, 'POST', '/api/clinic/billing/checkout', {
+      token: ownerA,
+      body: { planId: 'professional', idempotencyKey: 'http-checkout-1' },
+    });
+    assert.equal(res.status, 201);
+    assert.ok(res.json.orderId);
+    assert.equal(res.json.planId, 'professional');
+  });
+
+  it('GET /clinic/billing/transactions is owner-only and tenant-scoped', async () => {
+    const app = createApp();
+    const deny = await request(app, 'GET', '/api/clinic/billing/transactions', { token: receptionistA });
+    assert.equal(deny.status, 403);
+    const ok = await request(app, 'GET', '/api/clinic/billing/transactions', { token: ownerA });
+    assert.equal(ok.status, 200);
+    assert.ok(Array.isArray(ok.json.transactions));
   });
 });
 

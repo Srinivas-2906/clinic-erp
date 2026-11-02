@@ -438,6 +438,18 @@ export function fetchClinicReport(from: string, to: string) {
     appointments: Appointment[];
     payments: Payment[];
     summary: PaymentSummary & { total: number };
+    opsSummary?: {
+      appointments: {
+        total: number;
+        visited: number;
+        cancelled: number;
+        noShow: number;
+        scheduledOpen: number;
+      };
+      consultationsFinalized: number;
+      followUps: { pending: number; scheduled: number };
+      doctorWorkload: { doctorName: string; encounterCount: number }[];
+    };
   }>(`/clinic/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 }
 
@@ -597,7 +609,88 @@ export function fetchClinicOnboarding() {
 }
 
 export function getPaymentGatewayConfig() {
-  return request<{ provider: string | null; configured: boolean; note?: string }>('/clinic/billing/gateway');
+  return request<{
+    provider: string | null;
+    configured: boolean;
+    checkoutEnabled?: boolean;
+    mode?: string;
+    note?: string;
+  }>('/clinic/billing/gateway');
+}
+
+export type BillingPlan = {
+  id: string;
+  label: string;
+  maxDoctors: number | null;
+  maxStaff: number | null;
+  features?: Record<string, boolean>;
+  amountCentsInr?: number | null;
+};
+
+export function fetchBillingPlans() {
+  return request<{ plans: BillingPlan[]; gateway: Awaited<ReturnType<typeof getPaymentGatewayConfig>> }>(
+    '/clinic/billing/plans',
+  );
+}
+
+export function createBillingCheckout(body: { planId: string; idempotencyKey?: string }) {
+  return request<{
+    transactionId: string;
+    orderId: string;
+    planId: string;
+    amountCents: number;
+    currency: string;
+    status: string;
+    provider: string;
+    mode?: string;
+    message?: string;
+  }>('/clinic/billing/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchBillingTransactions() {
+  return request<{
+    transactions: Array<{
+      id: string;
+      kind: string;
+      planId: string;
+      amountCents: number;
+      currency: string;
+      status: string;
+      provider: string;
+      externalOrderId?: string;
+      externalPaymentId?: string;
+      failureReason?: string | null;
+      createdAt: string;
+    }>;
+  }>('/clinic/billing/transactions');
+}
+
+export function fetchSubscriptionEvents() {
+  return request<{
+    events: Array<{
+      id: string;
+      eventType: string;
+      fromStatus?: string | null;
+      toStatus?: string | null;
+      fromPlan?: string | null;
+      toPlan?: string | null;
+      source?: string;
+      note?: string | null;
+      createdAt: string;
+    }>;
+  }>('/clinic/subscription/events');
+}
+
+export function cancelSubscription(reason?: string) {
+  return request<Awaited<ReturnType<typeof fetchEntitlements>>>('/clinic/subscription/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason || '' }),
+  });
 }
 
 export async function downloadTenantExport() {

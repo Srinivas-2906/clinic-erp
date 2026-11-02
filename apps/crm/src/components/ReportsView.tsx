@@ -114,7 +114,18 @@ export function ReportsView({
     to: string;
     appointments: Appointment[];
     payments: Payment[];
-    summary: { todayTotal: number; monthTotal: number; dueCount: number; total?: number };
+    opsSummary?: {
+      appointments: {
+        total: number;
+        visited: number;
+        cancelled: number;
+        noShow: number;
+        scheduledOpen: number;
+      };
+      consultationsFinalized: number;
+      followUps: { pending: number; scheduled: number };
+      doctorWorkload: { doctorName: string; encounterCount: number }[];
+    };
   };
   loading?: boolean;
   today?: TodayStats | null;
@@ -435,6 +446,17 @@ export function ReportsView({
             <p className="reports-summary-sub">
               {formatRangeLabel(appliedFrom!, appliedTo!)} · {totals.paymentCount} payments
             </p>
+            {report?.opsSummary && (
+              <p className="reports-summary-meta" style={{ marginTop: '0.75rem' }}>
+                Consultations finalized: {report.opsSummary.consultationsFinalized}
+                {' · '}
+                Cancelled: {report.opsSummary.appointments.cancelled}
+                {' · '}
+                No-show: {report.opsSummary.appointments.noShow}
+                {' · '}
+                Follow-ups pending: {report.opsSummary.followUps.pending}
+              </p>
+            )}
           </div>
 
           <div className="reports-preview-tabs" role="tablist">

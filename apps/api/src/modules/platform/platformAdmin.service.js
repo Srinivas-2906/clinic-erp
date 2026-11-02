@@ -5,9 +5,13 @@ import {
   assertSubscriptionTransition,
   normalizeSubscriptionStatus,
 } from '../identity/subscription.js';
-import { updateTenantSubscription } from '../../services/tenantProvisioning.js';
 import { logAudit } from '../../services/clinicAudit.js';
 import { parseTenantSettings } from '../../services/clinicSettings.js';
+import {
+  listBillingTransactions,
+  listSubscriptionEvents,
+  transitionTenantSubscription,
+} from '../billing/subscriptionBilling.service.js';
 
 function onboardingHints(tenantId) {
   const db = getDb();
@@ -110,6 +114,8 @@ export function getTenantDetailForPlatformAdmin(tenantId) {
     entitlements,
     onboarding: onboardingHints(tenantId),
     operations: reminderHealth(tenantId),
+    subscriptionEvents: listSubscriptionEvents(tenantId),
+    billingTransactions: listBillingTransactions(tenantId),
   };
 }
 
@@ -131,9 +137,12 @@ export function patchTenantAsPlatformAdmin(adminUser, tenantId, { planId, subscr
     assertSubscriptionTransition(row.subscription_status, subscriptionStatus);
   }
 
-  const tenant = updateTenantSubscription(tenantId, {
-    subscriptionStatus: subscriptionStatus !== undefined ? normalizeSubscriptionStatus(subscriptionStatus) : undefined,
+  transitionTenantSubscription(tenantId, adminUser.sub, {
+    subscriptionStatus:
+      subscriptionStatus !== undefined ? normalizeSubscriptionStatus(subscriptionStatus) : undefined,
     planId: planId !== undefined ? normalizePlanId(planId) : undefined,
+    source: 'platform_admin',
+    note: String(confirmNote).trim(),
   });
 
   logAudit(tenantId, adminUser.sub, 'platform_admin_update', 'tenant', tenantId, {
@@ -142,5 +151,5 @@ export function patchTenantAsPlatformAdmin(adminUser, tenantId, { planId, subscr
     note: String(confirmNote).trim(),
   });
 
-  return getTenantDetailForPlatformAdmin(tenant.id);
+  return getTenantDetailForPlatformAdmin(tenantId);
 }
