@@ -30,6 +30,7 @@ const {
   listClinicFollowUps,
   linkFollowUpToAppointment,
   amendFinalizedEncounter,
+  listEncounterAmendments,
   setFinalizeTxnBeforeCommitForTests,
   resetFinalizeTxnBeforeCommitForTests,
 } = await import('./encounters.service.js');
@@ -413,5 +414,98 @@ describe('clinical encounters', () => {
     const list = listEncountersForPatient(ctx.patientId, ctx.tenantId);
     assert.equal(list.length, 2);
     assert.equal(list[0].chiefComplaint, 'Second visit');
+  });
+
+  it('lists amendment history with before/after snapshots', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const enc = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+      clinicalNote: 'Original',
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, user, {
+      prescriptionItems: [{ drugName: 'Ibuprofen', dose: '400mg' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, user);
+    const beforeDetail = encounterDetail(enc.id, ctx.tenantId);
+    amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+      reason: 'Corrected clinical note after review',
+      expectedUpdatedAt: beforeDetail.updatedAt,
+      patch: { clinicalNote: 'Corrected note' },
+    });
+    const history = listEncounterAmendments(enc.id, ctx.tenantId, user);
+    assert.equal(history.length, 1);
+    assert.equal(history[0].before.clinicalNote, 'Original');
+    assert.equal(history[0].after.clinicalNote, 'Corrected note');
+  });
+
+  it('rejects amendment without clinician profile', async () => {
+    const user = { sub: ctx.ownerId, tenantId: ctx.tenantId, role: 'owner' };
+    const clinician = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const enc = createEncounter(ctx.tenantId, clinician, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, clinician, {
+      prescriptionItems: [{ drugName: 'X', dose: '1' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, clinician);
+    assert.throws(
+      () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+        reason: 'Owner should not amend',
+        patch: { clinicalNote: 'Hack' },
+      }),
+      /doctor profile/,
+    );
+  });
+
+  it('rejects stale expectedUpdatedAt with conflict', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const enc = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+      clinicalNote: 'V1',
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, user, {
+      prescriptionItems: [{ drugName: 'Y', dose: '1' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, user);
+    const detail = encounterDetail(enc.id, ctx.tenantId);
+    assert.throws(
+      () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+        reason: 'First correction pass',
+        expectedUpdatedAt: '1970-01-01T00:00:00.000Z',
+        patch: { clinicalNote: 'V2' },
+      }),
+      /updated elsewhere/,
+    );
+    assert.equal(detail.prescription?.items?.[0]?.drugName, 'Y');
+    amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+      reason: 'Valid correction after refresh',
+      expectedUpdatedAt: detail.updatedAt,
+      patch: { clinicalNote: 'V2' },
+    });
+    const after = encounterDetail(enc.id, ctx.tenantId);
+    assert.equal(after.clinicalNote, 'V2');
+    assert.equal(after.prescription?.items?.[0]?.drugName, 'Y');
+  });
+
+  it('requires amendment reason min length', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const enc = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, user, {
+      prescriptionItems: [{ drugName: 'Z', dose: '1' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, user);
+    assert.throws(
+      () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+        reason: 'short',
+        patch: { clinicalNote: 'Nope' },
+      }),
+      /reason required/i,
+    );
   });
 });

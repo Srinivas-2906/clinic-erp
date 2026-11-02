@@ -4,6 +4,7 @@ import type { Appointment, Patient, Payment, Encounter } from '../types';
 import { fetchPatientAllergies, addPatientAllergy, updatePatientAllergy, deletePatientAllergy, openPrescriptionPdf, fetchMe, regeneratePrescriptionPdf, fetchClinicFollowUps } from '../lib/api';
 import type { ClinicFollowUp } from '../types';
 import { EncounterAmendDialog } from './EncounterAmendDialog';
+import { EncounterAmendmentHistory } from './EncounterAmendmentHistory';
 import { STATUS_LABELS } from '../types';
 import { updatePatient, updateAppointment, fetchPatientPayments } from '../lib/api';
 import { toTelUrl, toWhatsAppUrl } from '../lib/phone';
@@ -60,6 +61,7 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
   const [editingAllergyId, setEditingAllergyId] = useState<string | null>(null);
   const [canSignClinical, setCanSignClinical] = useState(false);
   const [amendEncounter, setAmendEncounter] = useState<Encounter | null>(null);
+  const [amendmentRefreshKey, setAmendmentRefreshKey] = useState(0);
   const [pendingFollowUps, setPendingFollowUps] = useState<ClinicFollowUp[]>([]);
   const [fg, bg] = ava(patient.name);
   const telUrl = toTelUrl(patient.phone);
@@ -231,7 +233,10 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
         <EncounterAmendDialog
           encounter={amendEncounter}
           onClose={() => setAmendEncounter(null)}
-          onSaved={onUpdated}
+          onSaved={() => {
+            setAmendmentRefreshKey((k) => k + 1);
+            onUpdated();
+          }}
           onToast={onToast}
         />
       )}
@@ -639,6 +644,9 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
                           </button>
                         )}
                       </div>
+                      {enc.status === 'finalized' && (
+                        <EncounterAmendmentHistory encounterId={enc.id} refreshKey={amendmentRefreshKey} />
+                      )}
                     </li>
                   ))}
                 </ul>

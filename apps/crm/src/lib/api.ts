@@ -255,6 +255,7 @@ export function finalizeEncounter(encounterId: string) {
 
 export function amendEncounter(encounterId: string, body: {
   reason: string;
+  expectedUpdatedAt?: string;
   patch: { clinicalNote?: string; historySummary?: string };
 }) {
   return request<Encounter>(`/clinic/encounters/${encodeURIComponent(encounterId)}/amendments`, {
@@ -262,6 +263,12 @@ export function amendEncounter(encounterId: string, body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export function fetchEncounterAmendments(encounterId: string) {
+  return request<{ amendments: import('../types').EncounterAmendment[] }>(
+    `/clinic/encounters/${encodeURIComponent(encounterId)}/amendments`,
+  );
 }
 
 export function regeneratePrescriptionPdf(encounterId: string) {

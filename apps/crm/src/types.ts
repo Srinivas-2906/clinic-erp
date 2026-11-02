@@ -95,6 +95,17 @@ export interface Encounter {
   } | null;
   finalizedAt?: string | null;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EncounterAmendment {
+  id: string;
+  encounterId: string;
+  reason: string;
+  before: { clinicalNote?: string; historySummary?: string };
+  after: { clinicalNote?: string; historySummary?: string };
+  authorId: string;
+  createdAt: string;
 }
 
 export interface Doctor {
