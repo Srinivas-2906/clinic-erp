@@ -43,6 +43,8 @@ export function fetchPlatformTenantDetail(tenantId: string) {
     entitlements: Record<string, unknown>;
     onboarding: { steps: { id: string; done: boolean; label: string }[]; completed: number; total: number };
     operations: { pendingReminderJobs: number; failedReminderJobs: number };
+    subscriptionEvents?: { eventType: string; toStatus?: string | null; createdAt: string }[];
+    billingTransactions?: { status: string; planId: string; createdAt: string }[];
   }>(`/platform/admin/tenants/${encodeURIComponent(tenantId)}`);
 }
 

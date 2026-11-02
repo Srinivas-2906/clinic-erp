@@ -23,6 +23,8 @@ const apiEnv = {
   CLINIC_FILES_PREFIX: 'clinic-files-e2e',
   DISABLE_REMINDER_WORKER: '1',
   CLINIC_E2E_MODE: '1',
+  CLINIC_PAYMENT_GATEWAY: 'razorpay_sandbox',
+  CLINIC_RAZORPAY_WEBHOOK_SECRET: 'e2e-webhook-secret-do-not-use-live',
 };
 
 export default defineConfig({

@@ -1,6 +1,6 @@
 /**
- * Payment gateway abstraction — ledger remains authoritative in patient_payments.
- * Do not mark funds as returned unless an external gateway refund succeeded.
+ * Payment gateway abstraction — patient ledger stays in patient_payments.
+ * Subscription checkout uses billing_transactions + webhooks (razorpay_sandbox for CI).
  */
 
 export const GATEWAY_STATUS = {
@@ -13,19 +13,48 @@ export const GATEWAY_STATUS = {
 export function getPaymentGatewayConfig() {
   const provider = String(process.env.CLINIC_PAYMENT_GATEWAY || '').trim().toLowerCase();
   if (!provider || provider === 'none') {
-    return { provider: null, configured: false };
+    return {
+      provider: null,
+      configured: false,
+      checkoutEnabled: false,
+      mode: 'none',
+    };
   }
+
+  if (provider === 'razorpay_sandbox') {
+    return {
+      provider: 'razorpay',
+      configured: true,
+      checkoutEnabled: true,
+      mode: 'sandbox',
+      note: 'Sandbox mode — no live Razorpay API calls; webhooks drive activation.',
+    };
+  }
+
+  if (provider === 'razorpay') {
+    const hasKey = !!(process.env.CLINIC_RAZORPAY_KEY_ID && process.env.CLINIC_RAZORPAY_KEY_SECRET);
+    return {
+      provider: 'razorpay',
+      configured: hasKey,
+      checkoutEnabled: hasKey,
+      mode: hasKey ? 'live' : 'unconfigured',
+      note: hasKey ? undefined : 'Set CLINIC_RAZORPAY_KEY_ID and CLINIC_RAZORPAY_KEY_SECRET for live checkout.',
+    };
+  }
+
   return {
     provider,
     configured: false,
-    note: 'Gateway integration stub — use manual/ledger payments until approved',
+    checkoutEnabled: false,
+    mode: 'unknown',
+    note: 'Gateway integration stub — use razorpay_sandbox for test checkout',
   };
 }
 
-/** Initiate an external collect flow (stub). */
+/** Patient invoice collect (unchanged stub). */
 export async function initiateGatewayCollection(_tenantId, _payload) {
   const cfg = getPaymentGatewayConfig();
-  if (!cfg.configured) {
+  if (!cfg.configured || cfg.mode === 'sandbox') {
     const err = new Error('Payment gateway is not configured');
     err.status = 501;
     err.code = 'GATEWAY_NOT_CONFIGURED';
@@ -34,10 +63,9 @@ export async function initiateGatewayCollection(_tenantId, _payload) {
   return { status: GATEWAY_STATUS.PENDING, externalId: null };
 }
 
-/** Initiate an external refund (stub). */
 export async function initiateGatewayRefund(_tenantId, _payload) {
   const cfg = getPaymentGatewayConfig();
-  if (!cfg.configured) {
+  if (!cfg.configured || cfg.mode === 'sandbox') {
     const err = new Error('Payment gateway refund is not configured');
     err.status = 501;
     err.code = 'GATEWAY_NOT_CONFIGURED';

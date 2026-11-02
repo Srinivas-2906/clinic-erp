@@ -9,6 +9,7 @@ import { migrateTenantsToDoctors } from '../modules/providers/doctorMigration.js
 import { migratePatientPhoneNonUnique } from '../modules/patients/patientPhoneMigration.js';
 import { initClinicalSchema } from '../modules/clinical/clinicalDb.js';
 import { initFinanceSchema } from '../modules/finance/financeDb.js';
+import { initBillingSchema } from '../modules/billing/billingDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
@@ -282,6 +283,7 @@ export function initDatabase() {
 
   initClinicalSchema(db);
   initFinanceSchema(db);
+  initBillingSchema(db);
 
   migratePatientPhoneNonUnique(db);
   migrateTenantsToDoctors(db);

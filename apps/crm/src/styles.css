@@ -6029,6 +6029,12 @@ html.dense .stat-val { font-size: 22px; }
 
 html.dense .panel-body { padding: 12px; }
 
+.plan-billing-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border, #e2e8f0); }
+.plan-section-title { margin: 0 0 0.5rem; font-size: 0.9375rem; font-weight: 600; }
+.plan-offer-list, .plan-tx-list { list-style: none; margin: 0; padding: 0; }
+.plan-offer-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.plan-tx-list li { font-size: 0.875rem; color: var(--text-muted, #64748b); margin-bottom: 0.35rem; }
+
 html.dense .overview-greeting { margin-bottom: 12px; }
 
 html.dense .overview-greeting-title { font-size: 18px; }

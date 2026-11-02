@@ -3,10 +3,12 @@ import { jsonBodyParserOptions } from './config/httpBodyLimits.js';
 import { jsonBodyErrorHandler } from './middleware/jsonBodyError.js';
 import { corsMiddleware } from './middleware/cors.js';
 import platformRouter, { clinicRouter } from './routes/index.js';
+import { billingWebhookRouter } from './routes/billingWebhook.routes.js';
 
 /** Express app without listen — used by integration tests and production entry. */
 export function createApiApp() {
   const app = express();
+  app.use('/api/platform/webhooks', billingWebhookRouter());
   app.use(express.json(jsonBodyParserOptions()));
   app.use(jsonBodyErrorHandler);
   app.use(corsMiddleware);

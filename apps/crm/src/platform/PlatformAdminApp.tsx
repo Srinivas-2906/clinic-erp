@@ -156,9 +156,34 @@ export function PlatformAdminApp() {
                 <p>Pending reminder jobs: {detail.operations.pendingReminderJobs}</p>
                 <p>Failed reminder jobs: {detail.operations.failedReminderJobs}</p>
               </section>
+              {'subscriptionEvents' in detail && Array.isArray((detail as { subscriptionEvents?: unknown[] }).subscriptionEvents) && (
+                <section>
+                  <h3>Subscription history</h3>
+                  <ul>
+                    {((detail as { subscriptionEvents: { eventType: string; toStatus?: string; createdAt: string }[] }).subscriptionEvents).slice(0, 8).map((ev) => (
+                      <li key={ev.createdAt + ev.eventType}>
+                        {new Date(ev.createdAt).toLocaleDateString()} · {ev.eventType}
+                        {ev.toStatus ? ` (${ev.toStatus})` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {'billingTransactions' in detail && Array.isArray((detail as { billingTransactions?: unknown[] }).billingTransactions) && (
+                <section>
+                  <h3>Billing transactions</h3>
+                  <ul>
+                    {((detail as { billingTransactions: { status: string; planId: string; createdAt: string }[] }).billingTransactions).slice(0, 8).map((tx) => (
+                      <li key={tx.createdAt + tx.planId}>
+                        {new Date(tx.createdAt).toLocaleDateString()} · {tx.planId} · {tx.status}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
               <section>
                 <h3>Admin actions</h3>
-                <p className="muted">Changes are audited. Payment renewal is not available until a gateway is configured.</p>
+                <p className="muted">Changes are audited. Sandbox checkout uses webhooks — no live gateway in CI.</p>
                 <label className="form-label">Confirmation note</label>
                 <input className="login-input" value={confirmNote} onChange={(e) => setConfirmNote(e.target.value)} placeholder="Reason for change" />
                 <div className="platform-admin-actions">
