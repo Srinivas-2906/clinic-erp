@@ -150,4 +150,98 @@ describe('slotEngine multi-doctor', () => {
     const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: bareId });
     assert.ok(result.slotOptions.length > 0, 'expected legacy tenant slots when doctor sessions missing');
   });
+
+  it('does not legacy-fallback when doctor has sessions but requested day is closed (Sunday)', () => {
+    const sunday = '2026-08-16'; // Sunday
+    assert.equal(new Date(`${sunday}T12:00:00+05:30`).getDay(), 0);
+    const result = getAvailableSlots(owner.tenantId, sunday, { doctorId: doctorA.id });
+    assert.equal(result.slotOptions.length, 0);
+  });
+
+  it('does not legacy-fallback when doctor has sessions but is unavailable (time off)', () => {
+    const db = getDb();
+    db.prepare('DELETE FROM appointments WHERE tenant_id = ?').run(owner.tenantId);
+    db.prepare('DELETE FROM doctor_time_off WHERE tenant_id = ?').run(owner.tenantId);
+
+    createDoctorTimeOff(doctorA.id, owner.tenantId, owner, {
+      startDatetime: `${dateStr}T10:00:00`,
+      endDatetime: `${dateStr}T15:00:00`,
+      reason: 'Full day block',
+    });
+
+    const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: doctorA.id });
+    assert.equal(result.slotOptions.length, 0);
+  });
+
+  it('does not legacy-fallback for anyAvailable when all doctors have empty slots', () => {
+    const sunday = '2026-08-16';
+    const result = getAvailableSlots(owner.tenantId, sunday, { anyAvailable: true });
+    assert.equal(result.slotOptions.length, 0);
+  });
+
+  it('excludes inactive doctors from anyAvailable aggregation', () => {
+    const db = getDb();
+    db.prepare('UPDATE doctors SET is_active = 0 WHERE id = ?').run(doctorB.id);
+    try {
+      const result = getAvailableSlots(owner.tenantId, dateStr, { anyAvailable: true });
+      assert.ok(result.slotOptions.every((s) => s.doctorId !== doctorB.id));
+    } finally {
+      db.prepare('UPDATE doctors SET is_active = 1 WHERE id = ?').run(doctorB.id);
+    }
+  });
+
+  it('returns no slots for inactive doctor when requested explicitly', () => {
+    const db = getDb();
+    db.prepare('UPDATE doctors SET is_active = 0 WHERE id = ?').run(doctorA.id);
+    try {
+      const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: doctorA.id });
+      assert.equal(result.slotOptions.length, 0);
+    } finally {
+      db.prepare('UPDATE doctors SET is_active = 1 WHERE id = ?').run(doctorA.id);
+    }
+  });
+
+  it('legacy fallback still respects tenant-wide appointment blocks', () => {
+    const db = getDb();
+    const bareId = 'doc-legacy-block';
+    db.prepare(`
+      INSERT INTO doctors (id, tenant_id, name, display_name, is_active, sort_order, created_at, updated_at)
+      VALUES (?, ?, 'Legacy', 'Legacy', 1, 10, datetime('now'), datetime('now'))
+    `).run(bareId, owner.tenantId);
+    db.prepare('DELETE FROM doctor_sessions WHERE doctor_id = ?').run(bareId);
+    db.prepare('DELETE FROM appointments WHERE tenant_id = ?').run(owner.tenantId);
+
+    createAppointment(owner.tenantId, {
+      patientId: 'pat-slot',
+      service: 'Block',
+      scheduledAt: `${dateStr}T10:00:00`,
+      status: 'confirmed',
+      assignedDoctorId: doctorA.id,
+    });
+
+    const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: bareId });
+    assert.equal(result.slotOptions.some((s) => s.time === '10:00'), false);
+    assert.ok(result.slotOptions.some((s) => s.time === '10:30'));
+  });
+
+  it('does not legacy-fallback when existing appointments consume all doctor slots', () => {
+    const db = getDb();
+    db.prepare('DELETE FROM appointments WHERE tenant_id = ?').run(owner.tenantId);
+    db.prepare('DELETE FROM doctor_time_off WHERE tenant_id = ?').run(owner.tenantId);
+
+    const open = getSlotsForDoctor(owner.tenantId, dateStr, doctorA.id);
+    assert.ok(open.length > 0);
+    for (const s of open) {
+      createAppointment(owner.tenantId, {
+        patientId: 'pat-slot',
+        service: 'Fill',
+        scheduledAt: `${dateStr}T${s.time}:00`,
+        status: 'confirmed',
+        assignedDoctorId: doctorA.id,
+      });
+    }
+
+    const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: doctorA.id });
+    assert.equal(result.slotOptions.length, 0);
+  });
 });
