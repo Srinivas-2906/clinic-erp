@@ -150,4 +150,20 @@ export function initClinicalSchema(db) {
   } catch {
     /* exists */
   }
+  for (const col of [
+    `ALTER TABLE clinical_attachments ADD COLUMN title TEXT DEFAULT ''`,
+    `ALTER TABLE clinical_attachments ADD COLUMN byte_size INTEGER DEFAULT 0`,
+    `ALTER TABLE clinical_attachments ADD COLUMN deleted_at TEXT`,
+  ]) {
+    try {
+      db.exec(col);
+    } catch {
+      /* exists */
+    }
+  }
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_clinical_attachments_patient ON clinical_attachments(tenant_id, patient_id, deleted_at)`);
+  } catch {
+    /* exists */
+  }
 }

@@ -92,6 +92,26 @@ export function validateUploadBuffer(buf, clientContentType = '') {
   };
 }
 
+export function detectPdf(buf) {
+  return buf.length >= 4 && buf.subarray(0, 4).toString('ascii') === '%PDF';
+}
+
+/** PDF + allowlisted images for patient clinical documents. */
+export function validateClinicalDocumentBuffer(buf, clientContentType = '') {
+  if (detectPdf(buf)) {
+    const client = String(clientContentType || '').toLowerCase();
+    if (client && !client.includes('pdf')) {
+      throw validationError('File content does not match declared content type');
+    }
+    return {
+      detectedType: 'pdf',
+      contentType: 'application/pdf',
+      extension: 'pdf',
+    };
+  }
+  return validateUploadBuffer(buf, clientContentType);
+}
+
 const SAFE_PREFIX = /^[a-z0-9_-]{1,32}$/i;
 const SAFE_FILE = /^[a-z0-9_.-]{1,200}$/i;
 

@@ -29,6 +29,18 @@ export interface Patient {
   updatedAt?: string;
 }
 
+export interface PatientClinicalDocument {
+  id: string;
+  patientId: string;
+  encounterId?: string | null;
+  title: string;
+  contentType: string;
+  byteSize: number;
+  fileUrl: string;
+  createdAt: string;
+  createdBy?: string | null;
+}
+
 export interface Appointment {
   id: string;
   tenantId: string;

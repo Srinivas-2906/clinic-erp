@@ -40,6 +40,7 @@ import { checkAuditExportRateLimit } from '../services/clinicAuditExport.js';
 import { getTenantEntitlements, canExportAudit } from '../modules/identity/entitlements.js';
 import { requireViewAudit } from '../modules/identity/permissions.js';
 import { savePatientUpload, openPatientUploadReadStream } from '../services/uploads.js';
+import { assertTenantMayReadClinicalFile } from '../modules/clinical/patientDocuments.service.js';
 import {
   checkAccessRequestRateLimit,
   submitAccessRequest,
@@ -635,6 +636,7 @@ export function clinicRouter() {
       return res.status(403).json({ error: 'Forbidden' });
     }
     try {
+      assertTenantMayReadClinicalFile(req.user.tenantId, req.params.fileName);
       const opened = await openPatientUploadReadStream(req.params.tenantId, req.params.fileName);
       res.setHeader('Content-Type', opened.contentType);
       res.setHeader('Content-Disposition', opened.contentDisposition || 'inline');

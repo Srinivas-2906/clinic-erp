@@ -326,6 +326,53 @@ export function deletePatientAllergy(patientId: string, allergyId: string) {
   );
 }
 
+export function fetchPatientClinicalDocuments(patientId: string) {
+  return request<{ documents: import('../types').PatientClinicalDocument[] }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/documents`,
+  );
+}
+
+async function fileToBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') return reject(new Error('Could not read file'));
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadPatientClinicalDocument(
+  patientId: string,
+  file: Blob,
+  opts?: { title?: string; encounterId?: string },
+) {
+  const data = await fileToBase64(file);
+  return request<import('../types').PatientClinicalDocument>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/documents`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data,
+        contentType: file.type || 'application/octet-stream',
+        title: opts?.title,
+        encounterId: opts?.encounterId,
+      }),
+    },
+  );
+}
+
+export function deletePatientClinicalDocument(patientId: string, documentId: string) {
+  return request<{ ok: boolean; id: string }>(
+    `/clinic/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function openPrescriptionPdf(encounterId: string) {
   const tenantSlug = resolveTenantSlug();
   const res = await fetch(`${API}/clinic/encounters/${encodeURIComponent(encounterId)}/prescription.pdf`, {

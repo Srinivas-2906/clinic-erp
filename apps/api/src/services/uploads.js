@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import {
   decodeBase64Payload,
   validateUploadBuffer,
+  validateClinicalDocumentBuffer,
   validateUploadPrefix,
   validateTenantId,
   validateFileName,
@@ -52,6 +53,33 @@ export async function deleteBinaryUpload(tenantId, fileName) {
   if (typeof backend.deleteObject === 'function') {
     await backend.deleteObject({ tenantId: safeTenant, fileName: safeName });
   }
+}
+
+export async function saveClinicalDocumentUpload(tenantId, { data, contentType }) {
+  const safeTenant = validateTenantId(tenantId);
+  if (!data) throw validationError('Missing upload data');
+
+  const buf = decodeBase64Payload(data);
+  const meta = validateClinicalDocumentBuffer(buf, contentType);
+  const safePrefix = validateUploadPrefix('clinical-doc');
+
+  const name = `${safePrefix}-${Date.now()}-${nanoid(6)}.${meta.extension}`;
+  validateFileName(name);
+
+  const backend = getUploadStorageBackend();
+  await backend.saveObject({
+    tenantId: safeTenant,
+    fileName: name,
+    buffer: buf,
+    contentType: meta.contentType,
+  });
+
+  return {
+    fileName: name,
+    relativePath: `${safeTenant}/${name}`,
+    contentType: meta.contentType,
+    byteSize: buf.length,
+  };
 }
 
 export async function savePatientUpload(tenantId, { data, contentType, prefix = 'prescription' }) {

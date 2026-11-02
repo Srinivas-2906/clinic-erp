@@ -14,6 +14,7 @@ import { RecordPaymentDialog } from './RecordPaymentDialog';
 import { SharePaymentDialog } from './SharePaymentDialog';
 import { DoctorBadge } from './DoctorBadge';
 import { AuthenticatedClinicRecordThumb } from './AuthenticatedClinicRecordThumb';
+import { PatientDocumentsPanel } from './PatientDocumentsPanel';
 import type { ClinicProfile } from '../lib/clinicBranding';
 
 const PALETTES: [string, string][] = [
@@ -505,6 +506,12 @@ export function PatientDetail({ patient, appointments, encounters = [], clinicPr
                 </div>
               );
             })()}
+
+            <PatientDocumentsPanel
+              patientId={patient.id}
+              encounters={encounters}
+              onToast={onToast}
+            />
 
             {overdueAppt && (
               <div className="panel">
