@@ -23,6 +23,7 @@ const {
   transitionTenantSubscription,
 } = await import('./subscriptionBilling.service.js');
 const { SUBSCRIPTION_STATUS } = await import('../identity/subscription.js');
+const { GATEWAY_STATUS } = await import('./paymentGateway.js');
 
 const tenantId = 'tenant-bill-1';
 
@@ -112,5 +113,39 @@ describe('subscription billing sandbox', () => {
     });
     const events = listSubscriptionEvents(tenantId);
     assert.ok(events.some((e) => e.toStatus === SUBSCRIPTION_STATUS.CANCELED));
+  });
+
+  it('ignores duplicate capture after success', () => {
+    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
+    const payload = buildSandboxWebhookPayload(checkout.orderId);
+    const raw = JSON.stringify(payload);
+    processSubscriptionWebhook('razorpay', payload, { rawBody: raw });
+    const dup = { ...payload, event_id: `evt_dup_${Date.now()}` };
+    processSubscriptionWebhook('razorpay', dup, { rawBody: JSON.stringify(dup) });
+    const txs = getDb().prepare('SELECT status FROM billing_transactions WHERE external_order_id = ?').get(checkout.orderId);
+    assert.equal(txs.status, GATEWAY_STATUS.SUCCEEDED);
+  });
+
+  it('rejects amount mismatch on capture', () => {
+    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
+    const payload = {
+      event: 'payment.captured',
+      event_id: `evt_bad_amt_${Date.now()}`,
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_bad',
+            order_id: checkout.orderId,
+            status: 'captured',
+            amount: 100,
+            currency: 'INR',
+          },
+        },
+      },
+    };
+    assert.throws(
+      () => processSubscriptionWebhook('razorpay', payload, { rawBody: JSON.stringify(payload) }),
+      (e) => e.code === 'AMOUNT_MISMATCH',
+    );
   });
 });

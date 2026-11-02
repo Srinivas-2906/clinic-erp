@@ -265,9 +265,13 @@ function applyWebhookPayload(provider, payload) {
   const orderId = payment?.order_id || payload?.order_id;
   const paymentId = payment?.id || payload?.payment_id;
   const status = String(payment?.status || payload?.status || '').toLowerCase();
+  const amountPaise = Number(payment?.amount ?? payload?.amount ?? 0) || null;
+  const currency = String(payment?.currency || payload?.currency || 'INR').toUpperCase();
+
+  const db = getDb();
 
   const tx = orderId
-    ? getDb().prepare('SELECT * FROM billing_transactions WHERE external_order_id = ?').get(orderId)
+    ? db.prepare('SELECT * FROM billing_transactions WHERE external_order_id = ?').get(orderId)
     : null;
 
   if (!tx) {
@@ -281,17 +285,83 @@ function applyWebhookPayload(provider, payload) {
 
   const tenantId = tx.tenant_id;
 
+  const applyFailed = () => {
+    db.transaction(() => {
+      const row = db.prepare('SELECT status FROM billing_transactions WHERE id = ?').get(tx.id);
+      if (row.status === GATEWAY_STATUS.SUCCEEDED) {
+        recordSubscriptionEvent(tenantId, {
+          eventType: 'webhook_out_of_order',
+          source: 'webhook',
+          externalRef: paymentId || orderId,
+          note: 'Failed payment event after success — recorded for reconciliation',
+          payload: { eventType, status },
+        });
+        return;
+      }
+      if (row.status === GATEWAY_STATUS.FAILED) return;
+      db.prepare(`
+        UPDATE billing_transactions SET status = ?, failure_reason = ?, updated_at = datetime('now')
+        WHERE id = ? AND status = ?
+      `).run(GATEWAY_STATUS.FAILED, payment?.error_description || 'payment_failed', tx.id, GATEWAY_STATUS.PENDING);
+      const after = db.prepare('SELECT status FROM billing_transactions WHERE id = ?').get(tx.id);
+      if (after.status === GATEWAY_STATUS.FAILED) {
+        transitionTenantSubscription(tenantId, null, {
+          subscriptionStatus: SUBSCRIPTION_STATUS.PAST_DUE,
+          source: 'webhook',
+          externalRef: paymentId || orderId,
+          note: 'Payment failed',
+        });
+      }
+    })();
+  };
+
+  const applyPaid = () => {
+    if (amountPaise != null && tx.amount_cents > 0 && amountPaise !== tx.amount_cents) {
+      const err = new Error('Payment amount mismatch');
+      err.status = 400;
+      err.code = 'AMOUNT_MISMATCH';
+      throw err;
+    }
+    if (currency !== String(tx.currency || 'INR').toUpperCase()) {
+      const err = new Error('Payment currency mismatch');
+      err.status = 400;
+      err.code = 'CURRENCY_MISMATCH';
+      throw err;
+    }
+
+    let activated = false;
+    db.transaction(() => {
+      const row = db.prepare('SELECT status FROM billing_transactions WHERE id = ?').get(tx.id);
+      if (row.status === GATEWAY_STATUS.SUCCEEDED) return;
+      if (row.status === GATEWAY_STATUS.FAILED) {
+        recordSubscriptionEvent(tenantId, {
+          eventType: 'webhook_out_of_order',
+          source: 'webhook',
+          externalRef: paymentId || orderId,
+          note: 'Capture after failure — requires reconciliation',
+          payload: { eventType, status },
+        });
+        return;
+      }
+      const updated = db.prepare(`
+        UPDATE billing_transactions SET status = ?, external_payment_id = ?, updated_at = datetime('now')
+        WHERE id = ? AND status = ?
+      `).run(GATEWAY_STATUS.SUCCEEDED, paymentId || null, tx.id, GATEWAY_STATUS.PENDING);
+      if (updated.changes !== 1) return;
+      transitionTenantSubscription(tenantId, null, {
+        subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
+        planId: tx.plan_id,
+        source: 'webhook',
+        externalRef: paymentId || orderId,
+        note: 'Verified subscription payment',
+      });
+      activated = true;
+    })();
+    return activated;
+  };
+
   if (eventType.includes('failed') || status === 'failed') {
-    getDb().prepare(`
-      UPDATE billing_transactions SET status = ?, failure_reason = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(GATEWAY_STATUS.FAILED, payment?.error_description || 'payment_failed', tx.id);
-    transitionTenantSubscription(tenantId, null, {
-      subscriptionStatus: SUBSCRIPTION_STATUS.PAST_DUE,
-      source: 'webhook',
-      externalRef: paymentId || orderId,
-      note: 'Payment failed',
-    });
+    applyFailed();
     return { tenantId, status: GATEWAY_STATUS.FAILED };
   }
 
@@ -300,20 +370,8 @@ function applyWebhookPayload(provider, payload) {
     return { ignored: true, eventType };
   }
 
-  getDb().prepare(`
-    UPDATE billing_transactions SET status = ?, external_payment_id = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).run(GATEWAY_STATUS.SUCCEEDED, paymentId || null, tx.id);
-
-  transitionTenantSubscription(tenantId, null, {
-    subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
-    planId: tx.plan_id,
-    source: 'webhook',
-    externalRef: paymentId || orderId,
-    note: 'Verified subscription payment',
-  });
-
-  return { tenantId, status: GATEWAY_STATUS.SUCCEEDED, planId: tx.plan_id };
+  const activated = applyPaid();
+  return { tenantId, status: GATEWAY_STATUS.SUCCEEDED, planId: tx.plan_id, activated: activated !== false };
 }
 
 /** Test/sandbox helper — builds signed webhook body for an order (never for production UI). */
