@@ -137,4 +137,17 @@ describe('slotEngine multi-doctor', () => {
     assert.ok(result.slots.every((s) => typeof s === 'string'));
     assert.ok(result.slotOptions.length > 0);
   });
+
+  it('falls back to tenant legacy sessions when doctor has no weekly sessions', () => {
+    const db = getDb();
+    const bareId = 'doc-no-sessions';
+    db.prepare(`
+      INSERT INTO doctors (id, tenant_id, name, display_name, is_active, sort_order, created_at, updated_at)
+      VALUES (?, ?, 'Bare', 'Bare', 1, 9, datetime('now'), datetime('now'))
+    `).run(bareId, owner.tenantId);
+    db.prepare('DELETE FROM doctor_sessions WHERE doctor_id = ?').run(bareId);
+
+    const result = getAvailableSlots(owner.tenantId, dateStr, { doctorId: bareId });
+    assert.ok(result.slotOptions.length > 0, 'expected legacy tenant slots when doctor sessions missing');
+  });
 });

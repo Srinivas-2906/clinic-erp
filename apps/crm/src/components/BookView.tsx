@@ -30,6 +30,7 @@ import {
   slotOptionKey,
   type SlotOption,
 } from '../lib/bookingSlots';
+import { clinicTodayYmd } from '../lib/appointmentDisplay';
 import { BOOKING_SERVICE_TITLES, DEFAULT_BOOKING_SERVICE } from '../lib/bookingServices';
 import {
   formatPhone10,
@@ -288,7 +289,7 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
   const [service, setService] = useState(DEFAULT_BOOKING_SERVICE);
   const [serviceId, setServiceId] = useState('');
   const [chiefComplaint, setChiefComplaint] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(clinicTodayYmd());
   const [slot, setSlot] = useState('');
   const [slotKey, setSlotKey] = useState('');
   const [slotOptions, setSlotOptions] = useState<SlotOption[]>([]);
@@ -1006,7 +1007,7 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
               id="book-schedule-date"
               type="date"
               className="form-input"
-              min={new Date().toISOString().slice(0, 10)}
+              min={clinicTodayYmd()}
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />

@@ -239,6 +239,9 @@ export function getAvailableSlots(tenantId, dateStr, options = {}) {
         });
       }
     }
+    if (slotOptions.length === 0) {
+      slotOptions = legacyTenantSlots(tenantId, dateStr, durationMin);
+    }
   } else {
     slotOptions = legacyTenantSlots(tenantId, dateStr, durationMin);
   }

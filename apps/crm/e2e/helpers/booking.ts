@@ -21,6 +21,7 @@ export async function continueBookAfterTreatment(page: Page, mode: 'walkin' | 's
 /** Pick first valid slot on schedule step — waits for API slot load. */
 export async function pickFirstBookSlot(page: Page) {
   await expect(page.getByText('Pick a time')).toBeVisible({ timeout: 15_000 });
+  await ensureBookableScheduleDate(page);
   const slotSelect = page.locator('#book-schedule-slot');
   await expect(slotSelect).toBeVisible();
 
@@ -47,10 +48,18 @@ export async function ensureBookableScheduleDate(page: Page) {
     d.setDate(d.getDate() + offset);
     const ymd = clinicYmd(d);
     await dateInput.fill(ymd);
-    await page.waitForTimeout(1200);
-    const options = await slotSelect.locator('option').allTextContents();
-    const usable = options.filter((o) => o.trim() && !/loading|no open slots/i.test(o));
-    if (usable.length > 0) return ymd;
+    let usableCount = 0;
+    try {
+      await expect.poll(async () => {
+        const options = await slotSelect.locator('option').allTextContents();
+        const usable = options.filter((o) => o.trim() && !/loading|no open slots/i.test(o));
+        usableCount = usable.length;
+        return usable.length;
+      }, { timeout: 12_000, message: `Wait for slots on ${ymd}` }).toBeGreaterThan(0);
+      if (usableCount > 0) return ymd;
+    } catch {
+      /* try next day */
+    }
   }
   throw new Error('No bookable slots in the next 7 days');
 }
