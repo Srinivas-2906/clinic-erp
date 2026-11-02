@@ -2,8 +2,10 @@
 
 **Repository:** `clinic-erp` (Clinic ERP — `apps/api`, `apps/crm`)  
 **Audit date:** 2026-11-02  
-**Evidence base:** `main` @ `3dd7726` (patient clinical documents) + open PR #58 (consultation amendments)  
+**Evidence base:** `main` @ `e1eea38` (consultation amendments)  
 **Method:** Source inspection, existing tests, CI workflows, modernization runbooks — no invented completion percentages.
+
+**Follow-up:** [43_PILOT_ENV_AND_RECOVERY.md](./43_PILOT_ENV_AND_RECOVERY.md) — env consolidation, local restore drill (**passed** on E2E DB copy), staging drill operator-run only.
 
 **Out of scope:** Legacy Denta Care project; native Android/iOS (`apps/mobile` deferred per `40_NATIVE_DEFERRED_BACKLOG.md`); untracked `booksaas-*` (separate product).
 
@@ -243,4 +245,6 @@ Estimates assume existing architecture; no greenfield rewrite.
 | E2E | `apps/crm/e2e/tests/01–38` |
 | CI | `.github/workflows/ci.yml`, `playwright-regression.yml` |
 
-**Related docs:** `27_OPERATIONAL_READINESS.md`, `32_COMMERCIAL_SAAS_V1.md`, `37_WEB_FIRST_STRATEGY.md`, `41_WEB_LAUNCH_PRIORITIES.md`.
+**Related docs:** `27_OPERATIONAL_READINESS.md`, `32_COMMERCIAL_SAAS_V1.md`, `37_WEB_FIRST_STRATEGY.md`, `41_WEB_LAUNCH_PRIORITIES.md`, **`43_PILOT_ENV_AND_RECOVERY.md`** (env + recovery tooling, 2026-11-02 batch).
+
+**Addendum (2026-11-02):** Local isolated SQLite restore drill **passed** via `pilot-local-restore-drill.sh` on E2E seed DB. Staging GCS Litestream drill not re-run (operator credentials). See `43_*` for scripts and SMTP/password-reset review.

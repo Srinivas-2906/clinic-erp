@@ -140,6 +140,20 @@ describe('clinic settings HTTP', () => {
     assert.equal(res.json.settings.website, 'https://a.example');
   });
 
+  it('PATCH /clinic/settings rejects unauthenticated requests', async () => {
+    const app = createApp();
+    const res = await request(app, 'PATCH', '/api/clinic/settings', { body: { phone: '000' } });
+    assert.equal(res.status, 401);
+  });
+
+  it('GET /clinic/settings scopes to token tenant only', async () => {
+    const app = createApp();
+    const resB = await request(app, 'GET', '/api/clinic/settings', { token: ownerB });
+    assert.equal(resB.status, 200);
+    assert.equal(resB.json.tenantId, tenantB);
+    assert.notEqual(resB.json.settings?.phone, '111');
+  });
+
   it('PATCH /clinic/settings ignores unknown keys without error', async () => {
     const app = createApp();
     const res = await request(app, 'PATCH', '/api/clinic/settings', {
@@ -196,6 +210,25 @@ describe('clinic report HTTP', () => {
     const app = createApp();
     const res = await request(app, 'GET', '/api/clinic/report', { token: doctorA });
     assert.equal(res.status, 200);
+  });
+
+  it('GET /clinic/report for tenant B excludes tenant A patient rows', async () => {
+    const db = getDb();
+    const patientAOnly = 'pat-a-report';
+    db.prepare(`
+      INSERT INTO patients (id, tenant_id, name, phone, phone_digits)
+      VALUES (?, ?, 'Secret A Report', '9000000088', '9000000088')
+    `).run(patientAOnly, tenantA);
+    db.prepare(`
+      INSERT INTO appointments (id, tenant_id, patient_id, service, scheduled_at, status)
+      VALUES ('appt-a-secret', ?, ?, 'Consult', datetime('now'), 'confirmed')
+    `).run(tenantA, patientAOnly);
+
+    const app = createApp();
+    const res = await request(app, 'GET', '/api/clinic/report?from=2020-01-01&to=2030-12-31', { token: ownerB });
+    assert.equal(res.status, 200);
+    const names = (res.json.appointments || []).map((a) => a.patientName || a.patient?.name);
+    assert.ok(!names.includes('Secret A Report'));
   });
 });
 
