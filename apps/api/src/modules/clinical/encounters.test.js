@@ -490,6 +490,35 @@ describe('clinical encounters', () => {
     assert.equal(after.prescription?.items?.[0]?.drugName, 'Y');
   });
 
+  it('rejects second amend when expectedUpdatedAt is stale after first amend', async () => {
+    const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
+    const enc = createEncounter(ctx.tenantId, user, {
+      patientId: ctx.patientId,
+      doctorId: ctx.doctorId,
+      clinicalNote: 'V1',
+    });
+    updateEncounterDraft(enc.id, ctx.tenantId, user, {
+      prescriptionItems: [{ drugName: 'Keep', dose: '1' }],
+    });
+    await finalizeEncounter(enc.id, ctx.tenantId, user);
+    const v1 = encounterDetail(enc.id, ctx.tenantId);
+    amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+      reason: 'First valid amendment',
+      expectedUpdatedAt: v1.updatedAt,
+      patch: { clinicalNote: 'V2' },
+    });
+    assert.throws(
+      () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
+        reason: 'Stale retry should fail',
+        expectedUpdatedAt: v1.updatedAt,
+        patch: { clinicalNote: 'V3' },
+      }),
+      /updated elsewhere/,
+    );
+    const latest = encounterDetail(enc.id, ctx.tenantId);
+    assert.equal(latest.clinicalNote, 'V2');
+  });
+
   it('requires amendment reason min length', async () => {
     const user = { sub: ctx.clinicianId, tenantId: ctx.tenantId, role: 'staff' };
     const enc = createEncounter(ctx.tenantId, user, {

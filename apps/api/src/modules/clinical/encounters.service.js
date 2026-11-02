@@ -521,30 +521,35 @@ export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, p
 
   const db = getDb();
   const amendmentId = nanoid(12);
-  const beforeJson = JSON.stringify({ clinicalNote: before.clinicalNote, historySummary: before.historySummary });
   const afterJson = JSON.stringify(allowed);
   const updatedAt = nowIso();
 
   const applyAmendment = db.transaction(() => {
     const current = db.prepare(
-      'SELECT updated_at FROM encounters WHERE id = ? AND tenant_id = ?',
+      'SELECT updated_at, clinical_note, history_summary FROM encounters WHERE id = ? AND tenant_id = ?',
     ).get(encounterId, tenantId);
     if (!current) {
       const err = new Error('Encounter not found');
       err.status = 404;
       throw err;
     }
-    if (expectedUpdatedAt != null && String(expectedUpdatedAt) !== String(current.updated_at || '')) {
+    const versionAtCommit = String(current.updated_at || '');
+    if (expectedUpdatedAt != null && String(expectedUpdatedAt) !== versionAtCommit) {
       const err = new Error('Consultation was updated elsewhere. Refresh and try again.');
       err.status = 409;
       err.code = 'ENCOUNTER_VERSION_CONFLICT';
       throw err;
     }
 
+    const snapshotBefore = JSON.stringify({
+      clinicalNote: current.clinical_note || '',
+      historySummary: current.history_summary || '',
+    });
+
     db.prepare(`
       INSERT INTO record_amendments (id, tenant_id, entity_type, entity_id, reason, before_json, after_json, author_id)
       VALUES (?, ?, 'encounter', ?, ?, ?, ?, ?)
-    `).run(amendmentId, tenantId, encounterId, trimmedReason, beforeJson, afterJson, user.sub);
+    `).run(amendmentId, tenantId, encounterId, trimmedReason, snapshotBefore, afterJson, user.sub);
 
     const sets = [];
     const vals = [];
@@ -557,10 +562,10 @@ export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, p
       vals.push(allowed.historySummary);
     }
     sets.push('updated_at = ?');
-    vals.push(updatedAt, encounterId, tenantId);
+    vals.push(updatedAt, encounterId, tenantId, versionAtCommit);
 
     const result = db.prepare(
-      `UPDATE encounters SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`,
+      `UPDATE encounters SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ? AND updated_at = ?`,
     ).run(...vals);
     if (result.changes !== 1) {
       const err = new Error('Consultation was updated elsewhere. Refresh and try again.');

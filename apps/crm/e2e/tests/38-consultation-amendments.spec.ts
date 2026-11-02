@@ -7,7 +7,8 @@ const TENANT = process.env.E2E_TENANT || 'dentacare';
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
 
 test.describe('Consultation amendments', () => {
-  test('desktop: doctor amends finalized note and history appears', async ({ authedPage: page, request }) => {
+  test('desktop: doctor amends finalized note and history appears', async ({ page, request }) => {
+    test.skip(test.info().project.name !== 'chromium-desktop', 'Desktop viewport only');
     const uniqueName = `Amend E2E ${Date.now()}`;
     const doctorHeaders = await authHeaders(
       request,
@@ -40,13 +41,16 @@ test.describe('Consultation amendments', () => {
     });
     await request.post(`${API}/api/clinic/encounters/${enc.id}/finalize`, { headers: doctorHeaders });
 
+    await loginClinicApp(page, 'doctor');
     await closeBlockingModalsIfOpen(page);
     await goToTab(page, 'patients');
     await page.locator('.patient-card, .patient-row').filter({ hasText: uniqueName }).first().click();
     await expect(page.locator('.patient-detail')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: /visits/i }).click();
 
-    await page.getByRole('button', { name: /^Amend$/ }).first().click();
+    const amendBtn = page.getByRole('button', { name: /^Amend$/ }).first();
+    await expect(amendBtn).toBeVisible({ timeout: 15_000 });
+    await amendBtn.click();
     await page.locator('#amend-reason').fill('Corrected note after supervisor review');
     await page.locator('textarea').first().fill('Amended E2E clinical note');
     await page.getByRole('button', { name: /save amendment/i }).click();
@@ -73,7 +77,10 @@ test.describe('Consultation amendments', () => {
     });
     const docRes = await request.get(`${API}/api/clinic/doctors`, { headers: doctorHeaders });
     const doctors = (await docRes.json()).doctors ?? [];
-    const doctorId = (Array.isArray(doctors) ? doctors[0] : undefined)?.id as string | undefined;
+    const doctorRow = Array.isArray(doctors)
+      ? doctors.find((d: { userId?: string }) => d.userId === 'user-e2e-doctor') ?? doctors[0]
+      : undefined;
+    const doctorId = doctorRow?.id as string | undefined;
     const encRes = await request.post(`${API}/api/clinic/patients/${patient.id}/encounters`, {
       headers: { ...doctorHeaders, 'Content-Type': 'application/json' },
       data: { appointmentId: appointment.id, doctorId },
