@@ -138,7 +138,12 @@ export function deletePatientClinicalDocument(documentId, patientId, tenantId, u
   const fileName = row.storage_key.includes('/')
     ? row.storage_key.split('/').pop()
     : row.storage_key;
-  void deleteBinaryUpload(tenantId, fileName).catch(() => {});
+  void deleteBinaryUpload(tenantId, fileName).catch(() => {
+    logAudit(tenantId, user.sub, 'delete_storage_pending', 'clinical_attachment', documentId, {
+      patientId,
+      storageKey: row.storage_key,
+    });
+  });
 
   logAudit(tenantId, user.sub, 'delete', 'clinical_attachment', documentId, { patientId });
   return { ok: true, id: documentId };

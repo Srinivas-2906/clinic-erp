@@ -178,4 +178,33 @@ describe('patient clinical documents', () => {
     ).get().c;
     assert.equal(after, before + 1);
   });
+
+  it('records audit row on delete and blocks file retrieval', async () => {
+    const created = await createPatientClinicalDocument(patientA, tenantA, ownerA, {
+      data: TINY_PNG_B64,
+      contentType: 'image/png',
+      title: 'To delete',
+    });
+    const fileName = created.fileUrl.split('/').pop();
+    const beforeDel = getDb().prepare(
+      `SELECT COUNT(*) AS c FROM audit_log WHERE entity_type = 'clinical_attachment' AND action = 'delete'`,
+    ).get().c;
+
+    deletePatientClinicalDocument(created.id, patientA, tenantA, ownerA);
+
+    const afterDel = getDb().prepare(
+      `SELECT COUNT(*) AS c FROM audit_log WHERE entity_type = 'clinical_attachment' AND action = 'delete' AND entity_id = ?`,
+    ).get(created.id).c;
+    assert.equal(afterDel, 1);
+    assert.equal(
+      getDb().prepare(
+        `SELECT COUNT(*) AS c FROM audit_log WHERE entity_type = 'clinical_attachment' AND action = 'delete'`,
+      ).get().c,
+      beforeDel + 1,
+    );
+    assert.throws(
+      () => assertTenantMayReadClinicalFile(tenantA, fileName),
+      /File not found/,
+    );
+  });
 });
