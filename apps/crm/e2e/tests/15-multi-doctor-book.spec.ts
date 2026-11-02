@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth.fixture';
 import { goToTab } from '../helpers/navigation';
+import { continueBookAfterTreatment, pickFirstBookSlot } from '../helpers/booking';
 
 function uniquePhone() {
   const n = Date.now().toString().slice(-9);
@@ -53,15 +54,7 @@ test.describe('Multi-doctor booking UI', () => {
     await page.getByRole('button', { name: /any available doctor/i }).click();
     await page.getByRole('button', { name: 'Next' }).click();
 
-    const slotSelect = page.locator('.form-select').last();
-    await expect(slotSelect).toBeEnabled({ timeout: 10_000 });
-    const options = await slotSelect.locator('option').allTextContents();
-    const validSlot = options.find((o) => /AM|PM/i.test(o));
-    if (!validSlot) {
-      test.skip(true, 'No slots available for any-available booking');
-      return;
-    }
-    await slotSelect.selectOption({ index: options.indexOf(validSlot) });
+    await pickFirstBookSlot(page);
     await page.getByRole('button', { name: 'Review' }).click();
 
     const doctorRow = page.locator('dt').filter({ hasText: /^Doctor$/ });

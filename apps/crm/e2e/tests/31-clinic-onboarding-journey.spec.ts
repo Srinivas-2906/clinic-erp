@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { goToTab } from '../helpers/navigation';
+import { continueBookAfterTreatment } from '../helpers/booking';
 
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:3010';
 const PASS = process.env.E2E_PASSWORD || 'E2eTest@2026';
@@ -95,23 +96,17 @@ test.describe('Clinic onboarding journey', () => {
     await expect(page.getByText(patientName).first()).toBeVisible({ timeout: 15_000 });
 
     await goToTab(page, 'book');
+    await page.getByRole('tab', { name: /walk-in now/i }).click();
     await page.locator('#book-search').fill(patientName);
     await expect(page.getByRole('button', { name: /continue booking/i })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: /continue booking/i }).click();
     await page.locator('.form-select').first().selectOption({ index: 0 });
-    await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
-    if (await page.getByText('Choose doctor').isVisible({ timeout: 2500 }).catch(() => false)) {
-      await page.locator('.book-doctor-option').first().click();
-      await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
-    }
-    if (await page.getByRole('button', { name: /^Review$/ }).isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: /^Review$/ }).click();
-    }
+    await continueBookAfterTreatment(page, 'walkin');
     const apptCreate = page.waitForResponse(
       (r) => r.url().includes('/api/appointments') && r.request().method() === 'POST' && r.ok(),
       { timeout: 25_000 },
     );
-    await page.getByRole('button', { name: /^(Book appointment|Save walk-in)$/i }).click();
+    await page.getByRole('button', { name: /save walk-in/i }).click();
     await apptCreate;
 
     await goToTab(page, 'overview');

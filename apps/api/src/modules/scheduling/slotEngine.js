@@ -147,9 +147,18 @@ export function getSlotsForDoctor(tenantId, dateStr, doctorId, durationMin = 30,
   return slots;
 }
 
+function doctorHasWeeklySessionRows(doctorId, tenantId) {
+  const row = getDb().prepare(
+    'SELECT 1 FROM doctor_sessions WHERE doctor_id = ? AND tenant_id = ? LIMIT 1',
+  ).get(doctorId, tenantId);
+  return !!row;
+}
+
 function resolveEligibleDoctorIds(tenantId, { doctorId, serviceId, anyAvailable }) {
   if (doctorId) {
     assertDoctorBelongsToTenant(doctorId, tenantId);
+    const doc = getDoctorById(doctorId, tenantId);
+    if (doc && doc.isActive === false) return [];
     return [doctorId];
   }
 
@@ -162,7 +171,7 @@ function resolveEligibleDoctorIds(tenantId, { doctorId, serviceId, anyAvailable 
   }
 
   if (anyAvailable) {
-    return listDoctors(tenantId).map((d) => d.id);
+    return listDoctors(tenantId).filter((d) => d.isActive !== false).map((d) => d.id);
   }
 
   const defaultId = getDefaultDoctorId(tenantId);
@@ -239,7 +248,15 @@ export function getAvailableSlots(tenantId, dateStr, options = {}) {
         });
       }
     }
-  } else {
+    if (
+      slotOptions.length === 0
+      && doctorId
+      && !anyAvailable
+      && !doctorHasWeeklySessionRows(doctorId, tenantId)
+    ) {
+      slotOptions = legacyTenantSlots(tenantId, dateStr, durationMin);
+    }
+  } else if (!doctorId && !serviceId) {
     slotOptions = legacyTenantSlots(tenantId, dateStr, durationMin);
   }
 
