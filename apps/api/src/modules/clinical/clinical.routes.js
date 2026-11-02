@@ -18,6 +18,11 @@ import {
   updatePatientAllergy,
   deletePatientAllergy,
 } from './encounters.service.js';
+import {
+  listPatientClinicalDocuments,
+  createPatientClinicalDocument,
+  deletePatientClinicalDocument,
+} from './patientDocuments.service.js';
 import { canViewClinical } from './clinicalPermissions.js';
 
 export function clinicalRouter() {
@@ -179,6 +184,47 @@ export function clinicalRouter() {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
     try {
       res.json(deletePatientAllergy(req.params.allergyId, req.params.patientId, req.user.tenantId, req.user));
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  r.get('/patients/:patientId/documents', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json({
+        documents: listPatientClinicalDocuments(req.params.patientId, req.user.tenantId, req.user),
+      });
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message });
+    }
+  });
+
+  r.post('/patients/:patientId/documents', async (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const doc = await createPatientClinicalDocument(
+        req.params.patientId,
+        req.user.tenantId,
+        req.user,
+        req.body ?? {},
+      );
+      res.status(201).json(doc);
+    } catch (err) {
+      const status = err.statusCode || err.status || (err.code === 'VALIDATION_ERROR' ? 400 : 400);
+      res.status(status).json({ error: err.message || 'Upload failed' });
+    }
+  });
+
+  r.delete('/patients/:patientId/documents/:documentId', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json(deletePatientClinicalDocument(
+        req.params.documentId,
+        req.params.patientId,
+        req.user.tenantId,
+        req.user,
+      ));
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }
