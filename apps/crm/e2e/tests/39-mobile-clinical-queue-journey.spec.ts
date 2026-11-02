@@ -15,6 +15,17 @@ async function dismissPilotBanner(page: import('@playwright/test').Page) {
   }
 }
 
+async function logoutViaUi(page: import('@playwright/test').Page) {
+  const sidebarLogout = page.locator('.sidebar-logout-btn');
+  if (await sidebarLogout.isVisible().catch(() => false)) {
+    await sidebarLogout.click();
+  } else {
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await page.getByRole('button', { name: /log out/i }).click();
+  }
+  await expect(page.locator('.login-screen')).toBeVisible({ timeout: 15_000 });
+}
+
 test.describe('Mobile clinical queue journey', () => {
   test.beforeEach(({ }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-mobile', 'Mobile viewport only');
@@ -54,6 +65,7 @@ test.describe('Mobile clinical queue journey', () => {
       await page.waitForTimeout(800);
     }
 
+    await logoutViaUi(page);
     await loginClinicApp(page, 'doctor');
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
@@ -70,6 +82,7 @@ test.describe('Mobile clinical queue journey', () => {
       timeout: 20_000,
     });
 
+    await logoutViaUi(page);
     await loginClinicApp(page, 'receptionist');
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
