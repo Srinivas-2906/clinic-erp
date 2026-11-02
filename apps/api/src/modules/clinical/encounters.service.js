@@ -3,7 +3,7 @@ import { getDb } from '../../db/index.js';
 import { getPatientById } from '../../services/clinicStore.js';
 import { assertDoctorBelongsToTenant, getDoctorById } from '../providers/doctors.service.js';
 import { logAudit } from '../../services/clinicAudit.js';
-import { requireClinician, resolveClinicianDoctorId } from './clinicalPermissions.js';
+import { requireClinician, resolveClinicianDoctorId, canViewClinical } from './clinicalPermissions.js';
 import { assertCapability, canStartConsultation, canManageAppointments } from '../identity/rolePolicy.js';
 import { buildPrescriptionPdfBuffer } from './prescriptionPdf.js';
 import { saveBinaryUpload, deleteBinaryUpload } from '../../services/uploads.js';
@@ -482,10 +482,14 @@ export async function regeneratePrescriptionPdf(encounterId, tenantId, user) {
   return encounterDetail(encounterId, tenantId);
 }
 
-export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, patch = {} } = {}) {
+export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, patch = {}, expectedUpdatedAt } = {}) {
   requireClinician(user, tenantId);
   const trimmedReason = String(reason || '').trim();
-  if (trimmedReason.length < 8) throw new Error('Amendment reason required (min 8 characters)');
+  if (trimmedReason.length < 8) {
+    const err = new Error('Amendment reason required (min 8 characters)');
+    err.status = 400;
+    throw err;
+  }
 
   const before = encounterDetail(encounterId, tenantId);
   if (!before) {
@@ -493,42 +497,122 @@ export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, p
     err.status = 404;
     throw err;
   }
-  if (before.status !== 'finalized') throw new Error('Amendments apply to finalized records only');
+  if (before.status !== 'finalized') {
+    const err = new Error('Amendments apply to finalized records only');
+    err.status = 400;
+    throw err;
+  }
+
+  if (expectedUpdatedAt != null && String(expectedUpdatedAt) !== String(before.updatedAt || '')) {
+    const err = new Error('Consultation was updated elsewhere. Refresh and try again.');
+    err.status = 409;
+    err.code = 'ENCOUNTER_VERSION_CONFLICT';
+    throw err;
+  }
 
   const allowed = {};
   if (patch.clinicalNote !== undefined) allowed.clinicalNote = String(patch.clinicalNote || '').trim();
   if (patch.historySummary !== undefined) allowed.historySummary = String(patch.historySummary || '').trim();
-  if (Object.keys(allowed).length === 0) throw new Error('No permitted fields to amend');
-
-  getDb().prepare(`
-    INSERT INTO record_amendments (id, tenant_id, entity_type, entity_id, reason, before_json, after_json, author_id)
-    VALUES (?, ?, 'encounter', ?, ?, ?, ?, ?)
-  `).run(
-    nanoid(12),
-    tenantId,
-    encounterId,
-    trimmedReason,
-    JSON.stringify({ clinicalNote: before.clinicalNote, historySummary: before.historySummary }),
-    JSON.stringify(allowed),
-    user.sub,
-  );
-
-  const sets = [];
-  const vals = [];
-  if (allowed.clinicalNote !== undefined) {
-    sets.push('clinical_note = ?');
-    vals.push(allowed.clinicalNote);
+  if (Object.keys(allowed).length === 0) {
+    const err = new Error('No permitted fields to amend');
+    err.status = 400;
+    throw err;
   }
-  if (allowed.historySummary !== undefined) {
-    sets.push('history_summary = ?');
-    vals.push(allowed.historySummary);
-  }
-  sets.push('updated_at = ?');
-  vals.push(nowIso(), encounterId, tenantId);
-  getDb().prepare(`UPDATE encounters SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`).run(...vals);
 
-  logAudit(tenantId, user.sub, 'amend', 'encounter', encounterId, { reason: trimmedReason });
+  const db = getDb();
+  const amendmentId = nanoid(12);
+  const afterJson = JSON.stringify(allowed);
+  const updatedAt = nowIso();
+
+  const applyAmendment = db.transaction(() => {
+    const current = db.prepare(
+      'SELECT updated_at, clinical_note, history_summary FROM encounters WHERE id = ? AND tenant_id = ?',
+    ).get(encounterId, tenantId);
+    if (!current) {
+      const err = new Error('Encounter not found');
+      err.status = 404;
+      throw err;
+    }
+    const versionAtCommit = String(current.updated_at || '');
+    if (expectedUpdatedAt != null && String(expectedUpdatedAt) !== versionAtCommit) {
+      const err = new Error('Consultation was updated elsewhere. Refresh and try again.');
+      err.status = 409;
+      err.code = 'ENCOUNTER_VERSION_CONFLICT';
+      throw err;
+    }
+
+    const snapshotBefore = JSON.stringify({
+      clinicalNote: current.clinical_note || '',
+      historySummary: current.history_summary || '',
+    });
+
+    db.prepare(`
+      INSERT INTO record_amendments (id, tenant_id, entity_type, entity_id, reason, before_json, after_json, author_id)
+      VALUES (?, ?, 'encounter', ?, ?, ?, ?, ?)
+    `).run(amendmentId, tenantId, encounterId, trimmedReason, snapshotBefore, afterJson, user.sub);
+
+    const sets = [];
+    const vals = [];
+    if (allowed.clinicalNote !== undefined) {
+      sets.push('clinical_note = ?');
+      vals.push(allowed.clinicalNote);
+    }
+    if (allowed.historySummary !== undefined) {
+      sets.push('history_summary = ?');
+      vals.push(allowed.historySummary);
+    }
+    sets.push('updated_at = ?');
+    vals.push(updatedAt, encounterId, tenantId, versionAtCommit);
+
+    const result = db.prepare(
+      `UPDATE encounters SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ? AND updated_at = ?`,
+    ).run(...vals);
+    if (result.changes !== 1) {
+      const err = new Error('Consultation was updated elsewhere. Refresh and try again.');
+      err.status = 409;
+      err.code = 'ENCOUNTER_VERSION_CONFLICT';
+      throw err;
+    }
+  });
+
+  applyAmendment();
+
+  logAudit(tenantId, user.sub, 'amend', 'encounter', encounterId, { reason: trimmedReason, amendmentId });
   return encounterDetail(encounterId, tenantId);
+}
+
+export function listEncounterAmendments(encounterId, tenantId, user) {
+  if (!canViewClinical(user)) {
+    const err = new Error('Tenant access required');
+    err.status = 403;
+    throw err;
+  }
+  const enc = getDb().prepare(
+    'SELECT id FROM encounters WHERE id = ? AND tenant_id = ?',
+  ).get(encounterId, tenantId);
+  if (!enc) {
+    const err = new Error('Encounter not found');
+    err.status = 404;
+    throw err;
+  }
+  const rows = getDb().prepare(`
+    SELECT id, tenant_id AS tenantId, entity_type AS entityType, entity_id AS entityId,
+           reason, before_json AS beforeJson, after_json AS afterJson,
+           author_id AS authorId, created_at AS createdAt
+    FROM record_amendments
+    WHERE tenant_id = ? AND entity_type = 'encounter' AND entity_id = ?
+    ORDER BY created_at DESC
+  `).all(tenantId, encounterId);
+
+  return rows.map((row) => ({
+    id: row.id,
+    encounterId: row.entityId,
+    reason: row.reason,
+    before: JSON.parse(row.beforeJson || '{}'),
+    after: JSON.parse(row.afterJson || '{}'),
+    authorId: row.authorId,
+    createdAt: row.createdAt,
+  }));
 }
 
 export function scheduleFollowUp(encounterId, tenantId, user, { dueDate, instructions, phone } = {}) {

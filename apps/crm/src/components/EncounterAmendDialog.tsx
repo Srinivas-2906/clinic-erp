@@ -28,6 +28,7 @@ export function EncounterAmendDialog({ encounter, onClose, onSaved, onToast }: P
     try {
       await amendEncounter(encounter.id, {
         reason: reason.trim(),
+        expectedUpdatedAt: encounter.updatedAt,
         patch: {
           clinicalNote: clinicalNote.trim(),
           historySummary: historySummary.trim(),
@@ -37,7 +38,8 @@ export function EncounterAmendDialog({ encounter, onClose, onSaved, onToast }: P
       onSaved();
       onClose();
     } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Amendment failed', 'err');
+      const msg = err instanceof Error ? err.message : 'Amendment failed';
+      onToast(msg.includes('updated elsewhere') ? `${msg} You can retry after refreshing.` : msg, 'err');
     } finally {
       setSaving(false);
     }

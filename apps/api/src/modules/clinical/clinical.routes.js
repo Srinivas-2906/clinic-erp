@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
 import { requireLiveTenant } from '../../middleware/requireLiveTenant.js';
 import { openPatientUploadReadStream } from '../../services/uploads.js';
+import { logAudit } from '../../services/clinicAudit.js';
 import {
   createEncounter,
   updateEncounterDraft,
   finalizeEncounter,
   regeneratePrescriptionPdf,
   amendFinalizedEncounter,
+  listEncounterAmendments,
   encounterDetail,
   listEncountersForPatient,
   scheduleFollowUp,
@@ -92,7 +94,24 @@ export function clinicalRouter() {
       const enc = amendFinalizedEncounter(req.params.id, req.user.tenantId, req.user, req.body ?? {});
       res.json(enc);
     } catch (err) {
-      res.status(err.status || 400).json({ error: err.message, code: err.code });
+      const status = err.status || 400;
+      if (status === 403) {
+        logAudit(req.user.tenantId, req.user.sub, 'amend_denied', 'encounter', req.params.id, {
+          code: err.code || 'FORBIDDEN',
+        });
+      }
+      res.status(status).json({ error: err.message, code: err.code });
+    }
+  });
+
+  r.get('/encounters/:id/amendments', (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json({
+        amendments: listEncounterAmendments(req.params.id, req.user.tenantId, req.user),
+      });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
     }
   });
 
