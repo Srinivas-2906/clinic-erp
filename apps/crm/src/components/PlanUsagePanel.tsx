@@ -6,6 +6,7 @@ import {
   fetchBillingTransactions,
   fetchEntitlements,
   fetchSubscriptionEvents,
+  fetchBillingDiagnostics,
   downloadTenantExport,
   getPaymentGatewayConfig,
 } from '../lib/api';
@@ -31,24 +32,27 @@ export function PlanUsagePanel({ onToast }: Props) {
   const [plans, setPlans] = useState<Awaited<ReturnType<typeof fetchBillingPlans>>['plans']>([]);
   const [transactions, setTransactions] = useState<Awaited<ReturnType<typeof fetchBillingTransactions>>['transactions']>([]);
   const [events, setEvents] = useState<Awaited<ReturnType<typeof fetchSubscriptionEvents>>['events']>([]);
+  const [diagnostics, setDiagnostics] = useState<Awaited<ReturnType<typeof fetchBillingDiagnostics>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportBusy, setExportBusy] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
 
   const reload = useCallback(async () => {
-    const [e, g, planPack, tx, ev] = await Promise.all([
+    const [e, g, planPack, tx, ev, diag] = await Promise.all([
       fetchEntitlements(),
       getPaymentGatewayConfig().catch(() => null),
       fetchBillingPlans().catch(() => ({ plans: [], gateway: null })),
       fetchBillingTransactions().catch(() => ({ transactions: [] })),
       fetchSubscriptionEvents().catch(() => ({ events: [] })),
+      fetchBillingDiagnostics().catch(() => null),
     ]);
     setEnt(e);
     setGateway(g);
     setPlans(planPack.plans);
     setTransactions(tx.transactions);
     setEvents(ev.events);
+    setDiagnostics(diag);
   }, []);
 
   useEffect(() => {
@@ -134,6 +138,20 @@ export function PlanUsagePanel({ onToast }: Props) {
             Last subscription payment failed. Complete checkout or contact support to restore write access.
           </p>
         )}
+        {diagnostics?.recoveryHint && (
+          <p className="plan-recovery-hint" role="status">{diagnostics.recoveryHint}</p>
+        )}
+        {diagnostics?.renewalAt && (
+          <p className="muted" style={{ fontSize: '0.875rem' }}>
+            Next renewal period end: {new Date(diagnostics.renewalAt).toLocaleDateString('en-IN')}
+            {diagnostics.provider?.providerStatus ? ` · Provider: ${diagnostics.provider.providerStatus}` : ''}
+          </p>
+        )}
+        {diagnostics?.openDiscrepancies?.length ? (
+          <p className="muted" style={{ fontSize: '0.875rem' }}>
+            Billing review pending ({diagnostics.openDiscrepancies.length}) — support may contact you. No action bypasses server verification.
+          </p>
+        ) : null}
         <p>
           Doctors: {ent.usage.doctors}{ent.limits.maxDoctors != null ? ` / ${ent.limits.maxDoctors}` : ''}
           {atDoctorLimit && <span className="ref"> — limit reached</span>}

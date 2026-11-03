@@ -6034,6 +6034,7 @@ html.dense .panel-body { padding: 12px; }
 .plan-offer-list, .plan-tx-list { list-style: none; margin: 0; padding: 0; }
 .plan-offer-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
 .plan-tx-list li { font-size: 0.875rem; color: var(--text-muted, #64748b); margin-bottom: 0.35rem; }
+.plan-recovery-hint { font-size: 0.875rem; padding: 0.5rem 0.75rem; background: #fef3c7; border-radius: 6px; color: #92400e; margin: 0.5rem 0; }
 
 html.dense .overview-greeting { margin-bottom: 12px; }
 

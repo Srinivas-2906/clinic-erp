@@ -20,7 +20,10 @@ export type OrchestratorTask = {
   dependsOn: string[];
   assignedRole: WorkerRole;
   status: TaskStatus;
+  taskType?: 'verify' | 'agent';
   command: string;
+  agentInstructions?: string;
+  verifyCommand?: string;
   worktreeBranch?: string;
   retries: number;
   maxRetries: number;

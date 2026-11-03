@@ -1,6 +1,6 @@
 # Clinic ERP — product goals specification
 
-**Evidence baseline:** repository @ `main` `e8ee2fc` (post PR #60).  
+**Evidence baseline:** `main` @ `8fdcb31` (post PR #61); milestone branch `265ed43` (`feature/erp-workflows-and-agent-execution`).  
 **Method:** each area lists expected behavior, file/API evidence, gaps, dependencies, acceptance criteria, manual checks, priority, and **status** (not a percentage score).
 
 Status values: `complete` | `partial` | `missing` | `blocked` (external dependency).
@@ -122,9 +122,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Pending/scheduled follow-ups from encounters, owner visibility in reports. |
-| **Evidence** | `follow_ups` table, `ownerOpsReport.js` counts. |
-| **Gaps** | Booking follow-up from closure UX (P2 in audit 38). |
-| **Automated acceptance** | Limited dedicated E2E. |
+| **Evidence** | `encounters.service.js`, `ConsultationDialog`, `FollowUpsPanel`, `BookView` link-appointment, E2E 36 + 41. |
+| **Gaps** | Optional today-tab surfacing. |
+| **Automated acceptance** | `encounters.test.js`; Playwright 36, 41. |
 | **Manual** | Reception books follow-up appointment. |
 | **Priority** | P2 |
 | **Status** | **partial** |
@@ -159,8 +159,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Plans, trial, checkout, webhooks, cancel, entitlements enforcement. |
-| **Evidence** | `subscriptionBilling.service.js`, `PlanUsagePanel`, E2E 40, PR #60. |
-| **Gaps** | Real Razorpay test-mode + renewals (in progress on `feature/payment-integration-revenue-ops`). |
+| **Evidence** | `subscriptionBilling.service.js`, `PlanUsagePanel`, platform billing diagnostics, platform admin revenue ops, E2E 40. |
+| **Gaps** | Real Razorpay test-mode soak; live approval. |
 | **Dependencies** | Razorpay test credentials for provider verification. |
 | **Automated acceptance** | `subscriptionBilling.test.js`, webhook tests, E2E 40 (simulated sandbox). |
 | **Manual** | Test-mode checkout in Razorpay dashboard. |
@@ -172,9 +172,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Tenant search, subscription override with audit, billing visibility. |
-| **Evidence** | `PlatformAdminApp`, `platformAdmin.service.js`. |
-| **Gaps** | Revenue reconciliation UI (payment milestone). |
-| **Automated acceptance** | `platformAdmin.test.js`. |
+| **Evidence** | `PlatformAdminApp` revenue ops (discrepancies, dry-run reconcile, resolve), `platformAdminApi.ts`, `platformAdminBilling.routes.test.js`. |
+| **Gaps** | Live Razorpay discrepancy soak; staging platform-admin UX review. |
+| **Automated acceptance** | `platformAdmin.test.js`, `platformAdminBilling.routes.test.js`. |
 | **Manual** | Platform admin JWT isolation from clinic tenants. |
 | **Priority** | P1 |
 | **Status** | **partial** |
@@ -197,7 +197,7 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Atomic payment writes, amendment concurrency, no silent entitlement escalation. |
 | **Evidence** | Idempotent payments, amendment `updated_at` guards, subscription transition matrix. |
-| **Gaps** | Full provider reconciliation (in progress). |
+| **Gaps** | Non-dry-run reconciliation in production-like env (approval-gated). |
 | **Automated acceptance** | Billing + amendment tests. |
 | **Manual** | Reconciliation runbook execution. |
 | **Priority** | P0 |
@@ -280,8 +280,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Paid subscriptions, reconciliation, dunning/grace, no live until approved. |
-| **Evidence** | Sandbox billing shipped; test-mode adapter in progress. |
-| **Gaps** | Live Razorpay, production webhook URL, reconciliation ops. |
+| **Evidence** | PR #61 on `main` (`8fdcb31`): Razorpay mock/test-mode adapter, webhooks, reconciliation (dry-run default), lifecycle/grace, owner diagnostics UI (PR #62). |
+| **Gaps** | Live Razorpay (`CLINIC_PAYMENT_LIVE_ENABLED`), production webhook URL, non-dry-run reconciliation approval. |
 | **Dependencies** | Provider credentials, legal/commercial approval. |
 | **Automated acceptance** | Mock-based CI; optional `scripts/verify-razorpay-test.mjs`. |
 | **Manual** | Staging soak with test-mode checkout. |
@@ -294,4 +294,4 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 
 No category is marked **complete** end-to-end with full automated + manual sign-off. Web clinical and ledger flows are **partial** with strong E2E coverage; **commercial launch** remains **blocked** on real payment provider verification and explicit live-payment approval.
 
-**Next executable priorities (Track A):** Razorpay test-mode + reconciliation + lifecycle automation; follow-up booking UX; patient online pay (post-subscription).
+**Next executable priorities (Track A):** Staging Razorpay test-mode soak; patient online pay (ledger); platform revenue ops polish; orchestrator agent-task demo with human approval gates.

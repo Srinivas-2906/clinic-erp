@@ -86,7 +86,7 @@ import {
   listSubscriptionEvents,
   transitionTenantSubscription,
 } from '../modules/billing/subscriptionBilling.service.js';
-import { runBillingReconciliation, listBillingDiscrepancies } from '../modules/billing/billingReconciliation.service.js';
+import { runBillingReconciliation, listBillingDiscrepancies, resolveBillingDiscrepancy } from '../modules/billing/billingReconciliation.service.js';
 import { processSubscriptionLifecycle, getBillingDiagnosticsForTenant } from '../modules/billing/subscriptionLifecycle.service.js';
 import { buildOwnerOpsSummary } from '../services/ownerOpsReport.js';
 import { SUBSCRIPTION_STATUS } from '../modules/identity/subscription.js';
@@ -305,6 +305,32 @@ router.patch('/admin/tenants/:tenantId', authMiddleware, requirePlatformAdmin, (
     res.json(detail);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || 'Update failed', code: err.code });
+  }
+});
+
+router.get('/admin/billing/discrepancies', authMiddleware, requirePlatformAdmin, (req, res) => {
+  res.json({ discrepancies: listBillingDiscrepancies({ limit: Number(req.query.limit) || 50 }) });
+});
+
+router.post('/admin/billing/reconcile', authMiddleware, requirePlatformAdmin, async (req, res) => {
+  try {
+    const dryRun = req.body?.dryRun !== false;
+    const report = await runBillingReconciliation({ dryRun, limit: Number(req.body?.limit) || 100 });
+    res.json(report);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.patch('/admin/billing/discrepancies/:id/resolve', authMiddleware, requirePlatformAdmin, (req, res) => {
+  try {
+    const result = resolveBillingDiscrepancy(req.params.id, {
+      actorId: req.user.sub,
+      note: String(req.body?.note || '').slice(0, 500),
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
   }
 });
 
