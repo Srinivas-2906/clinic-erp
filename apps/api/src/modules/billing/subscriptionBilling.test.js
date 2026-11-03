@@ -40,9 +40,9 @@ after(() => {
 });
 
 describe('subscription billing sandbox', () => {
-  it('creates checkout and idempotent replay', () => {
+  it('creates checkout and idempotent replay', async () => {
     const user = { sub: 'owner-1' };
-    const first = createSubscriptionCheckout(tenantId, user, {
+    const first = await createSubscriptionCheckout(tenantId, user, {
       planId: 'professional',
       idempotencyKey: 'idem-1',
     });
@@ -50,7 +50,7 @@ describe('subscription billing sandbox', () => {
     assert.equal(first.planId, 'professional');
     assert.equal(first.status, 'pending');
 
-    const second = createSubscriptionCheckout(tenantId, user, {
+    const second = await createSubscriptionCheckout(tenantId, user, {
       planId: 'professional',
       idempotencyKey: 'idem-1',
     });
@@ -58,8 +58,8 @@ describe('subscription billing sandbox', () => {
     assert.equal(second.orderId, first.orderId);
   });
 
-  it('activates plan on verified webhook and dedupes events', () => {
-    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'professional' });
+  it('activates plan on verified webhook and dedupes events', async () => {
+    const checkout = await createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'professional' });
     const payload = buildSandboxWebhookPayload(checkout.orderId);
     const raw = JSON.stringify(payload);
 
@@ -84,8 +84,8 @@ describe('subscription billing sandbox', () => {
     assert.equal(good.ok, true);
   });
 
-  it('marks past_due on failed payment webhook', () => {
-    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
+  it('marks past_due on failed payment webhook', async () => {
+    const checkout = await createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
     const payload = {
       event: 'payment.failed',
       event_id: `evt_fail_${Date.now()}`,
@@ -115,8 +115,8 @@ describe('subscription billing sandbox', () => {
     assert.ok(events.some((e) => e.toStatus === SUBSCRIPTION_STATUS.CANCELED));
   });
 
-  it('ignores duplicate capture after success', () => {
-    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
+  it('ignores duplicate capture after success', async () => {
+    const checkout = await createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
     const payload = buildSandboxWebhookPayload(checkout.orderId);
     const raw = JSON.stringify(payload);
     processSubscriptionWebhook('razorpay', payload, { rawBody: raw });
@@ -126,8 +126,8 @@ describe('subscription billing sandbox', () => {
     assert.equal(txs.status, GATEWAY_STATUS.SUCCEEDED);
   });
 
-  it('rejects amount mismatch on capture', () => {
-    const checkout = createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
+  it('rejects amount mismatch on capture', async () => {
+    const checkout = await createSubscriptionCheckout(tenantId, { sub: 'owner-1' }, { planId: 'essential' });
     const payload = {
       event: 'payment.captured',
       event_id: `evt_bad_amt_${Date.now()}`,

@@ -57,7 +57,7 @@ describe('billing webhook HTTP', () => {
   });
 
   it('activates subscription with signed sandbox payload', async () => {
-    const checkout = createSubscriptionCheckout(tenantId, { sub: 'o1' }, { planId: 'professional' });
+    const checkout = await createSubscriptionCheckout(tenantId, { sub: 'o1' }, { planId: 'professional' });
     const payload = {
       event: 'payment.captured',
       event_id: `evt_http_${Date.now()}`,

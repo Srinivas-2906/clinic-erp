@@ -14,6 +14,9 @@ apps/api/.tools/
 .restore-drill/
 .pilot-restore-drill/
 
+# Autonomous engineering orchestrator (local only)
+.orchestrator/
+
 # E2E artifacts
 apps/crm/e2e/test-results/
 apps/crm/e2e/report/
