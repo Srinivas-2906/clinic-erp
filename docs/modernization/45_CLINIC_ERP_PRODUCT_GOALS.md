@@ -280,8 +280,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Paid subscriptions, reconciliation, dunning/grace, no live until approved. |
-| **Evidence** | Sandbox billing shipped; test-mode adapter in progress. |
-| **Gaps** | Live Razorpay, production webhook URL, reconciliation ops. |
+| **Evidence** | PR #61 on `main` (`8fdcb31`): Razorpay mock/test-mode adapter, webhooks, reconciliation (dry-run default), lifecycle/grace, owner diagnostics UI (PR #62). |
+| **Gaps** | Live Razorpay (`CLINIC_PAYMENT_LIVE_ENABLED`), production webhook URL, non-dry-run reconciliation approval. |
 | **Dependencies** | Provider credentials, legal/commercial approval. |
 | **Automated acceptance** | Mock-based CI; optional `scripts/verify-razorpay-test.mjs`. |
 | **Manual** | Staging soak with test-mode checkout. |
@@ -294,4 +294,4 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 
 No category is marked **complete** end-to-end with full automated + manual sign-off. Web clinical and ledger flows are **partial** with strong E2E coverage; **commercial launch** remains **blocked** on real payment provider verification and explicit live-payment approval.
 
-**Next executable priorities (Track A):** Razorpay test-mode + reconciliation + lifecycle automation; follow-up booking UX; patient online pay (post-subscription).
+**Next executable priorities (Track A):** Staging Razorpay test-mode soak; patient online pay (ledger); platform revenue ops polish; orchestrator agent-task demo with human approval gates.
