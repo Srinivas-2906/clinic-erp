@@ -23,9 +23,8 @@ export function assertSafeCommand(cmd: string) {
 }
 
 export function createWorktree(repoRoot: string, name: string, baseRef?: string) {
-  const wtRoot = path.join(repoRoot, '.orchestrator', 'worktrees', name);
+  const wtRoot = path.join(repoRoot, '.orchestrator', 'worktrees', `${name}-${process.pid}`);
   fs.mkdirSync(path.dirname(wtRoot), { recursive: true });
-  if (fs.existsSync(wtRoot)) return wtRoot;
   const base =
     baseRef ||
     process.env.CLINIC_ORCH_BASE_REF ||

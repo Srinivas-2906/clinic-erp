@@ -48,7 +48,7 @@ function seedDemo(state: OrchestratorState): OrchestratorState {
       dependsOn: ['demo-backend-billing', 'demo-frontend-crm-unit'],
       assignedRole: 'qa' as const,
       status: 'pending' as const,
-      command: 'node --import tsx packages/clinic-orchestrator/src/store.test.ts',
+      command: 'npm test --workspace=clinic-orchestrator',
       retries: 0,
       maxRetries: DEFAULT_LIMITS.maxRetries,
       updatedAt: now,
