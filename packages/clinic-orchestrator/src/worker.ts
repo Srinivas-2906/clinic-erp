@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadState, saveState, upsertTask } from './store.js';
 import { createWorktree, runCommandInWorktree, DEFAULT_LIMITS } from './safety.js';
+import { runCodingAgentTask } from './agentAdapter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -35,12 +36,25 @@ async function main() {
   const wtPath = createWorktree(repoRoot, wtName);
   const logPath = path.join(repoRoot, '.orchestrator', 'logs', `${taskId}-${process.pid}.log`);
 
-  const result = await runCommandInWorktree(
-    wtPath,
-    task.command,
-    logPath,
-    DEFAULT_LIMITS.maxTaskDurationMs,
-  );
+  let result: { ok: boolean; failureClass?: string };
+  if (task.taskType === 'agent') {
+    const agentResult = await runCodingAgentTask({
+      id: taskId,
+      title: task.title,
+      instructions: task.agentInstructions || task.title,
+      verifyCommand: task.verifyCommand || task.command,
+      worktreePath: wtPath,
+      logFile: logPath,
+    });
+    result = { ok: agentResult.ok, failureClass: agentResult.failureClass };
+  } else {
+    result = await runCommandInWorktree(
+      wtPath,
+      task.command,
+      logPath,
+      DEFAULT_LIMITS.maxTaskDurationMs,
+    );
+  }
 
   const fresh = loadState(repoRoot);
   const current = fresh.tasks.find((t) => t.id === taskId);

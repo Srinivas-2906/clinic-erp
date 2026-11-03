@@ -9,7 +9,7 @@
     "coordinator": "node --import tsx src/coordinator.ts",
     "worker": "node --import tsx src/worker.ts",
     "demo": "node --import tsx src/demo.ts",
-    "test": "node --import tsx --test src/store.test.ts"
+    "test": "node --import tsx --test src/store.test.ts src/agentAdapter.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.4",

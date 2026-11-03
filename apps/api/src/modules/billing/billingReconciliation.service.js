@@ -104,7 +104,35 @@ export function listBillingDiscrepancies({ runId, limit = 50 } = {}) {
     `).all(runId, limit);
   }
   return db.prepare(`
-    SELECT id, run_id AS runId, tenant_id AS tenantId, kind, detail_json AS detailJson, created_at AS createdAt
-    FROM billing_discrepancies WHERE resolved_at IS NULL ORDER BY created_at DESC LIMIT ?
+    SELECT d.id, d.run_id AS runId, d.tenant_id AS tenantId, t.slug AS tenantSlug, t.name AS tenantName,
+           d.kind, d.detail_json AS detailJson, d.resolved_at AS resolvedAt, d.created_at AS createdAt
+    FROM billing_discrepancies d
+    LEFT JOIN tenants t ON t.id = d.tenant_id
+    WHERE d.resolved_at IS NULL
+    ORDER BY d.created_at DESC
+    LIMIT ?
   `).all(limit);
+}
+
+export function resolveBillingDiscrepancy(discrepancyId, { actorId, note } = {}) {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM billing_discrepancies WHERE id = ?').get(discrepancyId);
+  if (!row) {
+    const err = new Error('Discrepancy not found');
+    err.status = 404;
+    throw err;
+  }
+  if (row.resolved_at) {
+    return { id: row.id, alreadyResolved: true };
+  }
+  db.prepare(`
+    UPDATE billing_discrepancies SET resolved_at = datetime('now') WHERE id = ?
+  `).run(discrepancyId);
+  return {
+    id: discrepancyId,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    resolvedBy: actorId || null,
+    note: note || null,
+  };
 }

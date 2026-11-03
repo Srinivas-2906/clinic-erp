@@ -122,9 +122,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Pending/scheduled follow-ups from encounters, owner visibility in reports. |
-| **Evidence** | `follow_ups` table, `ownerOpsReport.js` counts. |
-| **Gaps** | Booking follow-up from closure UX (P2 in audit 38). |
-| **Automated acceptance** | Limited dedicated E2E. |
+| **Evidence** | `encounters.service.js`, `ConsultationDialog`, `FollowUpsPanel`, `BookView` link-appointment, E2E 36 + 41. |
+| **Gaps** | Optional today-tab surfacing. |
+| **Automated acceptance** | `encounters.test.js`; Playwright 36, 41. |
 | **Manual** | Reception books follow-up appointment. |
 | **Priority** | P2 |
 | **Status** | **partial** |
@@ -159,8 +159,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Plans, trial, checkout, webhooks, cancel, entitlements enforcement. |
-| **Evidence** | `subscriptionBilling.service.js`, `PlanUsagePanel`, E2E 40, PR #60. |
-| **Gaps** | Real Razorpay test-mode + renewals (in progress on `feature/payment-integration-revenue-ops`). |
+| **Evidence** | `subscriptionBilling.service.js`, `PlanUsagePanel`, platform billing diagnostics, platform admin revenue ops, E2E 40. |
+| **Gaps** | Real Razorpay test-mode soak; live approval. |
 | **Dependencies** | Razorpay test credentials for provider verification. |
 | **Automated acceptance** | `subscriptionBilling.test.js`, webhook tests, E2E 40 (simulated sandbox). |
 | **Manual** | Test-mode checkout in Razorpay dashboard. |
