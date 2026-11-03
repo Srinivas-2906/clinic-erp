@@ -1,6 +1,6 @@
 # Clinic ERP — product goals specification
 
-**Evidence baseline:** repository @ `main` `e8ee2fc` (post PR #60).  
+**Evidence baseline:** `main` @ `8fdcb31` (post PR #61); milestone branch `265ed43` (`feature/erp-workflows-and-agent-execution`).  
 **Method:** each area lists expected behavior, file/API evidence, gaps, dependencies, acceptance criteria, manual checks, priority, and **status** (not a percentage score).
 
 Status values: `complete` | `partial` | `missing` | `blocked` (external dependency).
@@ -172,9 +172,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 | Field | Detail |
 |-------|--------|
 | **Expected** | Tenant search, subscription override with audit, billing visibility. |
-| **Evidence** | `PlatformAdminApp`, `platformAdmin.service.js`. |
-| **Gaps** | Revenue reconciliation UI (payment milestone). |
-| **Automated acceptance** | `platformAdmin.test.js`. |
+| **Evidence** | `PlatformAdminApp` revenue ops (discrepancies, dry-run reconcile, resolve), `platformAdminApi.ts`, `platformAdminBilling.routes.test.js`. |
+| **Gaps** | Live Razorpay discrepancy soak; staging platform-admin UX review. |
+| **Automated acceptance** | `platformAdmin.test.js`, `platformAdminBilling.routes.test.js`. |
 | **Manual** | Platform admin JWT isolation from clinic tenants. |
 | **Priority** | P1 |
 | **Status** | **partial** |
@@ -197,7 +197,7 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Atomic payment writes, amendment concurrency, no silent entitlement escalation. |
 | **Evidence** | Idempotent payments, amendment `updated_at` guards, subscription transition matrix. |
-| **Gaps** | Full provider reconciliation (in progress). |
+| **Gaps** | Non-dry-run reconciliation in production-like env (approval-gated). |
 | **Automated acceptance** | Billing + amendment tests. |
 | **Manual** | Reconciliation runbook execution. |
 | **Priority** | P0 |
