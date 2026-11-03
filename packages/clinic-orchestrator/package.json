@@ -1,0 +1,18 @@
+{
+  "name": "clinic-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous engineering orchestrator for Clinic ERP (not deployed with clinic runtime)",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "coordinator": "node --import tsx src/coordinator.ts",
+    "worker": "node --import tsx src/worker.ts",
+    "demo": "node --import tsx src/demo.ts",
+    "test": "node --import tsx --test src/store.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

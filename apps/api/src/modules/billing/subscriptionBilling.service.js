@@ -11,6 +11,9 @@ import {
 } from '../identity/subscription.js';
 import { normalizePlanId, PLAN_DEFINITIONS } from '../identity/plans.js';
 import { getPaymentGatewayConfig, GATEWAY_STATUS } from './paymentGateway.js';
+import { createRazorpayClient } from './razorpayClient.js';
+import { assertRazorpayPlanConfigured } from './razorpayPlanMap.js';
+import { notifySubscriptionBillingEvent } from './subscriptionBillingEmail.js';
 
 const SANDBOX_PLAN_AMOUNTS_INR = {
   essential: 199900,
@@ -140,7 +143,7 @@ export function transitionTenantSubscription(tenantId, actorId, {
   return getDb().prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
 }
 
-export function createSubscriptionCheckout(tenantId, user, { planId, idempotencyKey } = {}) {
+export async function createSubscriptionCheckout(tenantId, user, { planId, idempotencyKey } = {}) {
   const cfg = getPaymentGatewayConfig();
   if (!cfg.checkoutEnabled) {
     const err = new Error('Subscription checkout is not available');
@@ -168,12 +171,37 @@ export function createSubscriptionCheckout(tenantId, user, { planId, idempotency
 
   const amountCents = SANDBOX_PLAN_AMOUNTS_INR[nextPlan] ?? 0;
   const txId = nanoid(14);
-  const orderId = `order_${nanoid(10)}`;
+  let orderId = `order_${nanoid(10)}`;
+  let externalSubscriptionId = null;
+  let checkoutShortUrl = null;
+
+  if (cfg.mode === 'test') {
+    const rpPlanId = assertRazorpayPlanConfigured(nextPlan);
+    const client = createRazorpayClient({
+      keyId: process.env.CLINIC_RAZORPAY_KEY_ID,
+      keySecret: process.env.CLINIC_RAZORPAY_KEY_SECRET,
+    });
+    const sub = await client.createSubscription({
+      plan_id: rpPlanId,
+      total_count: 12,
+      customer_notify: 1,
+      notes: { tenant_id: tenantId, clinic_plan_id: nextPlan },
+    });
+    externalSubscriptionId = sub.id;
+    orderId = sub.id;
+    checkoutShortUrl = sub.short_url || null;
+    upsertProviderSubscription(tenantId, {
+      externalSubscriptionId,
+      externalPlanId: rpPlanId,
+      providerStatus: sub.status || 'created',
+    });
+  }
+
   getDb().prepare(`
     INSERT INTO billing_transactions (
       id, tenant_id, kind, plan_id, amount_cents, currency, status, provider,
-      external_order_id, idempotency_key
-    ) VALUES (?, ?, 'subscription_checkout', ?, ?, 'INR', ?, ?, ?, ?)
+      external_order_id, external_subscription_id, idempotency_key
+    ) VALUES (?, ?, 'subscription_checkout', ?, ?, 'INR', ?, ?, ?, ?, ?)
   `).run(
     txId,
     tenantId,
@@ -182,6 +210,7 @@ export function createSubscriptionCheckout(tenantId, user, { planId, idempotency
     GATEWAY_STATUS.PENDING,
     cfg.provider,
     orderId,
+    externalSubscriptionId,
     key,
   );
 
@@ -195,22 +224,79 @@ export function createSubscriptionCheckout(tenantId, user, { planId, idempotency
   });
 
   const row = getDb().prepare('SELECT * FROM billing_transactions WHERE id = ?').get(txId);
-  return formatCheckoutResponse(row, cfg);
+  const response = formatCheckoutResponse(row, cfg);
+  if (checkoutShortUrl) response.shortUrl = checkoutShortUrl;
+  if (externalSubscriptionId) response.subscriptionId = externalSubscriptionId;
+  return response;
+}
+
+function upsertProviderSubscription(tenantId, {
+  externalSubscriptionId,
+  externalPlanId,
+  providerStatus,
+  currentPeriodEnd,
+  graceUntil,
+  canceledAt,
+} = {}) {
+  getDb().prepare(`
+    INSERT INTO billing_provider_subscriptions (
+      tenant_id, provider, external_subscription_id, external_plan_id, provider_status,
+      current_period_end, grace_until, canceled_at, updated_at
+    ) VALUES (?, 'razorpay', ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(tenant_id) DO UPDATE SET
+      external_subscription_id = COALESCE(excluded.external_subscription_id, billing_provider_subscriptions.external_subscription_id),
+      external_plan_id = COALESCE(excluded.external_plan_id, billing_provider_subscriptions.external_plan_id),
+      provider_status = COALESCE(excluded.provider_status, billing_provider_subscriptions.provider_status),
+      current_period_end = COALESCE(excluded.current_period_end, billing_provider_subscriptions.current_period_end),
+      grace_until = COALESCE(excluded.grace_until, billing_provider_subscriptions.grace_until),
+      canceled_at = COALESCE(excluded.canceled_at, billing_provider_subscriptions.canceled_at),
+      updated_at = datetime('now')
+  `).run(
+    tenantId,
+    externalSubscriptionId || null,
+    externalPlanId || null,
+    providerStatus || null,
+    currentPeriodEnd || null,
+    graceUntil || null,
+    canceledAt || null,
+  );
+}
+
+export async function cancelProviderSubscription(tenantId) {
+  const row = getDb().prepare(`
+    SELECT external_subscription_id FROM billing_provider_subscriptions WHERE tenant_id = ?
+  `).get(tenantId);
+  const cfg = getPaymentGatewayConfig();
+  if (row?.external_subscription_id && cfg.mode === 'test') {
+    const client = createRazorpayClient({
+      keyId: process.env.CLINIC_RAZORPAY_KEY_ID,
+      keySecret: process.env.CLINIC_RAZORPAY_KEY_SECRET,
+    });
+    await client.cancelSubscription(row.external_subscription_id, false);
+    upsertProviderSubscription(tenantId, {
+      providerStatus: 'cancelled',
+      canceledAt: new Date().toISOString(),
+    });
+  }
 }
 
 function formatCheckoutResponse(row, cfg) {
   return {
     transactionId: row.id,
     orderId: row.external_order_id,
+    subscriptionId: row.external_subscription_id || undefined,
     planId: row.plan_id,
     amountCents: row.amount_cents,
     currency: row.currency,
     status: row.status,
     provider: row.provider,
     mode: cfg.mode,
+    keyId: cfg.keyId,
     message: cfg.mode === 'sandbox'
       ? 'Sandbox checkout — complete payment via verified webhook (no live charges).'
-      : undefined,
+      : cfg.mode === 'test'
+        ? 'Complete payment via Razorpay test checkout; activation requires verified webhook.'
+        : undefined,
   };
 }
 
@@ -261,6 +347,11 @@ export function processSubscriptionWebhook(provider, payload, { rawBody = '' } =
 
 function applyWebhookPayload(provider, payload) {
   const eventType = String(payload?.event || payload?.event_type || '').toLowerCase();
+  const subEntity = payload?.payload?.subscription?.entity;
+  if (subEntity?.id) {
+    return applySubscriptionEntityWebhook(subEntity, payload, eventType);
+  }
+
   const payment = payload?.payload?.payment?.entity || payload?.payment || payload;
   const orderId = payment?.order_id || payload?.order_id;
   const paymentId = payment?.id || payload?.payment_id;
@@ -372,6 +463,69 @@ function applyWebhookPayload(provider, payload) {
 
   const activated = applyPaid();
   return { tenantId, status: GATEWAY_STATUS.SUCCEEDED, planId: tx.plan_id, activated: activated !== false };
+}
+
+function applySubscriptionEntityWebhook(subEntity, payload, eventType) {
+  const subId = subEntity.id;
+  const db = getDb();
+  const link = db.prepare(`
+    SELECT tenant_id FROM billing_provider_subscriptions WHERE external_subscription_id = ?
+  `).get(subId);
+  const tenantFromNotes = subEntity.notes?.tenant_id;
+  const tenantId = link?.tenant_id || tenantFromNotes;
+  if (!tenantId) {
+    return { ignored: true, reason: 'unknown_subscription' };
+  }
+
+  upsertProviderSubscription(tenantId, {
+    externalSubscriptionId: subId,
+    externalPlanId: subEntity.plan_id,
+    providerStatus: subEntity.status,
+    currentPeriodEnd: subEntity.current_end
+      ? new Date(Number(subEntity.current_end) * 1000).toISOString()
+      : null,
+  });
+
+  if (eventType.includes('cancel')) {
+    transitionTenantSubscription(tenantId, null, {
+      subscriptionStatus: SUBSCRIPTION_STATUS.CANCELED,
+      source: 'webhook',
+      externalRef: subId,
+      note: 'Provider subscription cancelled',
+    });
+    void notifySubscriptionBillingEvent(tenantId, 'subscription_cancelled', { dedupeSuffix: subId });
+    return { tenantId, status: 'cancelled' };
+  }
+
+  if (eventType.includes('halt') || eventType.includes('pending')) {
+    transitionTenantSubscription(tenantId, null, {
+      subscriptionStatus: SUBSCRIPTION_STATUS.PAST_DUE,
+      source: 'webhook',
+      externalRef: subId,
+      note: `Provider status: ${subEntity.status}`,
+    });
+    void notifySubscriptionBillingEvent(tenantId, 'payment_failed', { dedupeSuffix: subId });
+    return { tenantId, status: SUBSCRIPTION_STATUS.PAST_DUE };
+  }
+
+  if (eventType.includes('activated') || eventType.includes('charged')) {
+    const planNote = subEntity.notes?.clinic_plan_id;
+    transitionTenantSubscription(tenantId, null, {
+      subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE,
+      planId: planNote || undefined,
+      source: 'webhook',
+      externalRef: subId,
+      note: 'Provider subscription active',
+    });
+    const kind = eventType.includes('charged') ? 'renewal_confirmed' : 'subscription_activated';
+    void notifySubscriptionBillingEvent(tenantId, kind, {
+      planId: planNote,
+      dedupeSuffix: payload?.event_id || subId,
+    });
+    return { tenantId, status: SUBSCRIPTION_STATUS.ACTIVE };
+  }
+
+  return { ignored: true, eventType };
 }
 
 /** Test/sandbox helper — builds signed webhook body for an order (never for production UI). */

@@ -80,11 +80,14 @@ import { buildTenantExportBundle } from '../services/tenantExport.js';
 import { getPaymentGatewayConfig } from '../modules/billing/paymentGateway.js';
 import {
   createSubscriptionCheckout,
+  cancelProviderSubscription,
   listAvailablePlans,
   listBillingTransactions,
   listSubscriptionEvents,
   transitionTenantSubscription,
 } from '../modules/billing/subscriptionBilling.service.js';
+import { runBillingReconciliation, listBillingDiscrepancies } from '../modules/billing/billingReconciliation.service.js';
+import { processSubscriptionLifecycle, getBillingDiagnosticsForTenant } from '../modules/billing/subscriptionLifecycle.service.js';
 import { buildOwnerOpsSummary } from '../services/ownerOpsReport.js';
 import { SUBSCRIPTION_STATUS } from '../modules/identity/subscription.js';
 import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
@@ -318,6 +321,26 @@ router.post('/internal/process-reminders', requireProvisioningAuth, (req, res) =
   const limit = Math.min(Number(req.body?.limit) || 50, 200);
   const results = processDueReminders({ limit });
   res.json({ processed: results.length, results });
+});
+
+router.post('/internal/process-subscription-lifecycle', requireProvisioningAuth, (req, res) => {
+  const limit = Math.min(Number(req.body?.limit) || 100, 500);
+  const results = processSubscriptionLifecycle({ limit });
+  res.json({ processed: results.length, results });
+});
+
+router.post('/internal/reconcile-billing', requireProvisioningAuth, async (req, res) => {
+  try {
+    const dryRun = req.body?.dryRun !== false;
+    const report = await runBillingReconciliation({ dryRun, limit: Number(req.body?.limit) || 100 });
+    res.json(report);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+router.get('/internal/billing/discrepancies', requireProvisioningAuth, (req, res) => {
+  res.json({ discrepancies: listBillingDiscrepancies({ runId: req.query.runId, limit: 50 }) });
 });
 
 router.patch('/internal/tenants/:tenantId', requireProvisioningAuth, (req, res) => {
@@ -724,9 +747,9 @@ export function clinicRouter() {
     res.json({ plans: listAvailablePlans(), gateway: getPaymentGatewayConfig() });
   });
 
-  api.post('/clinic/billing/checkout', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, (req, res) => {
+  api.post('/clinic/billing/checkout', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, async (req, res) => {
     try {
-      const checkout = createSubscriptionCheckout(req.user.tenantId, req.user, {
+      const checkout = await createSubscriptionCheckout(req.user.tenantId, req.user, {
         planId: req.body?.planId,
         idempotencyKey: req.body?.idempotencyKey,
       });
@@ -734,6 +757,10 @@ export function clinicRouter() {
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message, code: err.code });
     }
+  });
+
+  api.get('/clinic/billing/diagnostics', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
+    res.json(getBillingDiagnosticsForTenant(req.user.tenantId));
   });
 
   api.get('/clinic/billing/transactions', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
@@ -744,8 +771,9 @@ export function clinicRouter() {
     res.json({ events: listSubscriptionEvents(req.user.tenantId) });
   });
 
-  api.post('/clinic/subscription/cancel', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, (req, res) => {
+  api.post('/clinic/subscription/cancel', authMiddleware, requireLiveTenant, requireTenantWrite, requireOwner, async (req, res) => {
     try {
+      await cancelProviderSubscription(req.user.tenantId);
       transitionTenantSubscription(req.user.tenantId, req.user.sub, {
         subscriptionStatus: SUBSCRIPTION_STATUS.CANCELED,
         source: 'owner',
