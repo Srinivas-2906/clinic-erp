@@ -1,204 +1,172 @@
 # Clinic ERP — MVP release readiness
 
-**Baseline (verified):** `main` @ `3d57d7a16164a1d0d80c421fd68cb671c3f15f0a`  
-**Stabilization branch:** `feature/mvp-stabilization`  
-**Last updated:** 2026-11-09 (IST)
+**Baseline:** `main` @ `3d57d7a16164a1d0d80c421fd68cb671c3f15f0a`  
+**Stabilization:** [PR #66](https://github.com/Srinivas-2906/clinic-erp/pull/66) `feature/mvp-stabilization`  
+**Validation date:** 2026-11-09 (IST)  
+**Pilot runbook:** [MVP_CONTROLLED_PILOT_RUNBOOK.md](./MVP_CONTROLLED_PILOT_RUNBOOK.md)
 
-This document defines what the **MVP includes**, what is **explicitly out of scope**, release **gates**, and a **go/no-go** recommendation. MVP means a full outpatient clinic day on web (desktop + mobile browser) with **manual billing only** — no live Razorpay patient checkout.
+MVP = full outpatient day on web (desktop + mobile browser), **manual billing only**, no Razorpay patient checkout.
 
 ---
 
-## 1. Verified feature inventory (on `main`)
+## 1. Verified feature inventory (on `main` + #66 doc/E2E)
 
 | Area | MVP capability | Evidence |
 |------|----------------|----------|
-| Clinic registration | Platform signup, owner set-password, trial/pro plan | `tenantProvisioning.js`, E2E `31-clinic-onboarding-journey` |
-| Authentication | Email/password login, JWT, tenant slug routing | `authMiddleware`, E2E `01-auth` |
-| Staff invitations | Access request → owner approve → invite token → set password | `accessRequests.js`, E2E onboarding spec |
-| Password reset | Tokenized reset flow | `passwordReset.js`, `passwordReset.test.js` |
-| Roles | Owner, doctor, receptionist capabilities | `rolePolicy.js`, E2E `23-role-permissions` |
-| Patients | CRUD, search, timeline | Patient routes, E2E `05-patients` |
-| Appointments | Book, reschedule, cancel, slots, multi-doctor | E2E `06-book`, `24`, `15` |
-| Queue / Today | Status transitions, consult handoff | E2E `25`, `32-busy-clinic-day` |
-| Consultation | Draft, finalize, prescription lines | E2E `19`, `30-full-clinical-billing-journey` |
-| Documents | Upload/list tenant-scoped clinical files | E2E `37-patient-documents` |
-| Follow-ups | Create from encounter, reception scheduling | E2E `36-follow-up-journey` |
-| Manual billing | Cash, UPI, Card, Online, Other; invoices; partial pay; refunds | `RecordPaymentDialog`, `PAYMENT_METHODS`, E2E `28`, `07` |
-| Outstanding | Invoice balance, summary stats | `PaymentsView`, payment summary API |
-| Receipts | Share payment (e.g. WhatsApp-oriented UI) | `SharePaymentDialog` |
-| Owner reporting | Date-ranged report, ops summary (non-financial Razorpay block on main) | `ReportsView`, `GET /clinic/report` |
-| Tenant isolation | API security tests | `clinicHttpSecurity.test.js` |
-| Persistence | SQLite single-file DB, migrations on boot | `financeDb.js`, `initDatabase` |
-| Backups (design) | Litestream replicate when `LITESTREAM_BUCKET` set | `docker-entrypoint.sh` |
+| Clinic registration | Platform signup, owner set-password | `tenantProvisioning.js`, E2E `31` |
+| Authentication | Email/password login, JWT | E2E `01`, `passwordReset.test.js` |
+| Staff invitations | Access request → approve → set password | `accessRequests.js`, E2E `31` |
+| Patients / appointments / queue / consult | Core flows | E2E `05`–`07`, `19`, `25`, `30`, `32` |
+| Manual billing | Cash, UPI, Card, partial pay, refunds | `PAYMENT_METHODS`, E2E `28`, `43-mvp-clinic-day` (after fix) |
+| Follow-ups | Encounter → reception schedule | E2E `36` |
+| Owner reporting | Date-ranged report | E2E `08`, `43` |
+| Tenant isolation | API + E2E negative | `clinicHttpSecurity.test.js`, `43` |
+| Persistence | SQLite + Litestream design | `docker-entrypoint.sh`, drills below |
 
 ---
 
-## 2. MVP exclusions (do not block pilot on main)
+## 2. MVP exclusions
 
-| Excluded | Notes |
+| Excluded | Status |
 |----------|--------|
-| Razorpay **patient** checkout / payment intents | Open in PR #64 / #65 — **defer** |
-| Provider-verified online capture | Not required for MVP |
-| SaaS subscription Razorpay live soak | Sandbox/test only; separate from clinic ledger |
-| Autonomous orchestrator (`packages/clinic-orchestrator`) | Engineering tooling; **not deployed** with clinic runtime |
-| Native Android / iOS | Deferred per product goals |
-| Live appointment reminders | `DISABLE_REMINDER_WORKER` / pilot gating |
-| Production deploy | Requires explicit authorization |
-| Owner email verification at signup | Not enforced today (console/smtp/resend optional) |
-| Per-clinic payment merchant accounts | Not implemented |
+| Razorpay **patient** checkout | **Parked** on [#64](https://github.com/Srinivas-2906/clinic-erp/pull/64) (branch preserved) |
+| [#65](https://github.com/Srinivas-2906/clinic-erp/pull/65) | **Closed** 2026-11-09 — duplicate of #64 (same head `da84b06`) |
+| Orchestrator package | Not deployed |
+| Live reminders / production deploy | Requires explicit approval |
 
 ---
 
-## 3. PR #64 / #65 disposition (recommendation)
+## 3. Release gates (evidence-based)
 
-| PR | Recommendation |
-|----|----------------|
-| [#64](https://github.com/Srinivas-2906/clinic-erp/pull/64) patient payments + orchestrator CI | **Close or park** for post-MVP. Adds Razorpay intents, provider refunds, orchestrator packages, experimental CRM “test online pay”. Not needed for manual-billing MVP. |
-| [#65](https://github.com/Srinivas-2906/clinic-erp/pull/65) | **Close as duplicate** of #64 (same 29-file diff at last compare). |
-
-**Accidental overlap:** #64 branch was briefly aligned with #65 commits; do not merge either into MVP stabilization without product approval.
-
-**MVP-relevant fixes from those PRs:** None required on `main` (CRM build failure was due to financial UI not present on main).
-
----
-
-## 4. Release gates (PASS / FAIL / BLOCKED)
-
-| Gate | Status | Notes |
-|------|--------|-------|
-| Complete clinic-day workflow | **PASS** (with new E2E) | Existing `30`, `31`, `32` + new `43-mvp-clinic-day` |
-| Authentication & staff invitations | **PARTIAL** | Flows exist; owner signup email verification **not** required |
-| Tenant isolation | **PASS** | Automated HTTP security tests + E2E negative header |
-| Financial correctness (manual) | **PASS** | Idempotency + invoice tests on main |
-| Database persistence (restart) | **PASS** (local) | E2E uses persistent `DATABASE_PATH`; re-login test in spec 43 |
-| Backup recovery (Litestream/GCS) | **BLOCKED** | No cloud restore executed this session; see §6 |
-| Clinical file recovery (GCS) | **PARTIAL** | Local/memory E2E; production GCS not drilled here |
-| Email delivery | **BLOCKED** for pilot mail | Requires `CLINIC_EMAIL_PROVIDER` + Resend/SMTP in staging |
-| Migration safety | **PASS** (local drill) | `pilot-local-restore-drill` on demo DB — integrity OK |
-| Desktop/mobile usability | **PARTIAL** | Mobile specs `33`–`39`; MVP spec runs both Playwright projects |
-| Error monitoring | **BLOCKED** | No Sentry/Datadog gate defined in repo for MVP |
-| Deployment configuration | **PARTIAL** | Docker/Litestream documented; single-writer + maxScale risk documented in GCP audit |
-
-**Do not declare MVP “ready for production patients”** until staging pilot sign-off and backup drill on **staging** replica (not production).
+| Gate | Status | Evidence |
+|------|--------|----------|
+| **CI — API unit tests** | **PASS** | PR #66 run `42675588168` |
+| **CI — CRM unit tests** | **PASS** | Same |
+| **CI — CRM production build** | **PASS** | Same |
+| **CI — Docker build smoke** | **PASS** | Same |
+| **CI — Playwright fast (smoke + auth)** | **PASS** | Same |
+| **CI — Playwright extended regression** | **FAIL** → fix pending | Run `42675588126` — `43-mvp-clinic-day` (patient add + booking); fix pushed post-run |
+| **PR #66 merge** | **BLOCKED** until regression **PASS** | Conditional approval requires **six** green checks |
+| Complete clinic-day workflow | **PARTIAL** | Spec `43` failed CI once; aligned with `05`/`30` patterns; re-run after push |
+| Authentication & staff invitations | **PASS** (logic) / **BLOCKED** (delivery) | `passwordReset.test.js`, `emailDelivery.test.js` (9 tests); staging `CLINIC_EMAIL_PROVIDER=console` |
+| Tenant isolation | **PASS** | Security tests + E2E negative in `43` |
+| Financial correctness (manual) | **PASS** | API invoice/payment tests on `main` |
+| Database persistence (process restart) | **PASS** | `mvp-db-restart-persistence.test.js` — row survives `closeDatabase` + reopen |
+| Database persistence (E2E re-login) | **PASS** (design) | `43` new browser context; pending CI |
+| Backup recovery — staging GCS | **PASS** | `staging-restore-drill.sh` → `staging-clinic-restored-20261109T184830Z.db`, integrity **ok**, FK **0** |
+| Clinical file recovery (staging snapshot) | **FAIL** (partial) | `pilot-clinical-files-validate.mjs`: 4/4 sampled `prescription_pdf` rows **missing** on disk/GCS (`denta-care` legacy refs) |
+| Migration safety on restored DB | **PASS** | `pilot-restore-validate.mjs` on staging restore |
+| Email delivery (transactional) | **BLOCKED** | No Resend/SMTP credentials exercised; console provider only on staging template |
+| Desktop/mobile usability | **PARTIAL** | Existing mobile specs; `43` runs both projects once green |
+| Error monitoring | **BLOCKED** | No wired APM gate in repo |
+| **Deployment — staging** | **PASS** (config) | `cloudbuild.staging.yaml` → `max-instances 1`, Litestream bucket, GCS files |
+| **Deployment — production** | **FAIL** (MVP safety) | `cloudbuild.yaml` → **`max-instances 3`** + ephemeral `/data` — **multi-writer risk**; not safe for SQLite MVP without infra change |
+| **Cloud Run volume persistence** | **BLOCKED** (nuance) | No mounted PD; durability = **Litestream + same instance**, not `maxScale=1` alone |
 
 ---
 
-## 5. Data preservation & recovery evidence
+## 4. Persistence & recovery evidence
 
-### Executed (non-production)
+### Staging Litestream (executed)
 
 ```text
-PILOT_RESTORE_SOURCE=/tmp/mvp-drill.db (demo seed via initDatabase)
-→ pilot-local-restore-drill.sh
-→ integrity_check: ok, fk_violations: 0, orphan_patients: 0
+gs://clinic-erp-staging-clinic-db/clinic.db/ → .restore-drill/replica/ (660 objects)
+litestream restore → staging-clinic-restored-20261109T184830Z.db (638976 bytes)
+pragma_integrity_check: ok | fk_violations: 0
+Aggregates: 3 tenants, 99 patients, 79 appointments, 51 encounters, 25 payments
 ```
 
-Artifact: `.pilot-restore-drill-mvp/local-copy-*.db` (gitignored drill dir).
+### Local drills
 
-### Not executed (honest limitations)
+- Demo seed copy: `pilot-local-restore-drill.sh` — **ok**
+- Process restart: `scripts/mvp-db-restart-persistence.test.js` — **ok**
 
-- Litestream **GCS** restore from staging/production bucket
-- Multi-instance Cloud Run failover (SQLite split-brain risk if `maxScale > 1`)
-- Point-in-time recovery across app + GCS clinical objects in one runbook
+### Not claimed
 
-Use `apps/api/scripts/staging-restore-drill.sh` with operator credentials when staging access is approved.
-
----
-
-## 6. Authentication (MVP target vs current)
-
-| Requirement | Current state |
-|-------------|---------------|
-| Owner email + password registration | Signup API + set-password link |
-| Email verification | **Optional** — provider-dependent; often console in dev |
-| Staff invite | Access request + approve + one-time token |
-| Invite expiry / reuse | Tested in `accessRequests` unit paths |
-| Password reset | Implemented; rate limits in routes |
-| Session security | JWT; logout clears client session |
-| Tenant + role enforcement | `requireLiveTenant`, `rolePolicy` |
-
-**Improvement path (post-MVP stabilization, no new IdP):** Enforce verified sender + deliverability test on staging; document owner checklist for Resend domain.
+- Production bucket restore
+- Full GCS clinical object restore for all tenants on snapshot
+- Deploy rollback executed in Cloud Run (documented only)
 
 ---
 
-## 7. Manual clinic payments (MVP)
+## 5. Authentication & email evidence
 
-- Methods: **Cash, UPI, Card, Online, Other** (`PAYMENT_METHODS`).
-- **Manual** payments are clinic-recorded; no platform settlement of patient funds.
-- Partial payments and invoice balance recompute: API + E2E `28`.
-- Owner refunds: ledger `POST /clinic/payments/:id/refund` (not provider API on main).
-- Duplicate credit protection: idempotency keys on payments (tests on main).
+| Flow | Automated | Live delivery |
+|------|-----------|----------------|
+| Password reset | **PASS** — `passwordReset.test.js` | **BLOCKED** — no SMTP/Resend test send |
+| Staff invite tokens (expiry/reuse) | **PASS** — service logic + routes | **BLOCKED** — staging uses `console` |
+| Owner signup set-password | E2E `31` | Invite URL in API response; email not verified in drill |
+| Rate limits | **PASS** — reset IP limit test | — |
 
-**Razorpay on main:** Used for **SaaS subscription** configuration in some environments — **not** required for MVP patient ledger.
-
----
-
-## 8. Staging deployment prerequisites
-
-| Prerequisite | Purpose |
-|--------------|---------|
-| `DATABASE_PATH` on persistent volume (`/data/clinic.db`) | SQLite durability |
-| `LITESTREAM_BUCKET` + GCP SA | Continuous backup (optional but recommended) |
-| **`maxScale=1`** for clinic-api until multi-writer solved | Data safety |
-| `CLINIC_JWT_SECRET`, `CLINIC_PLATFORM_ADMIN_*` | Auth |
-| `CLINIC_EMAIL_PROVIDER`, `CLINIC_RESEND_API_KEY` or SMTP | Invites & reset in pilot |
-| `CLINIC_FILES_STORAGE=gcs`, bucket + prefix | Clinical documents in pilot |
-| CRM `VITE_CLINIC_API`, `VITE_TENANT_SLUG` build args | Frontend routing |
-| `DISABLE_REMINDER_WORKER=1` until live reminders approved | Safety |
-| No `CLINIC_PATIENT_PAYMENTS` / mock Razorpay patient keys | MVP manual billing only |
-
-Runbooks: `docs/gcp-migration-audit/11-migration-execution-order.md`, `apps/api/scripts/staging-restore-drill.sh`.
+**Action for pilot:** Set `CLINIC_EMAIL_PROVIDER=resend` + verified domain on staging, send one invite + one reset, confirm inbox.
 
 ---
 
-## 9. Security checklist (pilot)
+## 6. Deployment / SQLite single-writer audit
 
-- [ ] JWT secret rotated from dev default
-- [ ] Platform admin credentials not shared with clinic staff
-- [ ] Tenant slug per clinic; no cross-tenant API without header + membership
-- [ ] HTTPS only on staging/production URLs
-- [ ] Backup drill completed on staging replica
-- [ ] Audit log export rate limits understood
-- [ ] File upload size/type limits reviewed
-
----
-
-## 10. Pilot acceptance checklist
-
-- [ ] Owner completes onboarding checklist in CRM
-- [ ] At least one doctor linked to user account
-- [ ] Reception records day of walk-ins + scheduled patients
-- [ ] Doctor finalizes consult with prescription PDF acceptable
-- [ ] Reception records **manual** payment and shares receipt
-- [ ] Owner opens reports for same day
-- [ ] Mobile browser: login, today queue, record payment
-- [ ] Known issues documented for clinic staff
+| Configuration | Finding |
+|---------------|---------|
+| `apps/api/docker-entrypoint.sh` | Litestream **restore** then **replicate** when `LITESTREAM_BUCKET` set |
+| Container filesystem | `/data/clinic.db` on instance disk — **lost on cold start** unless restore/replicate succeeds |
+| `cloudbuild.staging.yaml` | **`--max-instances 1`** — correct for SQLite MVP |
+| `cloudbuild.yaml` (production) | **`--max-instances 3`** — **FAIL** for single-writer SQLite |
+| Rolling revision deploy | Overlapping revisions can duplicate writers even at maxScale=1 — use maintenance discipline |
+| Fenced lease / single-writer branch | Documented in GCP audit; **not merged** to MVP |
 
 ---
 
-## 11. Known blockers
+## 7. MVP value propositions (observed)
 
-1. **Email in production-like environments** — without Resend/SMTP, invites/reset are console-only.
-2. **Cloud backup drill** — not run in this MVP prep session.
-3. **Multi-replica Cloud Run** — architectural risk for SQLite.
-4. Open PRs #64/#65 — noise; keep out of MVP branch.
+| Proposition | Assessment | Friction / notes |
+|-------------|------------|------------------|
+| **Fast reception** | **PASS** (code + E2E `32`, `05`) | Walk-in + patient FAB; mobile uses FAB — no CI timings captured |
+| **Doctor-first consultations** | **PASS** | Queue → consult sheet; E2E `19`, `30` |
+| **Follow-up tracking** | **PASS** | API + E2E `36`; `43` adds follow-up via API after finalize |
+| **Owner operational visibility** | **PASS** | Reports tab, payments summary; no CSV outstanding export |
+| **Easy staff onboarding** | **PARTIAL** | E2E `31` full path; **email delivery BLOCKED** for self-serve staff in staging |
 
----
-
-## 12. Go / no-go recommendation
-
-| Decision | Recommendation |
-|----------|----------------|
-| **MVP pilot on controlled staging** (manual billing, single instance, backup drill pending) | **CONDITIONAL GO** — after CI green on `feature/mvp-stabilization`, staging deploy approval, and staging Litestream drill |
-| **General availability / production patient load** | **NO-GO** until email delivery, backup recovery, and pilot checklist signed off |
+*Usability timings were not instrumented in this validation run.*
 
 ---
 
-## 13. Related automated tests
+## 8. Clinic-day workflow evidence
 
-| Suite | Command |
-|-------|---------|
-| API unit | `npm run test:api` |
-| CRM unit | `npm test --workspace=apps/crm` |
-| MVP clinic day E2E | `E2E_GREP=@mvp npm run test:e2e --workspace=apps/crm -- --project=chromium-desktop` |
-| Full regression | CI `playwright-regression.yml` (not blocking MVP definition if smoke passes) |
+| Asset | Status |
+|-------|--------|
+| E2E `30-full-clinical-billing-journey` | **PASS** historically on `main` |
+| E2E `43-mvp-clinic-day @mvp` | **FAIL** on CI run `42675588126` (fixed in branch after run) |
+| Manual billing in `43` | UPI partial + cash — matches MVP |
+
+---
+
+## 9. Remaining blockers
+
+1. **PR #66** — extended Playwright regression must pass on final head before squash-merge.
+2. **Production deploy config** — `max-instances 3` incompatible with SQLite MVP.
+3. **Transactional email** — not validated with real provider.
+4. **Clinical PDFs** — staging restore shows missing objects for legacy `denta-care` PDF refs.
+5. **Error monitoring** — not configured.
+6. **#64** — kept open for post-MVP; do not merge into MVP line.
+
+---
+
+## 10. Controlled staging go / no-go
+
+| Decision | Verdict |
+|----------|---------|
+| **Merge PR #66 to `main`** | **NO-GO** until **6/6** CI green (regression currently **FAIL**) |
+| **Deploy staging for pilot** | **NO-GO** without explicit deploy approval + regression fix merged |
+| **Pilot with real patients on staging** | **CONDITIONAL GO** only after: merge #66, regression green, email provider tested, operator signs pilot checklist, **`max-instances 1`** confirmed on service |
+| **Production / general availability** | **NO-GO** |
+
+---
+
+## 11. Test commands
+
+```bash
+npm run test:api
+npm test --workspace=apps/crm
+node --test apps/api/scripts/mvp-db-restart-persistence.test.js
+bash apps/api/scripts/staging-restore-drill.sh   # operator creds
+E2E_GREP='@mvp' npm run test:e2e --workspace=apps/crm -- --project=chromium-desktop
+```
