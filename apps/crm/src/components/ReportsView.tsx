@@ -125,6 +125,15 @@ export function ReportsView({
       consultationsFinalized: number;
       followUps: { pending: number; scheduled: number };
       doctorWorkload: { doctorName: string; encounterCount: number }[];
+      financial?: {
+        collectedInRange: number;
+        refundedInRange: number;
+        netInRange: number;
+        outstandingBalance: number;
+        openInvoiceCount: number;
+        openPaymentIntents: number;
+        openIntentExposure: number;
+      };
     };
   };
   loading?: boolean;
