@@ -135,7 +135,7 @@ test.describe('MVP clinic day @mvp', () => {
     const paySheet = page.locator('.modal-overlay').filter({ has: page.getByRole('heading', { name: /pay invoice|record payment/i }) });
     await paySheet.locator('select').selectOption({ label: 'UPI' });
     await paySheet.locator('input[type="number"], input[inputmode="numeric"]').first().fill('400');
-    await paySheet.getByPlaceholder(/upi|reference|txn/i).fill(`UPI-MVP-${suffix}`);
+    await paySheet.getByPlaceholder('UPI txn ID').fill(`UPI-MVP-${suffix}`);
     await paySheet.getByRole('button', { name: /^save$/i }).click();
     await expect(paySheet).toBeHidden({ timeout: 20_000 });
 
