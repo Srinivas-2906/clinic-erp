@@ -36,4 +36,17 @@ describe('billing reconciliation', () => {
     assert.ok(report.runId);
     assert.equal(report.discrepancyCount >= 0, true);
   });
+
+  it('resolves stored discrepancy', async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO billing_discrepancies (id, run_id, tenant_id, kind, detail_json)
+      VALUES ('disc1', 'run1', 't1', 'test_kind', '{}')
+    `).run();
+    const { resolveBillingDiscrepancy } = await import('./billingReconciliation.service.js');
+    const r = resolveBillingDiscrepancy('disc1', { actorId: 'admin', note: 'reviewed' });
+    assert.equal(r.id, 'disc1');
+    const row = db.prepare('SELECT resolved_at FROM billing_discrepancies WHERE id = ?').get('disc1');
+    assert.ok(row.resolved_at);
+  });
 });

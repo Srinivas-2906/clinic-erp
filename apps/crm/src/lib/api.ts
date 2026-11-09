@@ -693,6 +693,24 @@ export function cancelSubscription(reason?: string) {
   });
 }
 
+export function fetchBillingDiagnostics() {
+  return request<{
+    subscriptionStatus?: string;
+    trialEndsAt?: string | null;
+    planId?: string;
+    provider?: {
+      externalSubscriptionId?: string;
+      providerStatus?: string;
+      currentPeriodEnd?: string | null;
+      graceUntil?: string | null;
+      canceledAt?: string | null;
+    } | null;
+    openDiscrepancies: { kind: string; detailJson?: string; createdAt: string }[];
+    recoveryHint?: string | null;
+    renewalAt?: string | null;
+  }>('/clinic/billing/diagnostics');
+}
+
 export async function downloadTenantExport() {
   const tenantSlug = resolveTenantSlug();
   const API = import.meta.env.VITE_CLINIC_API || import.meta.env.VITE_WHATSAPP_API || '/api';

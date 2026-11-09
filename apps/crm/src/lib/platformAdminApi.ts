@@ -60,6 +60,39 @@ export function patchPlatformTenant(tenantId: string, body: {
   });
 }
 
+export type BillingDiscrepancyRow = {
+  id: string;
+  tenantId: string;
+  tenantSlug?: string;
+  tenantName?: string;
+  kind: string;
+  detailJson?: string;
+  createdAt: string;
+};
+
+export function fetchPlatformBillingDiscrepancies() {
+  return platformRequest<{ discrepancies: BillingDiscrepancyRow[] }>('/platform/admin/billing/discrepancies');
+}
+
+export function runPlatformBillingReconcile(dryRun = true) {
+  return platformRequest<{ runId: string; discrepancyCount: number; dryRun?: boolean }>(
+    '/platform/admin/billing/reconcile',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun }),
+    },
+  );
+}
+
+export function resolvePlatformBillingDiscrepancy(id: string, note: string) {
+  return platformRequest(`/platform/admin/billing/discrepancies/${encodeURIComponent(id)}/resolve`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+}
+
 export async function loginPlatformAdmin(email: string, password: string) {
   const res = await fetch(`${API}/platform/login`, {
     method: 'POST',

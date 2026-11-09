@@ -2,9 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   fetchPlatformTenantDetail,
   fetchPlatformTenants,
+  fetchPlatformBillingDiscrepancies,
+  runPlatformBillingReconcile,
+  resolvePlatformBillingDiscrepancy,
   loginPlatformAdmin,
   patchPlatformTenant,
   type PlatformTenantRow,
+  type BillingDiscrepancyRow,
 } from '../lib/platformAdminApi';
 import { getAuthToken, logout, saveToken } from '../lib/auth';
 
@@ -19,6 +23,14 @@ export function PlatformAdminApp() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof fetchPlatformTenantDetail>> | null>(null);
   const [confirmNote, setConfirmNote] = useState('');
+  const [billingDisc, setBillingDisc] = useState<BillingDiscrepancyRow[]>([]);
+  const [resolveNote, setResolveNote] = useState('');
+  const [selectedDiscId, setSelectedDiscId] = useState<string | null>(null);
+
+  const loadBillingDisc = useCallback(async () => {
+    const data = await fetchPlatformBillingDiscrepancies();
+    setBillingDisc(data.discrepancies);
+  }, []);
 
   const loadList = useCallback(async () => {
     const data = await fetchPlatformTenants({ search: search.trim() || undefined });
@@ -28,7 +40,8 @@ export function PlatformAdminApp() {
   useEffect(() => {
     if (!tokenReady) return;
     void loadList().catch((e) => setError(e instanceof Error ? e.message : 'Load failed'));
-  }, [tokenReady, loadList]);
+    void loadBillingDisc().catch(() => {});
+  }, [tokenReady, loadList, loadBillingDisc]);
 
   useEffect(() => {
     if (!tokenReady || !selectedId) {
@@ -98,6 +111,39 @@ export function PlatformAdminApp() {
         <h1>Platform administration</h1>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => logout()}>Sign out</button>
       </header>
+      <section className="platform-billing-ops panel" style={{ margin: '0 1rem 1rem' }}>
+        <h2>Revenue operations</h2>
+        <p className="muted">Reconciliation defaults to dry-run. Resolving a discrepancy is an audit action only — no automatic paid entitlements.</p>
+        <div className="platform-admin-actions">
+          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void runPlatformBillingReconcile(true).then(() => loadBillingDisc()).catch((e) => setError(e instanceof Error ? e.message : 'Reconcile failed'))}>
+            Run reconcile (dry-run)
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void loadBillingDisc()}>Refresh discrepancies</button>
+        </div>
+        {billingDisc.length === 0 ? (
+          <p className="muted">No open billing discrepancies.</p>
+        ) : (
+          <ul>
+            {billingDisc.slice(0, 15).map((d) => (
+              <li key={d.id}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedDiscId(d.id === selectedDiscId ? null : d.id)}>
+                  {d.tenantSlug || d.tenantId} · {d.kind} · {new Date(d.createdAt).toLocaleDateString()}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {selectedDiscId && (
+          <div style={{ marginTop: 8 }}>
+            <input className="login-input" placeholder="Resolution note" value={resolveNote} onChange={(e) => setResolveNote(e.target.value)} />
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy || resolveNote.trim().length < 3} onClick={() => {
+              void resolvePlatformBillingDiscrepancy(selectedDiscId, resolveNote.trim())
+                .then(() => { setResolveNote(''); setSelectedDiscId(null); return loadBillingDisc(); })
+                .catch((e) => setError(e instanceof Error ? e.message : 'Resolve failed'));
+            }}>Mark resolved</button>
+          </div>
+        )}
+      </section>
       <div className="platform-admin-layout">
         <aside className="platform-admin-list">
           <input

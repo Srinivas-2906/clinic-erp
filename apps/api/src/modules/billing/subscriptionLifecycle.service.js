@@ -74,6 +74,9 @@ export function processSubscriptionLifecycle({ limit = 100 } = {}) {
 
 export function getBillingDiagnosticsForTenant(tenantId) {
   const db = getDb();
+  const tenant = db.prepare(`
+    SELECT subscription_status, trial_ends_at, plan FROM tenants WHERE id = ?
+  `).get(tenantId);
   const provider = db.prepare(`
     SELECT external_subscription_id AS externalSubscriptionId, provider_status AS providerStatus,
            current_period_end AS currentPeriodEnd, grace_until AS graceUntil, canceled_at AS canceledAt
@@ -83,5 +86,28 @@ export function getBillingDiagnosticsForTenant(tenantId) {
     SELECT kind, detail_json AS detailJson, created_at AS createdAt FROM billing_discrepancies
     WHERE tenant_id = ? AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 5
   `).all(tenantId);
-  return { provider, openDiscrepancies: openDisc };
+  const status = tenant?.subscription_status;
+  let recoveryHint = null;
+  if (status === 'past_due') {
+    recoveryHint = 'Complete subscription checkout in this panel or contact support. Write access is limited until payment is verified.';
+  } else if (status === 'trialing' && tenant?.trial_ends_at) {
+    const days = Math.ceil((new Date(tenant.trial_ends_at).getTime() - Date.now()) / (86400000));
+    if (days <= 7) {
+      recoveryHint = days > 0
+        ? `Trial ends in ${days} day(s). Choose a plan before expiry to avoid read-only mode.`
+        : 'Trial has ended or is in grace. Subscribe to restore full access.';
+    }
+  }
+  if (provider?.graceUntil && new Date(provider.graceUntil).getTime() > Date.now()) {
+    recoveryHint = `Grace period until ${new Date(provider.graceUntil).toLocaleDateString('en-IN')}. Subscribe during grace to avoid interruption.`;
+  }
+  return {
+    subscriptionStatus: status,
+    trialEndsAt: tenant?.trial_ends_at,
+    planId: tenant?.plan,
+    provider,
+    openDiscrepancies: openDisc,
+    recoveryHint,
+    renewalAt: provider?.currentPeriodEnd || null,
+  };
 }

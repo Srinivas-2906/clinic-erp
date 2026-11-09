@@ -13,9 +13,16 @@
 
 ## Agent runtime (actual)
 
-- **Default:** workers execute **verification commands** (`npm test`, etc.) inside isolated worktrees — real OS-level concurrency via `child_process.spawn`.
-- **Optional:** set `CLINIC_ORCH_AGENT_CMD` to an external coding-agent binary when installed (Cursor CLI was **not** present in the development environment; orchestrator does not fake agent calls).
-- Workers are **not** sequential prompts renamed as agents; parallel tasks use **parallel processes**.
+| Mode | Purpose |
+|------|---------|
+| **verify** (`taskType: verify`) | Runs shell verification commands in an isolated worktree — not a coding agent. |
+| **agent** (`taskType: agent`) | Invokes `runCodingAgentTask` via configurable adapter. |
+| **fixture agent** (`CLINIC_ORCH_USE_FIXTURE_AGENT=1` or no CLI found) | Writes a marker file + git commit to prove worktree/commit/verify contract — **not** real LLM coding. |
+| **external CLI** (`CLINIC_ORCH_AGENT_CMD`) | Used when installed and fixture mode off. |
+
+Discovery checks `CLINIC_ORCH_AGENT_CMD`, `cursor-agent`, `cursor`, `claude`, `aider` via `command -v`. **Cursor CLI was not available** in the development environment used to build this package; demos used verify workers and/or fixture agent only unless you configure an external command.
+
+Do not label verify-only workers as coding agents in runbooks.
 
 ## Demonstration
 
