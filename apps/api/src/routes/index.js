@@ -94,6 +94,7 @@ import {
   verifyPatientPaymentIntent,
   reconcilePatientPaymentIntents,
 } from '../services/patientPaymentIntents.service.js';
+import { initiateProviderRefund } from '../services/providerRefunds.service.js';
 import { SUBSCRIPTION_STATUS } from '../modules/identity/subscription.js';
 import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
 import {
@@ -679,12 +680,25 @@ export function clinicRouter() {
 
   api.post('/clinic/payment-intents/:id/verify', authMiddleware, requireLiveTenant, (req, res) => {
     if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
-    try {
-      const result = verifyPatientPaymentIntent(req.user.tenantId, req.user, req.params.id, req.body ?? {});
-      res.json(result);
-    } catch (err) {
-      res.status(err.status || 400).json({ error: err.message || 'Could not verify payment', code: err.code });
-    }
+    verifyPatientPaymentIntent(req.user.tenantId, req.user, req.params.id, req.body ?? {})
+      .then((result) => res.json(result))
+      .catch((err) => {
+        res.status(err.status || 400).json({ error: err.message || 'Could not verify payment', code: err.code });
+      });
+  });
+
+  api.post('/clinic/payments/:id/provider-refund', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    initiateProviderRefund(req.user.tenantId, req.user, {
+      paymentId: req.params.id,
+      amount: req.body?.amount != null ? Number(req.body.amount) : undefined,
+      notes: req.body?.notes,
+      idempotencyKey: req.body?.idempotencyKey,
+    })
+      .then((payload) => res.status(201).json(payload))
+      .catch((err) => {
+        res.status(err.status || 400).json({ error: err.message || 'Could not refund at provider', code: err.code });
+      });
   });
 
   api.get('/clinic/payment-intents/reconciliation', authMiddleware, requireLiveTenant, (req, res) => {

@@ -10,6 +10,7 @@ import {
 import { DEFAULT_LIMITS, createWorktree, runCommandInWorktree } from './safety.js';
 import { spawn } from 'node:child_process';
 import { ciGateAllowsMerge, fetchCiSnapshot } from './githubCi.js';
+import { ensureIntegrationBranch } from './integrationBranch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function repoRootFromHere() {
@@ -84,6 +85,28 @@ export function pickReadyBatch(repoRoot: string, role?: string) {
 export async function pollCiMergeGate(repoRoot: string, headSha: string) {
   const snap = await fetchCiSnapshot(repoRoot, headSha);
   return { snapshot: snap, mergeReady: ciGateAllowsMerge(snap) };
+}
+
+/** Resume coordinator after interruption — surface ready tasks and dependency blockers. */
+export function resumeOrchestrator(repoRoot: string) {
+  const state = loadState(repoRoot);
+  ensureIntegrationBranch(repoRoot, state.integrationBranch);
+  const ready = pickReadyBatch(repoRoot);
+  const blocked = state.tasks.filter((t) => {
+    if (t.status === 'completed' || t.status === 'failed') return false;
+    const done = new Set(state.tasks.filter((x) => x.status === 'completed').map((x) => x.id));
+    return t.dependsOn.some((d) => !done.has(d));
+  });
+  return { integrationBranch: state.integrationBranch, ready, blocked };
+}
+
+export function classifyTaskFailure(stderr: string): string {
+  const s = stderr.toLowerCase();
+  if (s.includes('lint') || s.includes('eslint')) return 'lint';
+  if (s.includes('test') || s.includes('assert')) return 'test';
+  if (s.includes('timeout')) return 'timeout';
+  if (s.includes('merge conflict')) return 'merge_conflict';
+  return 'unknown';
 }
 
 export function approveTaskHuman(repoRoot: string, taskId: string, { reject = false, reason = '' } = {}) {

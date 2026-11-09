@@ -94,4 +94,30 @@ export function initFinanceSchema(db) {
     ON patient_payment_intents(tenant_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS provider_refunds (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      payment_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      status TEXT NOT NULL DEFAULT 'pending',
+      external_refund_id TEXT,
+      external_payment_id TEXT,
+      failure_reason TEXT DEFAULT '',
+      idempotency_key TEXT,
+      ledger_refund_id TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+      FOREIGN KEY (payment_id) REFERENCES patient_payments(id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_refunds_idempotency
+    ON provider_refunds(tenant_id, idempotency_key)
+    WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
+    CREATE INDEX IF NOT EXISTS idx_provider_refunds_tenant_payment
+    ON provider_refunds(tenant_id, payment_id);
+  `);
 }

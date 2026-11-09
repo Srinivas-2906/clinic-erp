@@ -25,6 +25,8 @@ export type OrchestratorTask = {
   agentInstructions?: string;
   verifyCommand?: string;
   worktreeBranch?: string;
+  githubPrNumber?: number;
+  githubHeadSha?: string;
   retries: number;
   maxRetries: number;
   logPath?: string;

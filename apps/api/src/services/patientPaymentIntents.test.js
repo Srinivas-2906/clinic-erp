@@ -65,7 +65,7 @@ describe('patientPaymentIntents', () => {
   it('verifies signature and records partial payment', async () => {
     const inv = openInvoice(400);
     const partial = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id, amount: 150 });
-    const verified = verifyPatientPaymentIntent('t1', receptionist, partial.intent.id, partial.mockCapture);
+    const verified = await verifyPatientPaymentIntent('t1', receptionist, partial.intent.id, partial.mockCapture);
     assert.equal(verified.payment.amount, 150);
     assert.equal(verified.intent.status, 'captured');
     const updated = getInvoiceById(inv.id, 't1');
@@ -76,7 +76,7 @@ describe('patientPaymentIntents', () => {
   it('rejects invalid signature', async () => {
     const inv = openInvoice(100);
     const payload = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id });
-    assert.throws(
+    await assert.rejects(
       () => verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, {
         ...payload.mockCapture,
         razorpay_signature: 'bad',
@@ -88,8 +88,8 @@ describe('patientPaymentIntents', () => {
   it('idempotent verify returns duplicate flag', async () => {
     const inv = openInvoice(80);
     const payload = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id });
-    verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, payload.mockCapture);
-    const again = verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, payload.mockCapture);
+    await verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, payload.mockCapture);
+    const again = await verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, payload.mockCapture);
     assert.equal(again.duplicate, true);
   });
 
@@ -115,5 +115,17 @@ describe('patientPaymentIntents', () => {
     const a = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id, idempotencyKey: 'idem-1' });
     const b = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id, idempotencyKey: 'idem-1' });
     assert.equal(a.intent.id, b.intent.id);
+  });
+
+  it('rejects provider amount mismatch', async () => {
+    const inv = openInvoice(120);
+    const payload = await createPatientPaymentIntent('t1', receptionist, { invoiceId: inv.id, amount: 60 });
+    const badCapture = { ...payload.mockCapture };
+    const db = getDb();
+    db.prepare(`UPDATE patient_payment_intents SET amount = 999 WHERE id = ?`).run(payload.intent.id);
+    await assert.rejects(
+      () => verifyPatientPaymentIntent('t1', receptionist, payload.intent.id, badCapture),
+      /amount/i,
+    );
   });
 });

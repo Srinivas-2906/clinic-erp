@@ -11,7 +11,7 @@
     "demo": "node --import tsx src/demo.ts",
     "approve": "node --import tsx src/approve.ts",
     "ci-snapshot": "node --import tsx src/ciSnapshot.ts",
-    "test": "node --import tsx --test src/store.test.ts src/agentAdapter.test.ts src/githubCi.test.ts"
+    "test": "node --import tsx --test src/store.test.ts src/agentAdapter.test.ts src/githubCi.test.ts src/githubPr.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.4",

@@ -84,12 +84,55 @@ export function createRazorpayClient({ keyId, keySecret, mock = shouldUseRazorpa
     async fetchPayment(id) {
       return request('GET', `/payments/${id}`);
     },
+    async createRefund(paymentId, payload) {
+      return request('POST', `/payments/${paymentId}/refund`, payload);
+    },
+    async fetchRefund(id) {
+      return request('GET', `/refunds/${id}`);
+    },
   };
 }
 
+/** Server-side amount/status gate after HMAC verification. */
+export function assertRazorpayPaymentReadyForCapture(payment, { orderId, expectedAmountPaise }) {
+  if (!payment) {
+    const err = new Error('Payment not found at provider');
+    err.code = 'PAYMENT_PROVIDER_NOT_FOUND';
+    throw err;
+  }
+  if (orderId && payment.order_id && String(payment.order_id) !== String(orderId)) {
+    const err = new Error('Provider payment order does not match intent');
+    err.code = 'PAYMENT_ORDER_MISMATCH';
+    throw err;
+  }
+  const amount = Number(payment.amount);
+  if (Number.isFinite(expectedAmountPaise) && amount !== expectedAmountPaise) {
+    const err = new Error('Provider payment amount does not match intent');
+    err.status = 400;
+    err.code = 'PAYMENT_AMOUNT_MISMATCH';
+    throw err;
+  }
+  const status = String(payment.status || '').toLowerCase();
+  if (status === 'authorized') {
+    return { captureReady: false, asyncState: 'authorized' };
+  }
+  if (status !== 'captured') {
+    const err = new Error(`Payment not captured at provider (status: ${payment.status})`);
+    err.status = 409;
+    err.code = 'PAYMENT_NOT_CAPTURED';
+    throw err;
+  }
+  return { captureReady: true, asyncState: 'captured' };
+}
+
+const sharedMockState = {
+  subs: new Map(),
+  orders: new Map(),
+};
+
 function createMockClient(keySecret = 'mock_secret') {
-  const subs = new Map();
-  const orders = new Map();
+  const subs = sharedMockState.subs;
+  const orders = sharedMockState.orders;
   return {
     keySecret,
     async createSubscription(payload) {
@@ -132,9 +175,42 @@ function createMockClient(keySecret = 'mock_secret') {
       return order;
     },
     async fetchPayment(id) {
+      for (const [orderId, order] of orders.entries()) {
+        const mockPayId = `pay_mock_${String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+        if (id === mockPayId) {
+          return {
+            id,
+            status: 'captured',
+            amount: order.amount,
+            currency: order.currency || 'INR',
+            order_id: orderId,
+          };
+        }
+      }
       return {
         id,
-        status: 'captured',
+        status: 'failed',
+        amount: 0,
+        currency: 'INR',
+      };
+    },
+    async createRefund({ paymentId, amount, notes } = {}) {
+      const refundId = `rfnd_mock_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const refund = {
+        id: refundId,
+        entity: 'refund',
+        amount: amount ?? 0,
+        currency: 'INR',
+        payment_id: paymentId,
+        notes: notes || {},
+        status: 'processed',
+      };
+      return refund;
+    },
+    async fetchRefund(id) {
+      return {
+        id,
+        status: 'processed',
         amount: 0,
         currency: 'INR',
       };

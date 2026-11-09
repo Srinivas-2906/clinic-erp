@@ -9,6 +9,7 @@ import {
   createRazorpayClient,
   shouldUseRazorpayMock,
   verifyRazorpayPaymentSignature,
+  assertRazorpayPaymentReadyForCapture,
 } from '../modules/billing/razorpayClient.js';
 import { logAudit } from './clinicAudit.js';
 
@@ -170,7 +171,7 @@ export function getPatientPaymentIntent(id, tenantId) {
   return row ? rowToIntent(row) : null;
 }
 
-export function verifyPatientPaymentIntent(
+export async function verifyPatientPaymentIntent(
   tenantId,
   user,
   intentId,
@@ -210,6 +211,41 @@ export function verifyPatientPaymentIntent(
     err.status = 400;
     err.code = 'PAYMENT_SIGNATURE_INVALID';
     throw err;
+  }
+
+  const client = razorpayClientForPatient();
+  const expectedPaise = Math.round(row.amount * 100);
+  let providerPayment;
+  try {
+    providerPayment = await client.fetchPayment(extPay);
+  } catch (e) {
+    if (!shouldUseRazorpayMock() && process.env.CLINIC_RAZORPAY_KEY_SECRET) {
+      throw e;
+    }
+    providerPayment = {
+      id: extPay,
+      order_id: extOrder,
+      amount: expectedPaise,
+      status: 'captured',
+      currency: row.currency || 'INR',
+    };
+  }
+  const providerGate = assertRazorpayPaymentReadyForCapture(providerPayment, {
+    orderId: extOrder,
+    expectedAmountPaise: expectedPaise,
+  });
+  if (!providerGate.captureReady) {
+    db.prepare(`
+      UPDATE patient_payment_intents
+      SET status = 'authorized', external_payment_id = ?, updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).run(extPay, intentId, tenantId);
+    logAudit(tenantId, user.sub, 'authorize', 'payment_intent', intentId, { externalPaymentId: extPay });
+    return {
+      intent: rowToIntent(db.prepare(`SELECT * FROM patient_payment_intents WHERE id = ? AND tenant_id = ?`).get(intentId, tenantId)),
+      asyncState: providerGate.asyncState,
+      pendingCapture: true,
+    };
   }
 
   const captureKey = `intent-capture-${intentId}-${extPay}`;
@@ -263,10 +299,22 @@ export function reconcilePatientPaymentIntents(tenantId, user) {
     WHERE tenant_id = ? AND status = 'created'
   `).get(tenantId)?.s ?? 0;
 
+  const authorizedStale = db.prepare(`
+    SELECT * FROM patient_payment_intents
+    WHERE tenant_id = ? AND status = 'authorized'
+      AND datetime(updated_at) < datetime('now', '-30 minutes')
+    ORDER BY datetime(updated_at) ASC
+    LIMIT 100
+  `).all(tenantId).map(rowToIntent);
+
   return {
     staleOpenIntents: stale,
+    authorizedAwaitingCapture: authorizedStale,
     capturedMissingLedger: capturedWithoutPayment,
     openIntentExposure: roundMoney(openIntentTotal),
     healthy: capturedWithoutPayment.length === 0,
+    providerMerchantModel: 'platform_env',
+    providerMerchantNote:
+      'Patient Razorpay test/live keys are platform env (CLINIC_RAZORPAY_*); per-clinic merchant accounts are not wired yet.',
   };
 }
