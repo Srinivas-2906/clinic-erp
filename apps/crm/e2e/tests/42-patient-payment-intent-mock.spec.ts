@@ -1,5 +1,5 @@
-import { test, expect } from '../fixtures/authedPage';
-import { goToTab } from '../helpers/nav';
+import { test, expect } from '../fixtures/auth.fixture';
+import { goToTab } from '../helpers/navigation';
 
 test.describe('patient payment intent (mock)', () => {
   test('reception collects invoice via test online pay', async ({ authedPage: page }) => {
