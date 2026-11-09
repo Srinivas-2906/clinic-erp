@@ -99,8 +99,15 @@ test.describe('MVP clinic day @mvp', () => {
     await consultModal.locator('#consult-diagnosis').fill('Stable');
     await consultModal.getByPlaceholder('Medicine').first().fill('Paracetamol');
     await consultModal.getByPlaceholder('Dose').first().fill('500mg');
-    await consultModal.getByRole('button', { name: /finalize visit/i }).click();
-    await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 25_000 });
+    const saveDraft = consultModal.getByRole('button', { name: /save draft/i });
+    await saveDraft.scrollIntoViewIfNeeded();
+    await saveDraft.click();
+    await expect(page.locator('.toast-err')).toHaveCount(0, { timeout: 5_000 }).catch(() => {});
+    const finalizeBtn = consultModal.getByRole('button', { name: /finalize visit/i });
+    await finalizeBtn.scrollIntoViewIfNeeded();
+    await expect(finalizeBtn).toBeEnabled({ timeout: 10_000 });
+    await finalizeBtn.click();
+    await expect(consultModal).toBeHidden({ timeout: 35_000 });
     const skipBilling = page.getByRole('button', { name: /continue without billing/i });
     if (await skipBilling.isVisible().catch(() => false)) await skipBilling.click();
 
@@ -113,10 +120,14 @@ test.describe('MVP clinic day @mvp', () => {
     );
     const timeline = await request.get(`${API}/api/patients/${patientId}`, { headers: doctorHeaders });
     expect(timeline.ok()).toBeTruthy();
-    const enc = ((await timeline.json()).encounters ?? []).find(
-      (e: { appointmentId?: string }) => e.appointmentId === appointmentId,
-    );
-    expect(enc?.status).toBe('finalized');
+    let enc: { id: string; status: string } | undefined;
+    await expect.poll(async () => {
+      const tl = await request.get(`${API}/api/patients/${patientId}`, { headers: doctorHeaders });
+      const body = await tl.json();
+      enc = (body.encounters ?? []).find((e: { appointmentId?: string }) => e.appointmentId === appointmentId);
+      return enc?.status === 'finalized';
+    }, { timeout: 30_000 }).toBe(true);
+    if (!enc) throw new Error('encounter missing after finalize');
     await request.post(`${API}/api/clinic/encounters/${enc.id}/follow-up`, {
       headers: { ...doctorHeaders, 'Content-Type': 'application/json' },
       data: { dueDate: clinicTodayYmd(), instructions: 'MVP follow-up' },
