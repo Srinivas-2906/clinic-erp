@@ -25,6 +25,10 @@ const apiEnv = {
   CLINIC_E2E_MODE: '1',
   CLINIC_PAYMENT_GATEWAY: 'razorpay_sandbox',
   CLINIC_RAZORPAY_WEBHOOK_SECRET: 'e2e-webhook-secret-do-not-use-live',
+  CLINIC_PATIENT_PAYMENTS_MOCK: '1',
+  CLINIC_RAZORPAY_MOCK: '1',
+  CLINIC_RAZORPAY_KEY_ID: 'rzp_test_e2e',
+  CLINIC_RAZORPAY_KEY_SECRET: 'e2e_patient_intent_secret',
 };
 
 export default defineConfig({

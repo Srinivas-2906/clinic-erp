@@ -66,4 +66,32 @@ export function initFinanceSchema(db) {
     ON patient_payments(tenant_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL AND idempotency_key != ''
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS patient_payment_intents (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      patient_id TEXT NOT NULL,
+      invoice_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      status TEXT NOT NULL DEFAULT 'created',
+      external_order_id TEXT,
+      external_payment_id TEXT,
+      payment_id TEXT,
+      idempotency_key TEXT,
+      failure_reason TEXT DEFAULT '',
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+      FOREIGN KEY (invoice_id) REFERENCES patient_invoices(id),
+      FOREIGN KEY (patient_id) REFERENCES patients(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pay_intents_tenant_invoice ON patient_payment_intents(tenant_id, invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_pay_intents_tenant_status ON patient_payment_intents(tenant_id, status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_intents_idempotency
+    ON patient_payment_intents(tenant_id, idempotency_key)
+    WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
+  `);
 }

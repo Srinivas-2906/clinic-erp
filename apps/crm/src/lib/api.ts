@@ -400,7 +400,7 @@ export async function openPrescriptionPdf(encounterId: string) {
 
 export function fetchPayments(patientId?: string) {
   const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : '';
-  return request<{ summary: PaymentSummary; payments: Payment[] }>(`/clinic/payments${q}`);
+  return request<{ summary: PaymentSummary; payments: Payment[]; patientOnlineCheckout?: boolean }>(`/clinic/payments${q}`);
 }
 
 export function fetchPatientPayments(patientId: string) {
@@ -449,6 +449,15 @@ export function fetchClinicReport(from: string, to: string) {
       consultationsFinalized: number;
       followUps: { pending: number; scheduled: number };
       doctorWorkload: { doctorName: string; encounterCount: number }[];
+      financial?: {
+        collectedInRange: number;
+        refundedInRange: number;
+        netInRange: number;
+        outstandingBalance: number;
+        openInvoiceCount: number;
+        openPaymentIntents: number;
+        openIntentExposure: number;
+      };
     };
   }>(`/clinic/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 }
@@ -502,6 +511,42 @@ export function voidInvoice(id: string, reason?: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason: reason || '' }),
   });
+}
+
+export function createInvoicePaymentIntent(
+  invoiceId: string,
+  body?: { amount?: number; idempotencyKey?: string },
+) {
+  return request<{
+    intent: { id: string; amount: number; status: string; invoiceId: string };
+    mockCapture?: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    };
+  }>(`/clinic/invoices/${encodeURIComponent(invoiceId)}/payment-intents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+}
+
+export function verifyPaymentIntent(
+  intentId: string,
+  body: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  },
+) {
+  return request<{ intent: { id: string; status: string }; payment: Payment; duplicate?: boolean }>(
+    `/clinic/payment-intents/${encodeURIComponent(intentId)}/verify`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 export function refundPayment(paymentId: string, body?: { amount?: number; notes?: string; idempotencyKey?: string }) {
@@ -613,6 +658,7 @@ export function getPaymentGatewayConfig() {
     provider: string | null;
     configured: boolean;
     checkoutEnabled?: boolean;
+    patientOnlineCheckout?: boolean;
     mode?: string;
     note?: string;
   }>('/clinic/billing/gateway');

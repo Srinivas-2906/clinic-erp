@@ -106,6 +106,7 @@ function ClinicApp() {
   const [payments,      setPayments]      = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary>({ todayTotal: 0, monthTotal: 0, dueCount: 0 });
+  const [patientOnlineCheckout, setPatientOnlineCheckout] = useState(false);
   const [paymentsPrefillPatientId, setPaymentsPrefillPatientId] = useState<string | null>(null);
   const [visitBillingHandoff, setVisitBillingHandoff] = useState<{ appointment: Appointment; encounterId?: string | null } | null>(null);
   const [reportRange, setReportRange] = useState<{ from: string; to: string } | null>(null);
@@ -179,6 +180,7 @@ function ClinicApp() {
       const [data, invData] = await Promise.all([fetchPayments(), fetchInvoices()]);
       setPayments(data.payments || []);
       setPaymentSummary(data.summary || { todayTotal: 0, monthTotal: 0, dueCount: 0 });
+      setPatientOnlineCheckout(Boolean(data.patientOnlineCheckout));
       setInvoices(invData.invoices || []);
     } catch (e) {
       toastApiError(e);
@@ -646,6 +648,7 @@ function ClinicApp() {
                 onPrefillRecordConsumed={() => setPaymentsPrefillPatientId(null)}
                 focusDueInvoices={paymentsFocusDue}
                 onFocusDueConsumed={() => setPaymentsFocusDue(false)}
+                patientOnlineCheckout={patientOnlineCheckout}
               />
             ) : (
               <div className="doctors-empty">Billing is handled by front desk staff.</div>

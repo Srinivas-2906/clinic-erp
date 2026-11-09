@@ -9,6 +9,7 @@ import {
 } from './store.js';
 import { DEFAULT_LIMITS, createWorktree, runCommandInWorktree } from './safety.js';
 import { spawn } from 'node:child_process';
+import { ciGateAllowsMerge, fetchCiSnapshot } from './githubCi.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function repoRootFromHere() {
@@ -77,4 +78,29 @@ export function pickReadyBatch(repoRoot: string, role?: string) {
   let ready = readyTasks(state);
   if (role) ready = ready.filter((t) => t.assignedRole === role);
   return ready;
+}
+
+/** Poll GitHub (or fixture) for six-check green before merging integration branch. */
+export async function pollCiMergeGate(repoRoot: string, headSha: string) {
+  const snap = await fetchCiSnapshot(repoRoot, headSha);
+  return { snapshot: snap, mergeReady: ciGateAllowsMerge(snap) };
+}
+
+export function approveTaskHuman(repoRoot: string, taskId: string, { reject = false, reason = '' } = {}) {
+  const state = loadState(repoRoot);
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task || task.status !== 'awaiting_approval') {
+    return { ok: false, error: 'not_awaiting_approval' as const };
+  }
+  task.updatedAt = new Date().toISOString();
+  if (reject) {
+    task.status = 'failed';
+    task.failureClass = 'human_rejected';
+  } else {
+    task.status = 'completed';
+  }
+  if (reason) task.logPath = `${task.logPath || ''}\nApproval note: ${reason}`;
+  upsertTask(state, task);
+  saveState(repoRoot, state);
+  return { ok: true, task };
 }

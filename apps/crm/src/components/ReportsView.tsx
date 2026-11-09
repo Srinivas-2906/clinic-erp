@@ -455,6 +455,14 @@ export function ReportsView({
                 No-show: {report.opsSummary.appointments.noShow}
                 {' · '}
                 Follow-ups pending: {report.opsSummary.followUps.pending}
+                {report.opsSummary.financial && (
+                  <>
+                    {' · '}
+                    Outstanding: {formatRs(report.opsSummary.financial.outstandingBalance)}
+                    {' · '}
+                    Open invoices: {report.opsSummary.financial.openInvoiceCount}
+                  </>
+                )}
               </p>
             )}
           </div>

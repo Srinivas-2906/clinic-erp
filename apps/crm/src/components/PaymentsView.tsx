@@ -44,6 +44,7 @@ interface Props {
   onPrefillRecordConsumed?: () => void;
   focusDueInvoices?: boolean;
   onFocusDueConsumed?: () => void;
+  patientOnlineCheckout?: boolean;
 }
 
 export function PaymentsView({
@@ -61,6 +62,7 @@ export function PaymentsView({
   onPrefillRecordConsumed,
   focusDueInvoices,
   onFocusDueConsumed,
+  patientOnlineCheckout = false,
 }: Props) {
   const [section, setSection] = useState<'invoices' | 'payments'>('invoices');
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'due'>('all');
@@ -247,6 +249,9 @@ export function PaymentsView({
               return null;
             }
           }}
+          patientPaymentsMock={patientOnlineCheckout}
+          onPaymentCaptured={onRecorded}
+          onToast={onToast}
         />
       )}
 

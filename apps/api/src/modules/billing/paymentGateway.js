@@ -3,6 +3,8 @@
  * Subscription checkout uses billing_transactions + webhooks (razorpay_sandbox for CI).
  */
 
+import { shouldUseRazorpayMock } from './razorpayClient.js';
+
 export const GATEWAY_STATUS = {
   NOT_CONFIGURED: 'not_configured',
   PENDING: 'pending',
@@ -18,6 +20,17 @@ function isProductionRuntime() {
 export function isSimulatedSandboxBillingAllowed() {
   if (!isProductionRuntime()) return true;
   return process.env.CLINIC_ALLOW_SANDBOX_BILLING === '1';
+}
+
+export function isPatientOnlineCheckoutEnabled() {
+  const cfg = getPaymentGatewayConfig();
+  if (
+    shouldUseRazorpayMock() &&
+    (process.env.CLINIC_E2E_MODE === '1' || process.env.CLINIC_PATIENT_PAYMENTS_MOCK === '1' || cfg.mode === 'test')
+  ) {
+    return true;
+  }
+  return cfg.checkoutEnabled && cfg.mode === 'test';
 }
 
 function resolveRazorpayKeyMode() {
@@ -86,16 +99,12 @@ export function getPaymentGatewayConfig() {
   };
 }
 
-/** Patient invoice collect (unchanged stub). */
+/** Patient invoice collect — use POST /clinic/invoices/:id/payment-intents + verify. */
 export async function initiateGatewayCollection(_tenantId, _payload) {
-  const cfg = getPaymentGatewayConfig();
-  if (!cfg.configured || cfg.mode === 'sandbox') {
-    const err = new Error('Payment gateway is not configured');
-    err.status = 501;
-    err.code = 'GATEWAY_NOT_CONFIGURED';
-    throw err;
-  }
-  return { status: GATEWAY_STATUS.PENDING, externalId: null };
+  const err = new Error('Use /clinic/invoices/:id/payment-intents for patient checkout');
+  err.status = 501;
+  err.code = 'USE_PAYMENT_INTENTS_API';
+  throw err;
 }
 
 export async function initiateGatewayRefund(_tenantId, _payload) {

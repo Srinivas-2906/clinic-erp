@@ -77,7 +77,7 @@ import {
 } from '../modules/platform/provisioningAuth.js';
 import { processDueReminders } from '../services/reminders/index.js';
 import { buildTenantExportBundle } from '../services/tenantExport.js';
-import { getPaymentGatewayConfig } from '../modules/billing/paymentGateway.js';
+import { getPaymentGatewayConfig, isPatientOnlineCheckoutEnabled } from '../modules/billing/paymentGateway.js';
 import {
   createSubscriptionCheckout,
   cancelProviderSubscription,
@@ -89,6 +89,11 @@ import {
 import { runBillingReconciliation, listBillingDiscrepancies, resolveBillingDiscrepancy } from '../modules/billing/billingReconciliation.service.js';
 import { processSubscriptionLifecycle, getBillingDiagnosticsForTenant } from '../modules/billing/subscriptionLifecycle.service.js';
 import { buildOwnerOpsSummary } from '../services/ownerOpsReport.js';
+import {
+  createPatientPaymentIntent,
+  verifyPatientPaymentIntent,
+  reconcilePatientPaymentIntents,
+} from '../services/patientPaymentIntents.service.js';
 import { SUBSCRIPTION_STATUS } from '../modules/identity/subscription.js';
 import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
 import {
@@ -552,6 +557,7 @@ export function clinicRouter() {
     res.json({
       summary: getPaymentSummary(req.user.tenantId),
       payments: getPayments(req.user.tenantId, { patientId: req.query.patientId }),
+      patientOnlineCheckout: isPatientOnlineCheckoutEnabled(),
     });
   });
 
@@ -655,6 +661,38 @@ export function clinicRouter() {
       res.json(inv);
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message || 'Could not void invoice' });
+    }
+  });
+
+  api.post('/clinic/invoices/:id/payment-intents', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    createPatientPaymentIntent(req.user.tenantId, req.user, {
+      invoiceId: req.params.id,
+      amount: req.body?.amount != null ? Number(req.body.amount) : undefined,
+      idempotencyKey: req.body?.idempotencyKey,
+    })
+      .then((payload) => res.status(201).json(payload))
+      .catch((err) => {
+        res.status(err.status || 400).json({ error: err.message || 'Could not create payment intent', code: err.code });
+      });
+  });
+
+  api.post('/clinic/payment-intents/:id/verify', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      const result = verifyPatientPaymentIntent(req.user.tenantId, req.user, req.params.id, req.body ?? {});
+      res.json(result);
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message || 'Could not verify payment', code: err.code });
+    }
+  });
+
+  api.get('/clinic/payment-intents/reconciliation', authMiddleware, requireLiveTenant, (req, res) => {
+    if (!req.user.tenantId) return res.status(403).json({ error: 'Tenant access required' });
+    try {
+      res.json(reconcilePatientPaymentIntents(req.user.tenantId, req.user));
+    } catch (err) {
+      res.status(err.status || 403).json({ error: err.message || 'Forbidden' });
     }
   });
 
@@ -766,7 +804,10 @@ export function clinicRouter() {
   });
 
   api.get('/clinic/billing/gateway', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {
-    res.json(getPaymentGatewayConfig());
+    res.json({
+      ...getPaymentGatewayConfig(),
+      patientOnlineCheckout: isPatientOnlineCheckoutEnabled(),
+    });
   });
 
   api.get('/clinic/billing/plans', authMiddleware, requireLiveTenant, requireOwner, (req, res) => {

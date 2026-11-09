@@ -1,6 +1,6 @@
 # Clinic ERP — product goals specification
 
-**Evidence baseline:** `main` @ `8fdcb31` (post PR #61); milestone branch `265ed43` (`feature/erp-workflows-and-agent-execution`).  
+**Evidence baseline:** `main` @ `8fdcb31` (post PR #61); PR #62 head `c5606b0` (awaiting approval merge); milestone branch `feature/patient-payments-operations-agent-gates`.
 **Method:** each area lists expected behavior, file/API evidence, gaps, dependencies, acceptance criteria, manual checks, priority, and **status** (not a percentage score).
 
 Status values: `complete` | `partial` | `missing` | `blocked` (external dependency).
@@ -135,7 +135,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Invoices, payments, refunds, idempotency, owner/reception roles. |
 | **Evidence** | Invoice/payment routes, billing E2E specs, idempotency tests. |
-| **Gaps** | Online patient payment collect still stub (`paymentGateway.js` patient path). |
+| **Gaps** | Live Razorpay checkout (non-mock); patient-facing hosted checkout UI; production webhook for patient captures. |
+| **Evidence (milestone)** | `patientPaymentIntents.service.js`, routes `POST /clinic/invoices/:id/payment-intents`, `POST /clinic/payment-intents/:id/verify`, mock/test-mode verify, partial pay, reconciliation `GET /clinic/payment-intents/reconciliation`, Playwright 42. |
 | **Dependencies** | Separate from SaaS subscription billing. |
 | **Automated acceptance** | Payment API tests; Playwright billing flows. |
 | **Manual** | Refund audit trail review. |
@@ -148,7 +149,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Overview stats, date-ranged reports, exports, ops summary. |
 | **Evidence** | `ReportsView`, `GET /clinic/report`, `opsSummary`, CSV export. |
-| **Gaps** | Dedicated API unit test file for report handler (HTTP security covers basics). |
+| **Gaps** | Owner CSV export for outstanding ledger (P2). |
+| **Evidence (milestone)** | `ownerOpsReport.js` financial block (collections, refunds, outstanding, open intents); ReportsView outstanding line. |
 | **Automated acceptance** | `clinicHttpSecurity.test.js` report; CRM report UX manual. |
 | **Manual** | Financial totals vs ledger spot-check. |
 | **Priority** | P1 |
@@ -197,8 +199,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Atomic payment writes, amendment concurrency, no silent entitlement escalation. |
 | **Evidence** | Idempotent payments, amendment `updated_at` guards, subscription transition matrix. |
-| **Gaps** | Non-dry-run reconciliation in production-like env (approval-gated). |
-| **Automated acceptance** | Billing + amendment tests. |
+| **Gaps** | Live patient capture webhook parity with SaaS webhooks; non-dry-run SaaS reconciliation (approval-gated). |
+| **Evidence (milestone)** | Intent verify signature gate; idempotent capture keys; `patientPaymentIntents.test.js`. |
+| **Automated acceptance** | Billing + amendment + payment intent tests. |
 | **Manual** | Reconciliation runbook execution. |
 | **Priority** | P0 |
 | **Status** | **partial** |
@@ -294,4 +297,6 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 
 No category is marked **complete** end-to-end with full automated + manual sign-off. Web clinical and ledger flows are **partial** with strong E2E coverage; **commercial launch** remains **blocked** on real payment provider verification and explicit live-payment approval.
 
-**Next executable priorities (Track A):** Staging Razorpay test-mode soak; patient online pay (ledger); platform revenue ops polish; orchestrator agent-task demo with human approval gates.
+**Next executable priorities (Track A):** Approve + squash-merge PR #62; merge patient-payments milestone PR after CI; staging patient Razorpay soak; orchestrator live `gh` CI monitor.
+
+**Engineering orchestrator (not deployed):** `packages/clinic-orchestrator` — task deps, worktrees, `approve.ts`, `githubCi.ts` fixture/`gh`, integration branch helpers; agent tasks via `CLINIC_ORCH_AGENT_CMD` / fixture only unless external CLI configured.

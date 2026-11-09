@@ -2,6 +2,8 @@
  * Razorpay REST client with injectable mock for CI (CLINIC_RAZORPAY_MOCK=1).
  */
 
+import crypto from 'node:crypto';
+
 const BASE = 'https://api.razorpay.com/v1';
 
 function basicAuth(keyId, keySecret) {
@@ -12,9 +14,31 @@ export function shouldUseRazorpayMock() {
   return process.env.CLINIC_RAZORPAY_MOCK === '1' || process.env.NODE_ENV === 'test';
 }
 
+/** Razorpay payment signature verification (order_id|payment_id). */
+export function verifyRazorpayPaymentSignature({ orderId, paymentId, signature, keySecret }) {
+  if (!orderId || !paymentId || !signature || !keySecret) return false;
+  const expected = crypto.createHmac('sha256', keySecret).update(`${orderId}|${paymentId}`).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(String(signature)));
+  } catch {
+    return false;
+  }
+}
+
+/** Test harness — deterministic mock capture payload for patient intents. */
+export function buildMockRazorpayCapture(orderId, keySecret = 'mock_secret') {
+  const paymentId = `pay_mock_${String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const signature = crypto.createHmac('sha256', keySecret).update(`${orderId}|${paymentId}`).digest('hex');
+  return {
+    razorpay_order_id: orderId,
+    razorpay_payment_id: paymentId,
+    razorpay_signature: signature,
+  };
+}
+
 export function createRazorpayClient({ keyId, keySecret, mock = shouldUseRazorpayMock() } = {}) {
   if (mock) {
-    return createMockClient();
+    return createMockClient(keySecret);
   }
   if (!keyId || !keySecret) {
     const err = new Error('Razorpay credentials missing');
@@ -54,12 +78,20 @@ export function createRazorpayClient({ keyId, keySecret, mock = shouldUseRazorpa
         cancel_at_cycle_end: cancelAtCycleEnd ? 1 : 0,
       });
     },
+    async createOrder(payload) {
+      return request('POST', '/orders', payload);
+    },
+    async fetchPayment(id) {
+      return request('GET', `/payments/${id}`);
+    },
   };
 }
 
-function createMockClient() {
+function createMockClient(keySecret = 'mock_secret') {
   const subs = new Map();
+  const orders = new Map();
   return {
+    keySecret,
     async createSubscription(payload) {
       const id = `sub_mock_${Date.now()}`;
       const sub = {
@@ -86,7 +118,28 @@ function createMockClient() {
       if (sub) sub.status = 'cancelled';
       return sub || { id, status: 'cancelled' };
     },
-    /** Test helper — simulate provider activation webhook payload */
+    async createOrder(payload) {
+      const id = `order_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const order = {
+        id,
+        amount: payload.amount,
+        currency: payload.currency || 'INR',
+        receipt: payload.receipt,
+        status: 'created',
+        notes: payload.notes || {},
+      };
+      orders.set(id, order);
+      return order;
+    },
+    async fetchPayment(id) {
+      return {
+        id,
+        status: 'captured',
+        amount: 0,
+        currency: 'INR',
+      };
+    },
     _mockSubs: subs,
+    _mockOrders: orders,
   };
 }
