@@ -839,7 +839,25 @@ export function clinicRouter() {
   });
 
   api.get('/health', (_req, res) => {
+    const leaseRequired =
+      process.env.CLINIC_WRITER_LEASE_REQUIRED === '1'
+      || (process.env.LITESTREAM_BUCKET && process.env.NODE_ENV === 'production'
+        && process.env.CLINIC_WRITER_LEASE_REQUIRED !== '0');
+    if (leaseRequired && process.env.CLINIC_WRITER_LEASE_HELD !== '1') {
+      return res.status(503).json({
+        ok: false,
+        service: 'clinic-api',
+        reason: 'writer-lease-not-held',
+      });
+    }
     const payload = { ok: true, service: 'clinic-api', standalone: true };
+    if (process.env.CLINIC_WRITER_LEASE_HELD === '1') {
+      payload.writerLease = {
+        held: true,
+        holder: process.env.CLINIC_WRITER_LEASE_HOLDER || null,
+        fence: process.env.CLINIC_WRITER_LEASE_FENCE || null,
+      };
+    }
     if (process.env.CLINIC_E2E_MODE === '1') {
       const dbPath = process.env.DATABASE_PATH || '';
       payload.e2e = true;

@@ -1,0 +1,25 @@
+# Build + push clinic-api-staging only (no Cloud Run deploy). Used with staging-clinic-safe-deploy.sh
+steps:
+  - id: build-clinic-api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api-staging:${_TAG}
+      - -f
+      - apps/api/Dockerfile
+      - .
+
+  - id: push-clinic-api
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api-staging:${_TAG}
+
+substitutions:
+  _REGION: asia-south1
+  _ARTIFACT_REPO: clinic
+  _TAG: manual
+
+options:
+  logging: CLOUD_LOGGING_ONLY

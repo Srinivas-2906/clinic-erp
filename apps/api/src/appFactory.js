@@ -2,6 +2,7 @@ import express from 'express';
 import { jsonBodyParserOptions } from './config/httpBodyLimits.js';
 import { jsonBodyErrorHandler } from './middleware/jsonBodyError.js';
 import { corsMiddleware } from './middleware/cors.js';
+import { writerLeaseGuardMiddleware } from './middleware/writerLeaseGuard.js';
 import platformRouter, { clinicRouter } from './routes/index.js';
 import { billingWebhookRouter } from './routes/billingWebhook.routes.js';
 
@@ -12,6 +13,7 @@ export function createApiApp() {
   app.use(express.json(jsonBodyParserOptions()));
   app.use(jsonBodyErrorHandler);
   app.use(corsMiddleware);
+  app.use(writerLeaseGuardMiddleware());
   app.use('/api/platform', platformRouter);
   app.use('/api', clinicRouter());
   app.get('/', (_req, res) => {
