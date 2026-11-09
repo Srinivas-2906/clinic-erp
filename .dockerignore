@@ -8,5 +8,7 @@
 .env.*
 apps/crm/e2e/report
 apps/crm/playwright-report
+apps/crm/.pw-browsers
+**/.restore-drill
 coverage
 .cursor
