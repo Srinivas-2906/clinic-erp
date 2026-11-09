@@ -1,6 +1,10 @@
 # Production release gate — clinic-api single-writer
 
-**Status:** NO-GO until blockers below cleared. **Do not deploy without signed approval.**
+**Status:** NO-GO for production **deploy** until signed approval. **PR #63** (`fix/clinic-single-writer-safety` @ `08b062f`).
+
+**Replica freshness (2026-11-09):** Latest GCS generation `8a046d58e38a986d` (snapshots today UTC). Restored DB aggregates: integrity ok; max audit/appt **2026-10-16**; patients **41**. Conclusion: **replica is current**; **business writes quiet** since Oct 16 (not replication lag).
+
+**Do not deploy without signed approval.**
 
 ## Staging validation (done)
 
