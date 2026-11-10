@@ -222,9 +222,7 @@ test.describe('MVP clinic day @mvp', () => {
     const weekBtn = page.getByRole('button', { name: /7 days|week/i }).first();
     if (await weekBtn.isVisible().catch(() => false)) await weekBtn.click();
     await page.getByRole('button', { name: /load report/i }).click();
-    await expect(page.locator('.reports-view, .reports-summary-card, .reports-summary-big')).toBeVisible({
-      timeout: 25_000,
-    });
+    await expect(page.locator('.reports-view').first()).toBeVisible({ timeout: 25_000 });
 
     const ownerHeaders = await authHeaders(
       request,

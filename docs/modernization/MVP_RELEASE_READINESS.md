@@ -176,7 +176,7 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 **Recommendation:** **Squash-merge #66** only after **6/6 green** on the commit that includes db isolation + E2E finalize fixes. **Do not merge** on current evidence alone.
 
-**Final head:** `fd0719f` (`fix(mvp): stabilize amend locking and clinic-day consult E2E`)
+**Final head:** `e832bce` (MVP clinic-day E2E + API amend fixes; CI pending)
 
 ---
 
@@ -195,14 +195,14 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 | Check | Final head |
 |-------|------------|
-| API unit | *Pending push* |
-| CRM unit | *Pending push* |
-| CRM build | *Pending push* |
-| Docker smoke | *Pending push* |
-| Playwright fast | *Pending push* |
-| Playwright extended | *Pending push* |
+| API unit | **PASS** on `21c9a15`+ |
+| CRM unit | **PASS** |
+| CRM build | **PASS** |
+| Docker smoke | **PASS** |
+| Playwright fast | **PASS** |
+| Playwright extended | **FAIL** → `43-mvp-clinic-day` (billing partial + reports load); fix on `e832bce` **pending** |
 
-*Update this table when GitHub Actions completes on the post-`6b614b9` commit.*
+*Re-run after Actions completes on `e832bce`.*
 
 ---
 
