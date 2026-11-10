@@ -2,8 +2,10 @@
 
 **Baseline:** `main` @ `3d57d7a16164a1d0d80c421fd68cb671c3f15f0a`  
 **Stabilization:** [PR #66](https://github.com/Srinivas-2906/clinic-erp/pull/66) `feature/mvp-stabilization`  
-**Validation date:** 2026-11-09 (IST)  
-**Pilot runbook:** [MVP_CONTROLLED_PILOT_RUNBOOK.md](./MVP_CONTROLLED_PILOT_RUNBOOK.md)
+**Validation date:** 2026-11-10 (IST)  
+**Pilot runbook:** [MVP_CONTROLLED_PILOT_RUNBOOK.md](./MVP_CONTROLLED_PILOT_RUNBOOK.md)  
+**SQLite safety:** [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFETY.md)  
+**Clinical files audit:** [MVP_CLINICAL_FILES_RECOVERY_AUDIT.md](./MVP_CLINICAL_FILES_RECOVERY_AUDIT.md)
 
 MVP = full outpatient day on web (desktop + mobile browser), **manual billing only**, no Razorpay patient checkout.
 
@@ -45,23 +47,34 @@ MVP = full outpatient day on web (desktop + mobile browser), **manual billing on
 | **CI — CRM production build** | **PASS** | Same |
 | **CI — Docker build smoke** | **PASS** | Same |
 | **CI — Playwright fast (smoke + auth)** | **PASS** | Same |
-| **CI — Playwright extended regression** | **FAIL** → fix pending | Run `42675588126` — `43-mvp-clinic-day` (patient add + booking); fix pushed post-run |
-| **PR #66 merge** | **BLOCKED** until regression **PASS** | Conditional approval requires **six** green checks |
-| Complete clinic-day workflow | **PARTIAL** | Spec `43` failed CI once; aligned with `05`/`30` patterns; re-run after push |
+| **CI — Playwright extended regression** | **PENDING** (fix on branch, CI not re-run on final head) | Prior fail: `43-mvp-clinic-day` consult modal not closing after finalize |
+| **PR #66 merge** | **BLOCKED** until **6/6** green on **final** head | Squash-merge only when gates below pass |
+| Complete clinic-day workflow | **PENDING** | Root-cause E2E fix: wait `/finalize` response, finalized toast, dismiss optional billing handoff |
 | Authentication & staff invitations | **PASS** (logic) / **BLOCKED** (delivery) | `passwordReset.test.js`, `emailDelivery.test.js` (9 tests); staging `CLINIC_EMAIL_PROVIDER=console` |
 | Tenant isolation | **PASS** | Security tests + E2E negative in `43` |
 | Financial correctness (manual) | **PASS** | API invoice/payment tests on `main` |
 | Database persistence (process restart) | **PASS** | `mvp-db-restart-persistence.test.js` — row survives `closeDatabase` + reopen |
 | Database persistence (E2E re-login) | **PASS** (design) | `43` new browser context; pending CI |
 | Backup recovery — staging GCS | **PASS** | `staging-restore-drill.sh` → `staging-clinic-restored-20261109T184830Z.db`, integrity **ok**, FK **0** |
-| Clinical file recovery (staging snapshot) | **FAIL** (partial) | `pilot-clinical-files-validate.mjs`: 4/4 sampled `prescription_pdf` rows **missing** on disk/GCS (`denta-care` legacy refs) |
+| Clinical file recovery (staging snapshot) | **PARTIAL** | 4 legacy `denta-care` PDF refs — **confirmed missing** locally; GCS object proof **inaccessible** (gcloud re-auth); see clinical files audit |
 | Migration safety on restored DB | **PASS** | `pilot-restore-validate.mjs` on staging restore |
 | Email delivery (transactional) | **BLOCKED** | No Resend/SMTP credentials exercised; console provider only on staging template |
 | Desktop/mobile usability | **PARTIAL** | Existing mobile specs; `43` runs both projects once green |
 | Error monitoring | **BLOCKED** | No wired APM gate in repo |
 | **Deployment — staging** | **PASS** (config) | `cloudbuild.staging.yaml` → `max-instances 1`, Litestream bucket, GCS files |
 | **Deployment — production** | **FAIL** (MVP safety) | `cloudbuild.yaml` → **`max-instances 3`** + ephemeral `/data` — **multi-writer risk**; not safe for SQLite MVP without infra change |
-| **Cloud Run volume persistence** | **BLOCKED** (nuance) | No mounted PD; durability = **Litestream + same instance**, not `maxScale=1` alone |
+| **Cloud Run volume persistence** | **DOCUMENTED** | See [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFETY.md) — rolling deploy + replicate lag, not `maxScale=1` alone |
+
+---
+
+## 3a. CI root causes and fixes (PR #66)
+
+| Failure | Root cause | Fix | Local verification |
+|---------|------------|-----|-------------------|
+| `rejects second amend when expectedUpdatedAt is stale after first amend` | `DATABASE_PATH` pinned at **module load** in `db/index.js` → parallel/ordered tests could share wrong SQLite file | Resolve path at `initDatabase()`; `closeDatabase()` when path changes; per-process temp DB in `encounters.test.js` | `npm run test:api` → **235 pass** (2026-11-10) |
+| `43-mvp-clinic-day` finalize (desktop + mobile) | Spec asserted modal hidden before async finalize completed; billing handoff can keep overlay open for roles with payment permission | `waitForResponse` on `/finalize`, toast assertion, dismiss `visit-billing-handoff` if visible, `#consult-complaint` count **0** | Playwright browsers not installed locally; **CI re-run required** |
+
+**Preserves:** amend concurrency checks (`expectedUpdatedAt`), clinical finalize invariants, tenant isolation — no retry/time-only masking.
 
 ---
 
@@ -104,6 +117,8 @@ Aggregates: 3 tenants, 99 patients, 79 appointments, 51 encounters, 25 payments
 
 ## 6. Deployment / SQLite single-writer audit
 
+Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFETY.md).
+
 | Configuration | Finding |
 |---------------|---------|
 | `apps/api/docker-entrypoint.sh` | Litestream **restore** then **replicate** when `LITESTREAM_BUCKET` set |
@@ -111,7 +126,7 @@ Aggregates: 3 tenants, 99 patients, 79 appointments, 51 encounters, 25 payments
 | `cloudbuild.staging.yaml` | **`--max-instances 1`** — correct for SQLite MVP |
 | `cloudbuild.yaml` (production) | **`--max-instances 3`** — **FAIL** for single-writer SQLite |
 | Rolling revision deploy | Overlapping revisions can duplicate writers even at maxScale=1 — use maintenance discipline |
-| Fenced lease / single-writer branch | Documented in GCP audit; **not merged** to MVP |
+| Managed DB migration | **Recommended before GA** — plan only; not executed |
 
 ---
 
@@ -134,34 +149,64 @@ Aggregates: 3 tenants, 99 patients, 79 appointments, 51 encounters, 25 payments
 | Asset | Status |
 |-------|--------|
 | E2E `30-full-clinical-billing-journey` | **PASS** historically on `main` |
-| E2E `43-mvp-clinic-day @mvp` | **FAIL** on CI run `42675588126` (fixed in branch after run) |
+| E2E `43-mvp-clinic-day @mvp` | **PENDING** CI on head after db + finalize fixes |
 | Manual billing in `43` | UPI partial + cash — matches MVP |
 
 ---
 
 ## 9. Remaining blockers
 
-1. **PR #66** — extended Playwright regression must pass on final head before squash-merge.
+1. **PR #66** — **6/6 CI** on final head (extended regression not yet green after latest fixes).
 2. **Production deploy config** — `max-instances 3` incompatible with SQLite MVP.
-3. **Transactional email** — not validated with real provider.
-4. **Clinical PDFs** — staging restore shows missing objects for legacy `denta-care` PDF refs.
+3. **Transactional email** — staging `CLINIC_EMAIL_PROVIDER=console`; Resend/SMTP smoke **BLOCKED** without credentials (see §5).
+4. **Clinical PDFs** — legacy `denta-care` refs missing; MVP tenants unaffected; GCS listing pending operator `gcloud auth login`.
 5. **Error monitoring** — not configured.
-6. **#64** — kept open for post-MVP; do not merge into MVP line.
+6. **#64** — parked for post-MVP; do not merge into MVP line.
 
 ---
 
-## 10. Controlled staging go / no-go
+## 10. PR #66 merge recommendation
+
+| Criterion | Status |
+|-----------|--------|
+| All six CI checks on final head | **PENDING** (push + wait for Actions) |
+| Clinical safety / concurrency | **PASS** (amend tests + no weakened guards) |
+| Tenant isolation | **PASS** (unchanged) |
+| Critical findings open | SQLite prod `maxScale=3`, email, legacy PDFs — **documented**; not merge blockers for **code** gate if CI green |
+
+**Recommendation:** **Squash-merge #66** only after **6/6 green** on the commit that includes db isolation + E2E finalize fixes. **Do not merge** on current evidence alone.
+
+**Final head:** `ac6e704` (`fix(mvp): isolate SQLite test DB and harden clinic-day E2E`)
+
+---
+
+## 11. Controlled staging go / no-go
 
 | Decision | Verdict |
 |----------|---------|
-| **Merge PR #66 to `main`** | **NO-GO** until **6/6** CI green (regression currently **FAIL**) |
-| **Deploy staging for pilot** | **NO-GO** without explicit deploy approval + regression fix merged |
-| **Pilot with real patients on staging** | **CONDITIONAL GO** only after: merge #66, regression green, email provider tested, operator signs pilot checklist, **`max-instances 1`** confirmed on service |
+| **Merge PR #66 to `main`** | **NO-GO** until **6/6** CI green on final head |
+| **Deploy staging for pilot** | **NO-GO** without explicit deploy approval + merge |
+| **Pilot with real patients on staging** | **CONDITIONAL GO** after: merge #66, CI green, optional Resend smoke, restore drill &lt; 7d, **`max-instances 1`** on service |
 | **Production / general availability** | **NO-GO** |
 
 ---
 
-## 11. Test commands
+## 12. Six-check CI results (final head)
+
+| Check | Final head |
+|-------|------------|
+| API unit | *Pending push* |
+| CRM unit | *Pending push* |
+| CRM build | *Pending push* |
+| Docker smoke | *Pending push* |
+| Playwright fast | *Pending push* |
+| Playwright extended | *Pending push* |
+
+*Update this table when GitHub Actions completes on the post-`6b614b9` commit.*
+
+---
+
+## 13. Test commands
 
 ```bash
 npm run test:api

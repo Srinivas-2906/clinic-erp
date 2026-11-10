@@ -12,7 +12,8 @@
 | 2 | Staging project id confirmed (`clinic-erp-staging` or operator-defined) |
 | 3 | `cloudbuild.staging.yaml` reviewed — **`max-instances 1`** for clinic-api |
 | 4 | Staging restore drill completed within 7 days (`staging-restore-drill.sh`) |
-| 5 | Email provider configured if pilot needs real invites (`CLINIC_EMAIL_PROVIDER`) |
+| 5 | Email provider configured if pilot needs real invites — see §7 (staging defaults to **console**) |
+| 5b | Clinical files audit reviewed ([MVP_CLINICAL_FILES_RECOVERY_AUDIT.md](./MVP_CLINICAL_FILES_RECOVERY_AUDIT.md)) — legacy `denta-care` PDF gaps expected |
 | 6 | Pilot clinic slug + owner credentials documented in secure store (not repo) |
 | 7 | Rollback owner identified; on-call window scheduled |
 
@@ -45,6 +46,8 @@ Post-deploy smoke:
 | **Litestream** | Entrypoint `restore` then `replicate` on boot (`docker-entrypoint.sh`) |
 
 Staging template already sets `--max-instances 1`. **Production `cloudbuild.yaml` still sets `max-instances 3`** — **not MVP-safe without infra change**.
+
+Detail: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFETY.md).
 
 ---
 
@@ -87,7 +90,31 @@ Escalation: product owner → engineering → GCP operator.
 
 ---
 
-## 7. Rollback instructions
+## 7. Transactional email smoke (staging)
+
+**Default staging:** `CLINIC_EMAIL_PROVIDER=console` in `cloudbuild.staging.yaml` — no inbox delivery. Status: **BLOCKED** until operator configures Resend or SMTP.
+
+### Setup (operator; no repo secrets)
+
+1. Resend: create API key, verify `CLINIC_EMAIL_FROM` domain; store key in Secret Manager; set deploy env `CLINIC_EMAIL_PROVIDER=resend`, `CLINIC_RESEND_API_KEY` from secret.
+2. SMTP: set `CLINIC_EMAIL_PROVIDER=smtp`, `CLINIC_SMTP_*`, `CLINIC_EMAIL_FROM`.
+3. Redeploy **staging only** with explicit approval.
+
+### Smoke checklist (authorized test accounts only)
+
+| Scenario | How to trigger | Pass criteria |
+|----------|----------------|---------------|
+| Staff invitation | Owner approves access request | One email; set-password link works once |
+| Password reset | Login → forgot password for test user | One email; link works once |
+| Token expiration | Wait past invite/reset TTL | API rejects token |
+| Token reuse | Complete set-password twice with same link | Second attempt rejected |
+| Owner onboarding | Platform signup (staging flag on) | Set-password path works |
+
+**Do not** send to real patients. Automated coverage without delivery: `passwordReset.test.js`, `emailDelivery.test.js`.
+
+---
+
+## 8. Rollback instructions
 
 1. Identify last known-good Cloud Run revision:  
    `gcloud run revisions list --service clinic-api-staging --region REGION`
@@ -98,9 +125,9 @@ Escalation: product owner → engineering → GCP operator.
 
 ---
 
-## 8. Recovery references
+## 9. Recovery references
 
 - Local copy drill: `apps/api/scripts/pilot-local-restore-drill.sh`
 - Staging GCS drill: `apps/api/scripts/staging-restore-drill.sh`
 - Validate restore: `PILOT_RESTORE_DB=… node scripts/pilot-restore-validate.mjs`
-- Clinical files: `pilot-clinical-files-validate.mjs` (expects GCS or local storage)
+- Clinical files: `pilot-clinical-files-validate.mjs`; audit: [MVP_CLINICAL_FILES_RECOVERY_AUDIT.md](./MVP_CLINICAL_FILES_RECOVERY_AUDIT.md)

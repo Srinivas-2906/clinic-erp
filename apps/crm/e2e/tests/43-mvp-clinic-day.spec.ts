@@ -106,10 +106,19 @@ test.describe('MVP clinic day @mvp', () => {
     const finalizeBtn = consultModal.getByRole('button', { name: /finalize visit/i });
     await finalizeBtn.scrollIntoViewIfNeeded();
     await expect(finalizeBtn).toBeEnabled({ timeout: 10_000 });
+    const finalizeDone = page.waitForResponse(
+      (r) => r.url().includes('/encounters/') && r.url().includes('/finalize') && r.ok(),
+      { timeout: 35_000 },
+    );
     await finalizeBtn.click();
-    await expect(consultModal).toBeHidden({ timeout: 35_000 });
-    const skipBilling = page.getByRole('button', { name: /continue without billing/i });
-    if (await skipBilling.isVisible().catch(() => false)) await skipBilling.click();
+    await finalizeDone;
+    await expect(page.locator('.toast').filter({ hasText: /finalized/i }).first()).toBeVisible({ timeout: 20_000 });
+    const billingHandoff = page.getByTestId('visit-billing-handoff');
+    if (await billingHandoff.isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: /continue without billing/i }).click();
+      await expect(billingHandoff).toBeHidden({ timeout: 15_000 });
+    }
+    await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 15_000 });
 
     const doctorHeaders = await authHeaders(
       request,
