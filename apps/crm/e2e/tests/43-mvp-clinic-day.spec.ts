@@ -200,7 +200,7 @@ test.describe('MVP clinic day @mvp', () => {
     const detail = page.locator('.modal-overlay').filter({ hasText: 'Invoice' });
     await detail.getByRole('button', { name: /record payment/i }).click();
     const paySheet = page.locator('.modal-overlay').filter({ has: page.getByRole('heading', { name: /pay invoice|record payment/i }) });
-    await paySheet.locator('select').selectOption({ label: 'UPI' });
+    await paySheet.getByLabel('Method').selectOption({ label: 'UPI' });
     await paySheet.locator('input[type="number"], input[inputmode="numeric"]').first().fill('400');
     await paySheet.getByPlaceholder('UPI txn ID').fill(`UPI-MVP-${suffix}`);
     await paySheet.getByRole('button', { name: /^save$/i }).click();
@@ -208,7 +208,7 @@ test.describe('MVP clinic day @mvp', () => {
 
     await detail.getByRole('button', { name: /record payment/i }).click();
     const pay2 = page.locator('.modal-overlay').filter({ has: page.getByRole('heading', { name: /pay invoice|record payment/i }) });
-    await pay2.locator('select').selectOption({ label: 'Cash' });
+    await pay2.getByLabel('Method').selectOption({ label: 'Cash' });
     await pay2.locator('input[type="number"], input[inputmode="numeric"]').first().fill('600');
     await pay2.getByRole('button', { name: /^save$/i }).click();
     await expect(pay2).toBeHidden({ timeout: 20_000 });
