@@ -4,7 +4,6 @@
  */
 import { test, expect } from '@playwright/test';
 import { goToTab } from '../helpers/navigation';
-import { continueBookAfterTreatment } from '../helpers/booking';
 import { advanceQueueToConsult } from '../helpers/queue';
 import { loginClinicApp, ROLE_CREDENTIALS } from '../fixtures/roles.fixture';
 import { E2E_CREDENTIALS } from '../fixtures/auth.fixture';
@@ -31,6 +30,26 @@ async function logoutClinic(page: import('@playwright/test').Page) {
 
 function appointmentCard(page: import('@playwright/test').Page, label: string) {
   return page.locator('.appt-card, .board-card').filter({ hasText: label }).first();
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function e2eLinkedDoctorLabel(request: import('@playwright/test').APIRequestContext) {
+  const headers = await authHeaders(
+    request,
+    API,
+    TENANT,
+    ROLE_CREDENTIALS.receptionist.email,
+    ROLE_CREDENTIALS.receptionist.password,
+  );
+  const res = await request.get(`${API}/api/clinic/doctors`, { headers });
+  expect(res.ok()).toBeTruthy();
+  const doctors = (await res.json()).doctors as { userId?: string | null; displayName?: string; name: string }[];
+  const linked = doctors.find((d) => d.userId === 'user-e2e-doctor') ?? doctors[0];
+  expect(linked).toBeTruthy();
+  return linked.displayName || linked.name;
 }
 
 test.describe('MVP clinic day @mvp', () => {
@@ -68,11 +87,25 @@ test.describe('MVP clinic day @mvp', () => {
     expect(patientId).toBeTruthy();
 
     await goToTab(page, 'book');
+    const e2eDoctorLabel = await e2eLinkedDoctorLabel(request);
+    const e2eDoctorPattern = new RegExp(escapeRegex(e2eDoctorLabel), 'i');
     await page.getByRole('tab', { name: /walk-in now/i }).click();
     await page.locator('#book-search').fill(phone);
     await page.getByRole('button', { name: /continue booking/i }).click();
     await page.locator('.form-select').first().selectOption({ index: 0 });
-    await continueBookAfterTreatment(page, 'walkin');
+    await page.getByRole('button', { name: /^(Review|Next)$/ }).click();
+    if (await page.getByText('Choose doctor').isVisible({ timeout: 2500 }).catch(() => false)) {
+      const namedDoctor = page.getByRole('button', { name: e2eDoctorPattern }).first();
+      if (await namedDoctor.isVisible().catch(() => false)) {
+        await namedDoctor.click();
+      } else {
+        await page.locator('.book-doctor-option').filter({ hasText: e2eDoctorPattern }).first().click();
+      }
+      await page.getByRole('button', { name: /^Review$/ }).click();
+    }
+    if (await page.getByRole('button', { name: /^Review$/ }).isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: /^Review$/ }).click();
+    }
     const apptCreate = page.waitForResponse(
       (r) => r.url().includes('/api/appointments') && r.request().method() === 'POST' && r.ok(),
       { timeout: 25_000 },
@@ -91,7 +124,12 @@ test.describe('MVP clinic day @mvp', () => {
     await loginClinicApp(page, 'doctor');
     await goToTab(page, 'today');
     await dismissPilotBanner(page);
+    const encounterReady = page.waitForResponse(
+      (r) => r.url().includes('/encounters') && ['POST', 'GET'].includes(r.request().method()) && r.ok(),
+      { timeout: 25_000 },
+    );
     await advanceQueueToConsult(page, patientName);
+    await encounterReady;
 
     const consultModal = page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') });
     await expect(consultModal.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });

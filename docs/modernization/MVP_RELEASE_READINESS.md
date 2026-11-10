@@ -72,7 +72,7 @@ MVP = full outpatient day on web (desktop + mobile browser), **manual billing on
 | Failure | Root cause | Fix | Local verification |
 |---------|------------|-----|-------------------|
 | `rejects second amend when expectedUpdatedAt is stale after first amend` | Global SQLite singleton + parallel tests; amend `updated_at` could equal prior value same ms | `closeDatabase()` in encounters `before()`; **`--test-concurrency=1`**; bump `updated_at` when unchanged after amend | `npm run test:api` → **235 pass** (2026-11-10) |
-| `43-mvp-clinic-day` finalize (desktop + mobile) | `waitForResponse(/finalize/)` never fired (client finalize path); draft save not awaited before finalize | Align with spec `30`: save-draft success toast, then Rx fields, modal-close assertion + optional billing skip | **CI re-run required** |
+| `43-mvp-clinic-day` finalize (desktop + mobile) | Walk-in booked **wrong doctor** → save draft 403; `waitForResponse(/finalize/)` masked that | Book **E2E-linked doctor** (spec `30`); save-draft gate; modal-close assertion | **CI re-run required** |
 
 **Preserves:** amend concurrency checks (`expectedUpdatedAt`), clinical finalize invariants, tenant isolation — no retry/time-only masking.
 
