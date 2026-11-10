@@ -176,7 +176,7 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 **Recommendation:** **Squash-merge #66** only after **6/6 green** on the commit that includes db isolation + E2E finalize fixes. **Do not merge** on current evidence alone.
 
-**Final head:** `6d7dc6f` (`fix(mvp): isolate SQLite test DB and harden clinic-day E2E`)
+**Final head:** `0553e48` (includes `6d7dc6f` — db/E2E fixes + release evidence)
 
 ---
 
