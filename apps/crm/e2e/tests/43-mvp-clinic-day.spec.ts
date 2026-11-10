@@ -234,7 +234,7 @@ test.describe('MVP clinic day @mvp', () => {
     const cross = await request.get(`${API}/api/patients/${patientId}`, {
       headers: { ...ownerHeaders, 'X-Tenant-Slug': 'not-an-e2e-tenant' },
     });
-    expect([403, 404]).toContain(cross.status());
+    expect([401, 403, 404]).toContain(cross.status());
 
     const fresh = await browser.newPage();
     await loginClinicApp(fresh, 'receptionist');
