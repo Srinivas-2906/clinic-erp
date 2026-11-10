@@ -219,9 +219,12 @@ test.describe('MVP clinic day @mvp', () => {
     await logoutClinic(page);
     await loginClinicApp(page, 'owner');
     await goToTab(page, 'reports');
-    const last7 = page.getByRole('button', { name: /last 7 days/i });
-    if (await last7.isVisible().catch(() => false)) await last7.click();
-    await expect(page.locator('.reports-summary-big, .reports-preview, .reports-toolbar')).toBeVisible({ timeout: 25_000 });
+    const weekBtn = page.getByRole('button', { name: /7 days|week/i }).first();
+    if (await weekBtn.isVisible().catch(() => false)) await weekBtn.click();
+    await page.getByRole('button', { name: /load report/i }).click();
+    await expect(page.locator('.reports-view, .reports-summary-card, .reports-summary-big')).toBeVisible({
+      timeout: 25_000,
+    });
 
     const ownerHeaders = await authHeaders(
       request,
