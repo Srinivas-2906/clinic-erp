@@ -206,7 +206,8 @@ test.describe('MVP clinic day @mvp', () => {
     await paySheet.getByRole('button', { name: /^save$/i }).click();
     await expect(paySheet).toBeHidden({ timeout: 20_000 });
 
-    const invoiceDetail = page.locator('.modal-overlay').filter({ hasText: 'Invoice' }).last();
+    await dueRow.click();
+    const invoiceDetail = page.locator('.modal-overlay').filter({ hasText: 'Invoice' });
     await expect(invoiceDetail).toBeVisible({ timeout: 15_000 });
     await invoiceDetail.getByRole('button', { name: /record payment/i }).click();
     const pay2 = page.locator('.modal-overlay').filter({ has: page.getByRole('heading', { name: /pay invoice|record payment/i }) }).last();
