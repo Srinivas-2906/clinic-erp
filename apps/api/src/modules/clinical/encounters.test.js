@@ -13,7 +13,7 @@ process.env.DATABASE_PATH = testDb;
 process.env.SKIP_DEMO_SEED = '1';
 process.env.CLINIC_FILES_STORAGE = 'memory';
 
-const { initDatabase, getDb } = await import('../../db/index.js');
+const { initDatabase, getDb, closeDatabase } = await import('../../db/index.js');
 const { createDoctor } = await import('../providers/doctors.service.js');
 const {
   createMemoryUploadStorage,
@@ -80,6 +80,7 @@ describe('clinical encounters', () => {
   let memoryStorage;
 
   before(() => {
+    closeDatabase();
     try { fs.unlinkSync(testDb); } catch { /* ignore */ }
     for (const suffix of ['-wal', '-shm']) {
       try { fs.unlinkSync(`${testDb}${suffix}`); } catch { /* ignore */ }
@@ -511,6 +512,9 @@ describe('clinical encounters', () => {
       expectedUpdatedAt: v1.updatedAt,
       patch: { clinicalNote: 'V2' },
     });
+    const afterFirst = encounterDetail(enc.id, ctx.tenantId);
+    assert.equal(afterFirst.clinicalNote, 'V2');
+    assert.notEqual(afterFirst.updatedAt, v1.updatedAt, 'amend must bump updated_at for optimistic locking');
     assert.throws(
       () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
         reason: 'Stale retry should fail',

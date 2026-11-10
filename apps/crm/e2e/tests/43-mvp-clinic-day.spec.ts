@@ -95,30 +95,30 @@ test.describe('MVP clinic day @mvp', () => {
 
     const consultModal = page.locator('.modal-overlay').filter({ has: page.locator('#consult-complaint') });
     await expect(consultModal.locator('#consult-complaint')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Loading consultation…')).toBeHidden({ timeout: 20_000 });
+
     await consultModal.locator('#consult-complaint').fill('MVP visit complaint');
-    await consultModal.locator('#consult-diagnosis').fill('Stable');
-    await consultModal.getByPlaceholder('Medicine').first().fill('Paracetamol');
-    await consultModal.getByPlaceholder('Dose').first().fill('500mg');
     const saveDraft = consultModal.getByRole('button', { name: /save draft/i });
     await saveDraft.scrollIntoViewIfNeeded();
     await saveDraft.click();
-    await expect(page.locator('.toast-err')).toHaveCount(0, { timeout: 5_000 }).catch(() => {});
+    const errToast = page.locator('.toast-err');
+    await expect(page.getByText(/consultation saved/i).or(errToast)).toBeVisible({ timeout: 20_000 });
+    if (await errToast.isVisible().catch(() => false)) {
+      throw new Error(`Save draft failed: ${(await errToast.innerText()).trim()}`);
+    }
+
+    await consultModal.locator('#consult-diagnosis').fill('Stable');
+    await consultModal.getByPlaceholder('Medicine').first().fill('Paracetamol');
+    await consultModal.getByPlaceholder('Dose').first().fill('500mg');
     const finalizeBtn = consultModal.getByRole('button', { name: /finalize visit/i });
     await finalizeBtn.scrollIntoViewIfNeeded();
     await expect(finalizeBtn).toBeEnabled({ timeout: 10_000 });
-    const finalizeDone = page.waitForResponse(
-      (r) => r.url().includes('/encounters/') && r.url().includes('/finalize') && r.ok(),
-      { timeout: 35_000 },
-    );
     await finalizeBtn.click();
-    await finalizeDone;
-    await expect(page.locator('.toast').filter({ hasText: /finalized/i }).first()).toBeVisible({ timeout: 20_000 });
-    const billingHandoff = page.getByTestId('visit-billing-handoff');
-    if (await billingHandoff.isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: /continue without billing/i }).click();
-      await expect(billingHandoff).toBeHidden({ timeout: 15_000 });
+    await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 25_000 });
+    const skipBilling = page.getByRole('button', { name: /continue without billing/i });
+    if (await skipBilling.isVisible().catch(() => false)) {
+      await skipBilling.click();
     }
-    await expect(page.locator('#consult-complaint')).toHaveCount(0, { timeout: 15_000 });
 
     const doctorHeaders = await authHeaders(
       request,

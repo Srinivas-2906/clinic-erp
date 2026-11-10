@@ -71,8 +71,8 @@ MVP = full outpatient day on web (desktop + mobile browser), **manual billing on
 
 | Failure | Root cause | Fix | Local verification |
 |---------|------------|-----|-------------------|
-| `rejects second amend when expectedUpdatedAt is stale after first amend` | `DATABASE_PATH` pinned at **module load** in `db/index.js` → parallel/ordered tests could share wrong SQLite file | Resolve path at `initDatabase()`; `closeDatabase()` when path changes; per-process temp DB in `encounters.test.js` | `npm run test:api` → **235 pass** (2026-11-10) |
-| `43-mvp-clinic-day` finalize (desktop + mobile) | Spec asserted modal hidden before async finalize completed; billing handoff can keep overlay open for roles with payment permission | `waitForResponse` on `/finalize`, toast assertion, dismiss `visit-billing-handoff` if visible, `#consult-complaint` count **0** | Playwright browsers not installed locally; **CI re-run required** |
+| `rejects second amend when expectedUpdatedAt is stale after first amend` | Global SQLite singleton + parallel tests; amend `updated_at` could equal prior value same ms | `closeDatabase()` in encounters `before()`; **`--test-concurrency=1`**; bump `updated_at` when unchanged after amend | `npm run test:api` → **235 pass** (2026-11-10) |
+| `43-mvp-clinic-day` finalize (desktop + mobile) | `waitForResponse(/finalize/)` never fired (client finalize path); draft save not awaited before finalize | Align with spec `30`: save-draft success toast, then Rx fields, modal-close assertion + optional billing skip | **CI re-run required** |
 
 **Preserves:** amend concurrency checks (`expectedUpdatedAt`), clinical finalize invariants, tenant isolation — no retry/time-only masking.
 
