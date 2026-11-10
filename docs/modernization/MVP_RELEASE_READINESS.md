@@ -47,9 +47,9 @@ MVP = full outpatient day on web (desktop + mobile browser), **manual billing on
 | **CI — CRM production build** | **PASS** | Same |
 | **CI — Docker build smoke** | **PASS** | Same |
 | **CI — Playwright fast (smoke + auth)** | **PASS** | Same |
-| **CI — Playwright extended regression** | **PENDING** (fix on branch, CI not re-run on final head) | Prior fail: `43-mvp-clinic-day` consult modal not closing after finalize |
-| **PR #66 merge** | **BLOCKED** until **6/6** green on **final** head | Squash-merge only when gates below pass |
-| Complete clinic-day workflow | **PENDING** | Root-cause E2E fix: wait `/finalize` response, finalized toast, dismiss optional billing handoff |
+| **CI — Playwright extended regression** | **PASS** | `43-mvp-clinic-day` on `9d14dcc` |
+| **PR #66 merge** | **READY** (operator) | **6/6** green; squash-merge when approved |
+| Complete clinic-day workflow | **PASS** | Spec `43` — E2E doctor on walk-in, partial pay, report load, re-login |
 | Authentication & staff invitations | **PASS** (logic) / **BLOCKED** (delivery) | `passwordReset.test.js`, `emailDelivery.test.js` (9 tests); staging `CLINIC_EMAIL_PROVIDER=console` |
 | Tenant isolation | **PASS** | Security tests + E2E negative in `43` |
 | Financial correctness (manual) | **PASS** | API invoice/payment tests on `main` |
@@ -156,7 +156,7 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 ## 9. Remaining blockers
 
-1. **PR #66** — **6/6 CI** on final head (extended regression not yet green after latest fixes).
+1. ~~**PR #66 CI**~~ — **resolved** on `9d14dcc` (6/6 green).
 2. **Production deploy config** — `max-instances 3` incompatible with SQLite MVP.
 3. **Transactional email** — staging `CLINIC_EMAIL_PROVIDER=console`; Resend/SMTP smoke **BLOCKED** without credentials (see §5).
 4. **Clinical PDFs** — legacy `denta-care` refs missing; MVP tenants unaffected; GCS listing pending operator `gcloud auth login`.
@@ -169,14 +169,14 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 | Criterion | Status |
 |-----------|--------|
-| All six CI checks on final head | **PENDING** (push + wait for Actions) |
+| All six CI checks on final head | **PASS** (`9d14dcc`) |
 | Clinical safety / concurrency | **PASS** (amend tests + no weakened guards) |
 | Tenant isolation | **PASS** (unchanged) |
 | Critical findings open | SQLite prod `maxScale=3`, email, legacy PDFs — **documented**; not merge blockers for **code** gate if CI green |
 
-**Recommendation:** **Squash-merge #66** only after **6/6 green** on the commit that includes db isolation + E2E finalize fixes. **Do not merge** on current evidence alone.
+**Recommendation:** **Squash-merge #66** when product owner approves — **6/6 CI green** on `9d14dcc`. Non-merge blockers (email, prod SQLite scale, legacy PDFs) remain documented for pilot/GA.
 
-**Final head:** `e832bce` (MVP clinic-day E2E + API amend fixes; CI pending)
+**Final head:** `9d14dcc` — **6/6 CI green** (run `42892113898` / `42892113919`, 2026-11-10 UTC)
 
 ---
 
@@ -184,7 +184,7 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 | Decision | Verdict |
 |----------|---------|
-| **Merge PR #66 to `main`** | **NO-GO** until **6/6** CI green on final head |
+| **Merge PR #66 to `main`** | **GO** (technical) — CI **6/6** on `9d14dcc`; await operator approval |
 | **Deploy staging for pilot** | **NO-GO** without explicit deploy approval + merge |
 | **Pilot with real patients on staging** | **CONDITIONAL GO** after: merge #66, CI green, optional Resend smoke, restore drill &lt; 7d, **`max-instances 1`** on service |
 | **Production / general availability** | **NO-GO** |
@@ -195,14 +195,14 @@ Full assessment: [MVP_SQLITE_DEPLOYMENT_SAFETY.md](./MVP_SQLITE_DEPLOYMENT_SAFET
 
 | Check | Final head |
 |-------|------------|
-| API unit | **PASS** on `21c9a15`+ |
+| API unit | **PASS** |
 | CRM unit | **PASS** |
 | CRM build | **PASS** |
 | Docker smoke | **PASS** |
 | Playwright fast | **PASS** |
-| Playwright extended | **FAIL** → `43-mvp-clinic-day` (billing partial + reports load); fix on `e832bce` **pending** |
+| Playwright extended | **PASS** |
 
-*Re-run after Actions completes on `e832bce`.*
+*GitHub Actions `42892113898` + `42892113919` @ `9d14dcc`.*
 
 ---
 
