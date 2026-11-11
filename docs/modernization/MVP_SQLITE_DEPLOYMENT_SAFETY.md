@@ -8,7 +8,8 @@
 |-------|----------|
 | Process | Node API in container |
 | DB file | `DATABASE_PATH=/data/clinic.db` on **instance ephemeral disk** |
-| Startup (`docker-entrypoint.sh`) | If `LITESTREAM_BUCKET`: `litestream restore -if-replica-exists` then `litestream replicate -exec node …` |
+| Startup (`docker-entrypoint.sh`) | If `LITESTREAM_BUCKET`: required `litestream restore` in production (fail-closed), then `litestream replicate -exec run-api-with-lease.mjs` |
+| Writer lease | GCS `_meta/writer-lease.json`; acquire in `run-api-with-lease.mjs`; mutating API blocked without holder/fence match (see [12-clinic-single-writer.md](../gcp-migration-audit/12-clinic-single-writer.md)) |
 | Clinical files (staging) | GCS via `CLINIC_FILES_*` |
 | CRM | Stateless static/nginx |
 
@@ -55,7 +56,7 @@
 
 | Failure | Symptom | Mitigation |
 |---------|---------|------------|
-| Split brain (2 writers) | Corrupt DB, FK errors | max-instances=1; single revision during deploy |
+| Split brain (2 writers) | Corrupt DB, FK errors | max-instances=1; writer lease + write guard; maintenance deploy (`--scaling=0`) |
 | Restore stale | Missing recent patients | Monitor replicate lag; `min-instances=1` optional |
 | Lost replica | Empty DB after restore-if-not-exists | Alert on missing bucket; refuse startup without policy |
 | PDF missing | DB key, no GCS object | `pilot-clinical-files-validate.mjs` in drill |
