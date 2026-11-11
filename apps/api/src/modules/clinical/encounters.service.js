@@ -522,7 +522,6 @@ export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, p
   const db = getDb();
   const amendmentId = nanoid(12);
   const afterJson = JSON.stringify(allowed);
-  const updatedAt = nowIso();
 
   const applyAmendment = db.transaction(() => {
     const current = db.prepare(
@@ -539,6 +538,10 @@ export function amendFinalizedEncounter(encounterId, tenantId, user, { reason, p
       err.status = 409;
       err.code = 'ENCOUNTER_VERSION_CONFLICT';
       throw err;
+    }
+    let updatedAt = nowIso();
+    if (updatedAt === versionAtCommit) {
+      updatedAt = new Date(Date.now() + 1).toISOString();
     }
 
     const snapshotBefore = JSON.stringify({

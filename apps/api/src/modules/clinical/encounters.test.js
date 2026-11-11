@@ -2,17 +2,18 @@ import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const testDb = path.join(__dirname, '../../../data/test-clinical.db');
+const testDb = path.join(os.tmpdir(), `clinical-encounters-${process.pid}.db`);
 
 process.env.DATABASE_PATH = testDb;
 process.env.SKIP_DEMO_SEED = '1';
 process.env.CLINIC_FILES_STORAGE = 'memory';
 
-const { initDatabase, getDb } = await import('../../db/index.js');
+const { initDatabase, getDb, closeDatabase } = await import('../../db/index.js');
 const { createDoctor } = await import('../providers/doctors.service.js');
 const {
   createMemoryUploadStorage,
@@ -79,7 +80,11 @@ describe('clinical encounters', () => {
   let memoryStorage;
 
   before(() => {
-    if (fs.existsSync(testDb)) fs.unlinkSync(testDb);
+    closeDatabase();
+    try { fs.unlinkSync(testDb); } catch { /* ignore */ }
+    for (const suffix of ['-wal', '-shm']) {
+      try { fs.unlinkSync(`${testDb}${suffix}`); } catch { /* ignore */ }
+    }
     ctx = seedTenant();
     memoryStorage = createMemoryUploadStorage();
     setUploadStorageBackendForTests(memoryStorage);
@@ -507,6 +512,9 @@ describe('clinical encounters', () => {
       expectedUpdatedAt: v1.updatedAt,
       patch: { clinicalNote: 'V2' },
     });
+    const afterFirst = encounterDetail(enc.id, ctx.tenantId);
+    assert.equal(afterFirst.clinicalNote, 'V2');
+    assert.notEqual(afterFirst.updatedAt, v1.updatedAt, 'amend must bump updated_at for optimistic locking');
     assert.throws(
       () => amendFinalizedEncounter(enc.id, ctx.tenantId, user, {
         reason: 'Stale retry should fail',

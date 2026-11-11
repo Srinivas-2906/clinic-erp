@@ -12,14 +12,25 @@ import { initFinanceSchema } from '../modules/finance/financeDb.js';
 import { initBillingSchema } from '../modules/billing/billingDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
-const dbPath = process.env.DATABASE_PATH || path.join(dataDir, 'clinic.db');
 
 let db;
+/** @type {string | null} */
+let activeDbPath = null;
+
+function resolveDbPath() {
+  const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
+  return process.env.DATABASE_PATH || path.join(dataDir, 'clinic.db');
+}
 
 export function initDatabase() {
+  const dbPath = resolveDbPath();
+  if (db && activeDbPath !== dbPath) {
+    closeDatabase();
+  }
+  if (db) return db;
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   db = new Database(dbPath);
+  activeDbPath = dbPath;
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
@@ -521,5 +532,6 @@ export function closeDatabase() {
     }
     db.close();
     db = null;
+    activeDbPath = null;
   }
 }
