@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { initDatabase } from './db/index.js';
 import { createApiApp } from './appFactory.js';
 import { initReminderInfrastructure, processDueReminders } from './services/reminders/index.js';
+import { writerLeaseRequiredFromEnv } from './infra/writerLease.js';
+import { verifyProcessOwnsRemoteLease } from './middleware/writerLeaseGuard.js';
 
 const apiRoot = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,11 +27,22 @@ const useInProcessReminderWorker = process.env.DISABLE_REMINDER_WORKER !== '1'
   && process.env.REMINDER_EXTERNAL_SCHEDULER !== '1';
 if (useInProcessReminderWorker) {
   setInterval(() => {
-    try {
-      processDueReminders();
-    } catch (err) {
-      console.error('[reminder-worker]', err.message || err);
-    }
+    void (async () => {
+      if (writerLeaseRequiredFromEnv()) {
+        try {
+          const v = await verifyProcessOwnsRemoteLease();
+          if (!v.ok) return;
+        } catch (err) {
+          console.error('[reminder-worker] lease verify failed', err.message || err);
+          return;
+        }
+      }
+      try {
+        processDueReminders();
+      } catch (err) {
+        console.error('[reminder-worker]', err.message || err);
+      }
+    })();
   }, REMINDER_POLL_MS).unref?.();
 }
 
