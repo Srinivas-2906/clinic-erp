@@ -25,6 +25,13 @@ Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, n
 
 **Validation:** 56/56 API unit tests; `scripts/staging-validate.mjs` on staging; no prod deploy.
 
+## Milestone C0 — Architecture & GCP-first plan (complete)
+
+- [x] Initial assessment — [`16_PRODUCT_ARCHITECTURE_ASSESSMENT.md`](16_PRODUCT_ARCHITECTURE_ASSESSMENT.md)
+- [x] GCP-first strategy + portability — [`17`](17_GCP_FIRST_PLATFORM_STRATEGY.md)–[`24`](24_NEW_GCP_ACCOUNT_MIGRATION_PLAYBOOK.md)
+- [ ] Owner decisions — see [`17`](17_GCP_FIRST_PLATFORM_STRATEGY.md) open items + clinical sign-off [`19`](19_CLINICAL_DATA_MODEL.md)
+- [ ] **No** Railway/Neon/Cloudflare staging stack (explicitly out of scope)
+
 ## Milestone C — M8 commercial onboarding & billing
 
 | Step | Deliverable | Status |
@@ -35,31 +42,61 @@ Dependencies flow top → bottom. Each milestone is a **reviewable PR batch**, n
 | C4 | Razorpay sandbox webhooks | Not started (needs approval) |
 | C5 | Usage metering hooks | Partial (doctor/staff counts in M7) |
 
-**Do not batch with C1–C2 until decided:** Postgres migration (Enterprise scale) — see `13_M7_DATABASE_DECISION.md`.
+**Batch 2 gated on:** clinical data model approval [`19`](19_CLINICAL_DATA_MODEL.md) + GCP-first ADRs in [`17`](17_GCP_FIRST_PLATFORM_STRATEGY.md).
 
-## Milestone D — Clinical product depth (M8+)
+## Milestone D0 — Architecture foundations (next engineering)
+
+| Step | Deliverable | Acceptance |
+|------|-------------|------------|
+| D0.1 | OpenAPI v1 + `packages/api-client` | Contract tests pass |
+| D0.2 | Repository layer (`DB_DRIVER=sqlite`) | API tests green |
+| D0.3 | Fix Playwright `global-setup` → `apps/api` | E2E seed works |
+| D0.4 | Align `staging-validate.mjs` URLs with `08_M5` | Smoke hits canonical Run URLs |
+| D0.5 | Terraform module spike (optional project) | Plan-only or staging import doc |
+
+## Milestone D1 — PostgreSQL on current GCP staging
+
+| Step | Deliverable | Acceptance |
+|------|-------------|------------|
+| D1.1 | Cloud SQL instance (staging only, smallest tier) | Owner approves ~$10/mo |
+| D1.2 | PG schema + migrations per [`18`](18_POSTGRESQL_MIGRATION_PLAN.md) | Apply on empty DB |
+| D1.3 | Parity + import rehearsal (synthetic) | Counts match SQLite |
+| D1.4 | Cloud Tasks + Scheduler for reminders | No in-process timer in prod path |
+
+**Do not** combine D1 cutover with new-GCP account move ([`24`](24_NEW_GCP_ACCOUNT_MIGRATION_PLAYBOOK.md)).
+
+## Milestone D — Clinical product depth (M8 Batch 2)
 
 | Step | Deliverable | Depends on |
 |------|-------------|------------|
-| D1 | Structured consultation / visit note model + CRM form | C1 tenant stable |
-| D2 | Prescription lines + print/PDF (extends upload pipeline) | D1 |
-| D3 | Follow-up rules → existing reminder queue | D1, M7 reminders |
-| D4 | Doctor onboarding UX (profile, sessions) tied to entitlements | M7 |
+| D2.1 | Implement [`19`](19_CLINICAL_DATA_MODEL.md) MVP tables + API | D0.2, design sign-off |
+| D2.2 | CRM encounter + Rx UI | D2.1 |
+| D2.3 | PDF generation server-side | D2.2 |
+| D2.4 | Follow-ups → reminder jobs | D2.1, M7 |
 
-**Parallel track after C1:** D1 + D3 (consultations + follow-ups) without Razorpay.
+## Milestone E — UI/UX + SaaS polish
 
-## Milestone E — Enterprise / scale
+Per [`20`](20_AUTHENTICATED_UI_UX_AUDIT.md): URL routing, post-signup checklist, React Query unify, staging title fixes.
 
-1. Org + branch model (schema + CRM switcher).
-2. Postgres migration path (leverage parity tests; **no blind merge**).
-3. Custom domain + IAP option for CRM.
-4. Compliance pack: audit export, backup restore drill automation.
+## Milestone F — Enterprise / scale (current GCP)
 
-## Milestone F — Customer-facing polish
+1. Branch model ([`19`](19_CLINICAL_DATA_MODEL.md)).
+2. Postgres RLS + load tests.
+3. Custom domain + optional IAP.
+4. Compliance exports + backup drills ([`23`](23_SECURITY_RELIABILITY_AND_COSTS.md)).
 
-1. Onboarding wizard polish + empty states.
-2. Patient portal lite — optional.
-3. Marketplace integrations (ABDM) — research spike only.
+## Milestone G — Native mobile MVP
+
+[`22`](22_NATIVE_MOBILE_ARCHITECTURE.md) — after OpenAPI stable.
+
+## Milestone H — New GCP account migration
+
+Execute [`24_NEW_GCP_ACCOUNT_MIGRATION_PLAYBOOK.md`](24_NEW_GCP_ACCOUNT_MIGRATION_PLAYBOOK.md) only after Milestones D0–F validation on `clinic-erp-staging`.
+
+## Milestone I — Customer-facing extras
+
+1. Patient portal lite — optional.
+2. ABDM research spike — Enterprise only unless owner promotes.
 
 ## Preserve (do not rewrite)
 
