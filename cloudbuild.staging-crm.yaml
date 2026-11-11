@@ -1,0 +1,83 @@
+# Staging CRM only — does NOT deploy clinic-api-staging or change API traffic.
+# Builds CRM from the submitted source tree (pin to reviewed main SHA before submit).
+# Deploy uses --no-traffic --tag=crm-candidate; shift traffic only after operator smoke (runbook).
+#
+# Submit: gcloud builds submit --project=clinic-erp-staging --config cloudbuild.staging-crm.yaml .
+
+steps:
+  - id: build-clinic-crm
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID
+      - --build-arg
+      - VITE_CLINIC_API=${_VITE_CLINIC_API}
+      - --build-arg
+      - VITE_TENANT_SLUG=${_VITE_TENANT_SLUG}
+      - -f
+      - apps/crm/Dockerfile
+      - .
+
+  - id: push-clinic-crm
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID
+
+  - id: deploy-clinic-crm
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ "$PROJECT_ID" != "clinic-erp-staging" ]; then
+          echo "Refusing non-staging project $PROJECT_ID"
+          exit 1
+        fi
+        IMAGE="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID"
+        API_URL="$(gcloud run services describe ${_CLINIC_API_SERVICE} \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --format='value(status.url)')"
+        if [ -z "$$API_URL" ]; then
+          echo "FATAL: cannot resolve API_URL for nginx proxy"
+          exit 1
+        fi
+        gcloud run deploy "${_CLINIC_CRM_SERVICE}" \
+          --project="$PROJECT_ID" \
+          --image "$$IMAGE" \
+          --region "${_REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --no-invoker-iam-check \
+          --port 8080 \
+          --min-instances 0 \
+          --max-instances 1 \
+          --memory 256Mi \
+          --cpu 1 \
+          --no-traffic \
+          --tag=crm-candidate \
+          --update-env-vars "CLINIC_API_ORIGIN=$$API_URL"
+        REV=$$(gcloud run services describe "${_CLINIC_CRM_SERVICE}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --format='value(status.latestCreatedRevisionName)')
+        echo "crm_candidate_revision=$$REV tag=crm-candidate api_origin=$$API_URL"
+        gcloud run services describe "${_CLINIC_CRM_SERVICE}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --format="yaml(status.traffic)" | grep -E 'percent:|revisionName:|tag:' || true
+
+substitutions:
+  _REGION: asia-south1
+  _ARTIFACT_REPO: clinic
+  _CLINIC_API_SERVICE: clinic-api-staging
+  _CLINIC_CRM_SERVICE: kaana-clinic-staging
+  # Relative /api: nginx proxies to CLINIC_API_ORIGIN (live API URL at deploy time).
+  _VITE_CLINIC_API: /api
+  _VITE_TENANT_SLUG: dentacare
+
+options:
+  logging: CLOUD_LOGGING_ONLY
