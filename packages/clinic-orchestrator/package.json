@@ -9,7 +9,9 @@
     "coordinator": "node --import tsx src/coordinator.ts",
     "worker": "node --import tsx src/worker.ts",
     "demo": "node --import tsx src/demo.ts",
-    "test": "node --import tsx --test src/store.test.ts src/agentAdapter.test.ts"
+    "approve": "node --import tsx src/approve.ts",
+    "ci-snapshot": "node --import tsx src/ciSnapshot.ts",
+    "test": "node --import tsx --test src/store.test.ts src/agentAdapter.test.ts src/githubCi.test.ts src/githubPr.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.4",

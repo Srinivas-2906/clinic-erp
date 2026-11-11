@@ -1,6 +1,6 @@
 # Clinic ERP — product goals specification
 
-**Evidence baseline:** `main` @ `8fdcb31` (post PR #61); milestone branch `265ed43` (`feature/erp-workflows-and-agent-execution`).  
+**Evidence baseline:** `main` @ `3d57d7a` (squash PR #62); PR #64 head `feature/patient-payments-operations-agent-gates` (CRM build fix + six-check gate); milestone `feature/payment-verification-refunds-mobile-ops`.
 **Method:** each area lists expected behavior, file/API evidence, gaps, dependencies, acceptance criteria, manual checks, priority, and **status** (not a percentage score).
 
 Status values: `complete` | `partial` | `missing` | `blocked` (external dependency).
@@ -135,7 +135,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Invoices, payments, refunds, idempotency, owner/reception roles. |
 | **Evidence** | Invoice/payment routes, billing E2E specs, idempotency tests. |
-| **Gaps** | Online patient payment collect still stub (`paymentGateway.js` patient path). |
+| **Gaps** | Per-clinic Razorpay merchant accounts; hosted patient checkout UI; production webhooks; live-mode approval. |
+| **Evidence (milestone)** | `patientPaymentIntents.service.js` async verify + provider `fetchPayment` amount/status gate; `providerRefunds.service.js` + `POST /clinic/payments/:id/provider-refund`; shared mock Razorpay state for CI; partial pay; reconciliation; Playwright 42; CRM mobile payment status pills. |
+| **Merchant model** | Patient collections use **platform env** `CLINIC_RAZORPAY_*` (single test merchant), not per-tenant merchant — document before live soak. |
 | **Dependencies** | Separate from SaaS subscription billing. |
 | **Automated acceptance** | Payment API tests; Playwright billing flows. |
 | **Manual** | Refund audit trail review. |
@@ -148,7 +150,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Overview stats, date-ranged reports, exports, ops summary. |
 | **Evidence** | `ReportsView`, `GET /clinic/report`, `opsSummary`, CSV export. |
-| **Gaps** | Dedicated API unit test file for report handler (HTTP security covers basics). |
+| **Gaps** | Owner CSV export for outstanding ledger (P2). |
+| **Evidence (milestone)** | `ownerOpsReport.js` financial block (collections, refunds, outstanding, open intents); ReportsView outstanding line. |
 | **Automated acceptance** | `clinicHttpSecurity.test.js` report; CRM report UX manual. |
 | **Manual** | Financial totals vs ledger spot-check. |
 | **Priority** | P1 |
@@ -197,8 +200,9 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 |-------|--------|
 | **Expected** | Atomic payment writes, amendment concurrency, no silent entitlement escalation. |
 | **Evidence** | Idempotent payments, amendment `updated_at` guards, subscription transition matrix. |
-| **Gaps** | Non-dry-run reconciliation in production-like env (approval-gated). |
-| **Automated acceptance** | Billing + amendment tests. |
+| **Gaps** | Live patient capture webhook parity with SaaS webhooks; non-dry-run SaaS reconciliation (approval-gated). |
+| **Evidence (milestone)** | Intent verify signature gate; idempotent capture keys; `patientPaymentIntents.test.js`. |
+| **Automated acceptance** | Billing + amendment + payment intent tests. |
 | **Manual** | Reconciliation runbook execution. |
 | **Priority** | P0 |
 | **Status** | **partial** |
@@ -294,4 +298,8 @@ Status values: `complete` | `partial` | `missing` | `blocked` (external dependen
 
 No category is marked **complete** end-to-end with full automated + manual sign-off. Web clinical and ledger flows are **partial** with strong E2E coverage; **commercial launch** remains **blocked** on real payment provider verification and explicit live-payment approval.
 
-**Next executable priorities (Track A):** Staging Razorpay test-mode soak; patient online pay (ledger); platform revenue ops polish; orchestrator agent-task demo with human approval gates.
+**Next executable priorities (Track A):** Squash-merge PR #64 when six CI checks green; merge payment-verification milestone after review; Razorpay **test-mode** soak with real API keys (no live); staging deploy only after explicit approval.
+
+**Engineering orchestrator (not deployed):** `packages/clinic-orchestrator` — persistent task deps, `githubPr.ts` PR linkage, `resumeOrchestrator`, `classifyTaskFailure`, `approve.ts`, `githubCi.ts` fixture/`gh` polling (`CLINIC_ORCH_USE_GH_CLI=1`), integration branch ensure; agent tasks via `CLINIC_ORCH_AGENT_CMD` / fixture unless external CLI configured.
+
+**Holistic ERP gaps (post billing milestone):** Production email for invites/reset; owner CSV outstanding export; public booking mobile polish; GCS attachment soak; native Android still deferred; deployment runbooks + secrets rotation not validated on GCP lean target.

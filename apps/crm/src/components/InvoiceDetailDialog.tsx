@@ -4,6 +4,8 @@ import type { PatientInvoice } from '../types';
 import type { ClinicProfile } from '../lib/clinicBranding';
 import { openInvoicePrintWindow } from '../lib/invoiceDocument';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { createInvoicePaymentIntent, verifyPaymentIntent } from '../lib/api';
+import { useState } from 'react';
 
 function formatRs(n: number) {
   return `₹${n.toLocaleString('en-IN')}`;
@@ -26,6 +28,9 @@ interface Props {
   onRecordPayment: (invoice: PatientInvoice) => void;
   onVoid: (invoice: PatientInvoice) => void;
   onRefreshInvoice?: (id: string) => Promise<PatientInvoice | null>;
+  onPaymentCaptured?: () => void;
+  onToast?: (msg: string, type?: 'ok' | 'err') => void;
+  patientPaymentsMock?: boolean;
 }
 
 export function InvoiceDetailDialog({
@@ -38,8 +43,12 @@ export function InvoiceDetailDialog({
   onRecordPayment,
   onVoid,
   onRefreshInvoice,
+  onPaymentCaptured,
+  onToast,
+  patientPaymentsMock = false,
 }: Props) {
   useScrollLock(true);
+  const [onlineBusy, setOnlineBusy] = useState(false);
 
   const canPay = canRecordPayments && invoice.status !== 'void' && invoice.status !== 'paid' && invoice.balanceDue > 0;
   const canVoid = canManageFinancials && invoice.status !== 'void' && invoice.amountPaid <= 0;
@@ -86,6 +95,34 @@ export function InvoiceDetailDialog({
           {canVoid && (
             <button type="button" className="btn btn-ghost" onClick={() => onVoid(invoice)}>
               Void
+            </button>
+          )}
+          {canPay && patientPaymentsMock && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={onlineBusy}
+              data-testid="invoice-test-online-pay"
+              onClick={async () => {
+                setOnlineBusy(true);
+                try {
+                  const created = await createInvoicePaymentIntent(invoice.id, { amount: invoice.balanceDue });
+                  if (!created.mockCapture) {
+                    onToast?.('Test capture not available', 'err');
+                    return;
+                  }
+                  await verifyPaymentIntent(created.intent.id, created.mockCapture);
+                  onToast?.('Test-mode online payment recorded', 'ok');
+                  onPaymentCaptured?.();
+                  onClose();
+                } catch (err) {
+                  onToast?.(err instanceof Error ? err.message : 'Online payment failed', 'err');
+                } finally {
+                  setOnlineBusy(false);
+                }
+              }}
+            >
+              {onlineBusy ? 'Processing…' : 'Test online pay'}
             </button>
           )}
           {canPay && (

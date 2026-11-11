@@ -125,6 +125,15 @@ export function ReportsView({
       consultationsFinalized: number;
       followUps: { pending: number; scheduled: number };
       doctorWorkload: { doctorName: string; encounterCount: number }[];
+      financial?: {
+        collectedInRange: number;
+        refundedInRange: number;
+        netInRange: number;
+        outstandingBalance: number;
+        openInvoiceCount: number;
+        openPaymentIntents: number;
+        openIntentExposure: number;
+      };
     };
   };
   loading?: boolean;
@@ -455,6 +464,14 @@ export function ReportsView({
                 No-show: {report.opsSummary.appointments.noShow}
                 {' · '}
                 Follow-ups pending: {report.opsSummary.followUps.pending}
+                {report.opsSummary.financial && (
+                  <>
+                    {' · '}
+                    Outstanding: {formatRs(report.opsSummary.financial.outstandingBalance)}
+                    {' · '}
+                    Open invoices: {report.opsSummary.financial.openInvoiceCount}
+                  </>
+                )}
               </p>
             )}
           </div>

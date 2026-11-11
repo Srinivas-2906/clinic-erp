@@ -1,4 +1,5 @@
 import { getDb } from '../db/index.js';
+import { getInvoiceFinancialSummary } from './patientInvoices.js';
 
 /** Owner operations summary for /clinic/report — derived from existing tables only. */
 export function buildOwnerOpsSummary(tenantId, { from, to } = {}) {
@@ -33,6 +34,23 @@ export function buildOwnerOpsSummary(tenantId, { from, to } = {}) {
     WHERE tenant_id = ?
   `).get(tenantId);
 
+  const ledger = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN pp.kind != 'refund' AND pp.amount > 0 THEN pp.amount ELSE 0 END), 0) AS collected,
+      COALESCE(SUM(CASE WHEN pp.kind = 'refund' OR pp.amount < 0 THEN ABS(pp.amount) ELSE 0 END), 0) AS refunded
+    FROM patient_payments pp
+    WHERE pp.tenant_id = ?
+      AND date(pp.created_at) >= date(?)
+      AND date(pp.created_at) <= date(?)
+  `).get(tenantId, fromDate, toDate);
+
+  const invoiceFin = getInvoiceFinancialSummary(tenantId);
+  const openIntents = db.prepare(`
+    SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS exposure
+    FROM patient_payment_intents
+    WHERE tenant_id = ? AND status = 'created'
+  `).get(tenantId);
+
   const doctorLoad = db.prepare(`
     SELECT d.display_name AS doctorName, COUNT(e.id) AS encounterCount
     FROM encounters e
@@ -64,5 +82,14 @@ export function buildOwnerOpsSummary(tenantId, { from, to } = {}) {
       doctorName: r.doctorName,
       encounterCount: Number(r.encounterCount) || 0,
     })),
+    financial: {
+      collectedInRange: Number(ledger?.collected) || 0,
+      refundedInRange: Number(ledger?.refunded) || 0,
+      netInRange: (Number(ledger?.collected) || 0) - (Number(ledger?.refunded) || 0),
+      outstandingBalance: Number(invoiceFin.outstandingBalance) || 0,
+      openInvoiceCount: Number(invoiceFin.openInvoiceCount) || 0,
+      openPaymentIntents: Number(openIntents?.c) || 0,
+      openIntentExposure: Number(openIntents?.exposure) || 0,
+    },
   };
 }

@@ -20,6 +20,19 @@ function invoiceStatusLabel(status: string) {
   return 'Unpaid';
 }
 
+function invoiceStatusClass(status: string) {
+  if (status === 'paid') return 'payment-status-pill paid';
+  if (status === 'partial') return 'payment-status-pill partial';
+  if (status === 'void') return 'payment-status-pill void';
+  return 'payment-status-pill unpaid';
+}
+
+function paymentMethodLabel(method: string) {
+  const m = String(method || '').toLowerCase();
+  if (m === 'razorpay') return 'Razorpay';
+  return method || '—';
+}
+
 function refundableAmount(payment: Payment, payments: Payment[]) {
   if (payment.kind === 'refund' || payment.amount <= 0) return 0;
   const refunded = payments
@@ -44,6 +57,7 @@ interface Props {
   onPrefillRecordConsumed?: () => void;
   focusDueInvoices?: boolean;
   onFocusDueConsumed?: () => void;
+  patientOnlineCheckout?: boolean;
 }
 
 export function PaymentsView({
@@ -61,6 +75,7 @@ export function PaymentsView({
   onPrefillRecordConsumed,
   focusDueInvoices,
   onFocusDueConsumed,
+  patientOnlineCheckout = false,
 }: Props) {
   const [section, setSection] = useState<'invoices' | 'payments'>('invoices');
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'due'>('all');
@@ -247,6 +262,9 @@ export function PaymentsView({
               return null;
             }
           }}
+          patientPaymentsMock={patientOnlineCheckout}
+          onPaymentCaptured={onRecorded}
+          onToast={onToast}
         />
       )}
 
@@ -270,11 +288,17 @@ export function PaymentsView({
                   }
                 }}
               >
-                <div>
+                <div className="payment-row-main">
                   <strong>{patientNameById.get(inv.patientId) || 'Patient'}</strong>
-                  <span>{formatRs(inv.total)} · {invoiceStatusLabel(inv.status)}</span>
+                  <span className="payment-row-meta">
+                    {formatRs(inv.total)}
+                    <span className={invoiceStatusClass(inv.status)}>{invoiceStatusLabel(inv.status)}</span>
+                  </span>
                   {inv.balanceDue > 0 && inv.status !== 'void' && (
-                    <span className="ref">Due {formatRs(inv.balanceDue)}</span>
+                    <span className="ref payment-due-tag">Due {formatRs(inv.balanceDue)}</span>
+                  )}
+                  {inv.amountPaid > 0 && inv.balanceDue > 0 && (
+                    <span className="ref payment-partial-tag">Collected {formatRs(inv.amountPaid)}</span>
                   )}
                 </div>
                 <div className="payment-row-end">
@@ -309,14 +333,21 @@ export function PaymentsView({
                   }}
                   aria-disabled={!p.patientId}
                 >
-                  <div>
+                  <div className="payment-row-main">
                     <strong>{p.patientName || 'Patient'}</strong>
-                    <span style={isRefund ? { color: 'var(--danger, #b91c1c)' } : undefined}>
-                      {isRefund ? 'Refund ' : ''}{formatRs(p.amount)} · {p.method}
+                    <span className="payment-row-meta" style={isRefund ? { color: 'var(--danger, #b91c1c)' } : undefined}>
+                      {isRefund ? 'Refund ' : ''}{formatRs(Math.abs(p.amount))}
+                      <span className={`payment-status-pill ${isRefund ? 'refund' : 'paid'}`}>
+                        {isRefund ? 'Refunded' : 'Received'}
+                      </span>
+                      <span className="payment-method-tag">{paymentMethodLabel(p.method)}</span>
                     </span>
                     {p.invoiceId && <span className="ref">Invoice linked</span>}
                     {isRefund && p.relatedPaymentId && <span className="ref">↩ original payment</span>}
-                    {p.reference && <span className="ref">{p.reference}</span>}
+                    {p.method === 'razorpay' && p.reference && (
+                      <span className="ref provider-ref">Provider id {p.reference}</span>
+                    )}
+                    {p.method !== 'razorpay' && p.reference && <span className="ref">{p.reference}</span>}
                   </div>
                   <div className="payment-row-end">
                     <small>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : ''}</small>
