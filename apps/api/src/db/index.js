@@ -299,8 +299,10 @@ export function initDatabase() {
   migratePatientPhoneNonUnique(db);
   migrateTenantsToDoctors(db);
 
-  syncDentaCareDemo();
-  syncDentaCareCatalog();
+  if (shouldSeedDemo()) {
+    syncDentaCareDemo();
+    syncDentaCareCatalog();
+  }
   return db;
 }
 

@@ -1,4 +1,4 @@
-# Staging Cloud Build — runs only in STAGING GCP project (see infra/staging/ARCHITECTURE.md).
+# Staging Cloud Build — API candidate only; no CRM deploy or traffic change.
 # Submit with: gcloud builds submit --project "$GCP_STAGING_PROJECT_ID" --config cloudbuild.staging.yaml .
 
 steps:
@@ -25,12 +25,19 @@ steps:
       - -c
       - |
         set -euo pipefail
-        if [ "$PROJECT_ID" = "crucial-accord-505607-g9" ]; then
+        if [ "$PROJECT_ID" != "clinic-erp-staging" ]; then
           echo "Refusing to deploy staging config to production project $PROJECT_ID"
           exit 1
         fi
         IMAGE="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-api-staging:$BUILD_ID"
+        SECRETS="JWT_SECRET=${_SECRET_JWT}:latest"
+        if gcloud secrets describe "${_SECRET_PROVISIONING}" --project="$PROJECT_ID" >/dev/null 2>&1; then
+          SECRETS="$$SECRETS,CLINIC_PROVISIONING_API_KEY=${_SECRET_PROVISIONING}:latest"
+        else
+          echo "WARN: secret ${_SECRET_PROVISIONING} missing — deploying without CLINIC_PROVISIONING_API_KEY (platform signup routes blocked)"
+        fi
         gcloud run deploy "${_CLINIC_API_SERVICE}" \
+          --project="$PROJECT_ID" \
           --image "$$IMAGE" \
           --region "${_REGION}" \
           --platform managed \
@@ -41,76 +48,29 @@ steps:
           --max-instances 1 \
           --memory 512Mi \
           --cpu 1 \
+          --no-traffic \
+          --tag=mvp-candidate \
           --service-account "${_API_SERVICE_ACCOUNT}" \
-          --set-env-vars "NODE_ENV=production,DATABASE_PATH=/data/clinic.db,LITESTREAM_BUCKET=${_DB_BUCKET},UPLOADS_DIR=/data/uploads,JWT_EXPIRES=7d,SKIP_DEMO_SEED=0,CLINIC_ALLOW_DEMO_SEED=1,CLINIC_DEMO_OWNER_EMAIL=staging-owner@clinic-erp.invalid,CLINIC_FILES_STORAGE=gcs,CLINIC_FILES_BUCKET=${_DB_BUCKET},CLINIC_FILES_PREFIX=clinic-files-staging,REMINDER_DELIVERY_ENABLED=0,CLINIC_PUBLIC_SIGNUP_ENABLED=1,CLINIC_EMAIL_PROVIDER=console" \
-          --set-secrets "JWT_SECRET=${_SECRET_JWT}:latest,CLINIC_DEMO_OWNER_PASSWORD=${_SECRET_DEMO_PASSWORD}:latest,CLINIC_PROVISIONING_API_KEY=${_SECRET_PROVISIONING}:latest"
-        API_URL=$$(gcloud run services describe ${_CLINIC_API_SERVICE} --region ${_REGION} --format='value(status.url)')
-        gcloud run services update "${_CLINIC_API_SERVICE}" \
-          --region "${_REGION}" \
-          --update-env-vars "PUBLIC_URL=$$API_URL"
-
-  - id: build-clinic-crm
-    name: gcr.io/cloud-builders/docker
-    waitFor: ['deploy-clinic-api']
-    args:
-      - build
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID
-      - --build-arg
-      - VITE_CLINIC_API=${_VITE_CLINIC_API}
-      - --build-arg
-      - VITE_TENANT_SLUG=${_VITE_TENANT_SLUG}
-      - -f
-      - apps/crm/Dockerfile
-      - .
-
-  - id: push-clinic-crm
-    name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID
-
-  - id: deploy-clinic-crm
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        if [ "$PROJECT_ID" = "crucial-accord-505607-g9" ]; then
-          echo "Refusing to deploy staging config to production project $PROJECT_ID"
-          exit 1
-        fi
-        IMAGE="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/clinic-crm-staging:$BUILD_ID"
-        API_URL=$$(gcloud run services describe ${_CLINIC_API_SERVICE} --region ${_REGION} --format='value(status.url)')
-        gcloud run deploy "${_CLINIC_CRM_SERVICE}" \
-          --image "$$IMAGE" \
-          --region "${_REGION}" \
-          --platform managed \
-          --allow-unauthenticated \
-          --no-invoker-iam-check \
-          --port 8080 \
-          --min-instances 0 \
-          --max-instances 1 \
-          --memory 256Mi \
-          --cpu 1 \
-          --set-env-vars "CLINIC_API_ORIGIN=$$API_URL"
-        CRM_URL=$$(gcloud run services describe ${_CLINIC_CRM_SERVICE} --region ${_REGION} --format='value(status.url)')
-        gcloud run services update "${_CLINIC_API_SERVICE}" \
-          --region "${_REGION}" \
-          --update-env-vars "CLINIC_CRM_URL=$$CRM_URL"
+          --update-env-vars "NODE_ENV=production,DATABASE_PATH=/data/clinic.db,LITESTREAM_BUCKET=${_DB_BUCKET},UPLOADS_DIR=/data/uploads,JWT_EXPIRES=7d,SKIP_DEMO_SEED=1,CLINIC_ALLOW_DEMO_SEED=0,CLINIC_FILES_STORAGE=gcs,CLINIC_FILES_BUCKET=${_DB_BUCKET},CLINIC_FILES_PREFIX=clinic-files-staging,REMINDER_DELIVERY_ENABLED=0,CLINIC_PUBLIC_SIGNUP_ENABLED=1" \
+          --update-secrets "$$SECRETS"
+        REV=$$(gcloud run services describe "${_CLINIC_API_SERVICE}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --format='value(status.latestCreatedRevisionName)')
+        TRAFFIC_PCT=$$(gcloud run services describe "${_CLINIC_API_SERVICE}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --format="yaml(status.traffic)" | grep -E 'percent:|revisionName:|tag:' || true)
+        echo "deployed_revision=$$REV (no-traffic tag mvp-candidate)"
+        echo "$$TRAFFIC_PCT"
 
 substitutions:
   _REGION: asia-south1
   _ARTIFACT_REPO: clinic
   _CLINIC_API_SERVICE: clinic-api-staging
-  _CLINIC_CRM_SERVICE: kaana-clinic-staging
-  _VITE_CLINIC_API: /api
-  _VITE_TENANT_SLUG: dentacare
   _DB_BUCKET: clinic-erp-staging-clinic-db
   _API_SERVICE_ACCOUNT: clinic-staging-runner@clinic-erp-staging.iam.gserviceaccount.com
   _SECRET_JWT: clinic-staging-jwt-secret
-  _SECRET_DEMO_PASSWORD: clinic-staging-demo-password
   _SECRET_PROVISIONING: clinic-staging-provisioning-key
 
 options:
