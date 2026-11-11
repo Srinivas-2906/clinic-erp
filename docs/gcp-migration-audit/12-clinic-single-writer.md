@@ -7,7 +7,7 @@
 | Layer | Mechanism | Guarantees |
 |-------|-----------|------------|
 | Infra | `--max-instances 1` on clinic-api (staging cloudbuild) | Caps concurrent Cloud Run instances |
-| Startup | GCS writer lease in `run-api-with-lease.mjs` | Second instance **exits before API** if lease held |
+| Startup | GCS writer lease in `run-litestream-with-lease.mjs` **before** `litestream replicate` | No Litestream publish without lease; second instance **exits** if denied |
 | Runtime | `writerLeaseGuardMiddleware` on mutating HTTP methods | API writes **503** when local holder/fence ≠ remote |
 | Restore | `CLINIC_REQUIRE_LITESTREAM_REPLICA` (default on in production + bucket) | **No empty DB** when replica missing |
 | Ops | Maintenance `--scaling=0` before image cutover | Avoid overlapping Litestream parents |
