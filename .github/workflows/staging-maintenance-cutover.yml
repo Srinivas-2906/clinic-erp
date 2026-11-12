@@ -59,7 +59,8 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x apps/api/scripts/staging-restore-drill.sh infra/staging/bootstrap-staging-secrets.sh
-          chmod +x scripts/staging-monitoring-setup.sh scripts/staging-monitoring-alerts.sh
+          chmod +x scripts/staging-monitoring-setup.sh
+          if [ -f scripts/staging-monitoring-alerts.sh ]; then chmod +x scripts/staging-monitoring-alerts.sh; fi
           echo "rollback_api=$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
           echo "rollback_crm=$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
           GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash apps/api/scripts/staging-restore-drill.sh
@@ -72,7 +73,11 @@ jobs:
           export STAGING_API_URL="$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.url)')"
           export STAGING_CRM_URL="$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.url)')"
           bash scripts/staging-monitoring-setup.sh
-          bash scripts/staging-monitoring-alerts.sh
+          if [ -f scripts/staging-monitoring-alerts.sh ]; then
+            bash scripts/staging-monitoring-alerts.sh
+          else
+            echo "WARN: staging-monitoring-alerts.sh missing at release SHA — uptime only"
+          fi
 
       - name: Quiesce writer and shift API traffic
         run: |
