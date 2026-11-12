@@ -38,6 +38,8 @@ jobs:
       STAGING_ALERT_EMAIL: ${{ github.event.inputs.alert_email }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.release_sha }}
 
       - name: Pin release SHA
         run: |
