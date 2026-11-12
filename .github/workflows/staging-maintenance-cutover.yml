@@ -1,0 +1,125 @@
+name: Staging maintenance cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type APPROVE-STAGING-CUTOVER to confirm'
+        required: true
+        type: string
+      alert_email:
+        description: 'Monitoring alert email'
+        required: true
+        type: string
+      release_sha:
+        description: 'Expected git SHA (must match HEAD)'
+        required: true
+        type: string
+        default: a41642ebee9e5604d23e022c5c63cecde94e359f
+
+concurrency:
+  group: staging-maintenance-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    if: github.event.inputs.confirm == 'APPROVE-STAGING-CUTOVER'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_STAGING_PROJECT_ID: ${{ vars.GCP_STAGING_PROJECT_ID }}
+      GCP_STAGING_DEPLOYER_SA: ${{ vars.GCP_STAGING_DEPLOYER_SA }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      CLOUDBUILD_SA: clinic-staging-cloudbuild@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+      STAGING_ALERT_EMAIL: ${{ github.event.inputs.alert_email }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin release SHA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.inputs.release_sha }}"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_STAGING_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_STAGING_PROJECT_ID }}
+
+      - name: Record rollback + preflight
+        run: |
+          set -euo pipefail
+          chmod +x apps/api/scripts/staging-restore-drill.sh infra/staging/bootstrap-staging-secrets.sh
+          chmod +x scripts/staging-monitoring-setup.sh scripts/staging-monitoring-alerts.sh
+          echo "rollback_api=$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
+          echo "rollback_crm=$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
+          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash apps/api/scripts/staging-restore-drill.sh
+          test "$(gcloud storage ls "gs://${GCP_STAGING_PROJECT_ID}-clinic-db/clinic-files-staging/denta-care/" | wc -l)" -ge 4
+
+      - name: Secrets and monitoring
+        run: |
+          set -euo pipefail
+          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash infra/staging/bootstrap-staging-secrets.sh
+          export STAGING_API_URL="$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.url)')"
+          export STAGING_CRM_URL="$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.url)')"
+          bash scripts/staging-monitoring-setup.sh
+          bash scripts/staging-monitoring-alerts.sh
+
+      - name: Quiesce writer and shift API traffic
+        run: |
+          set -euo pipefail
+          REGION=asia-south1
+          API=clinic-api-staging
+          gcloud run services update "$API" --region="$REGION" --scaling=0 --quiet
+          for i in $(seq 1 36); do
+            held="$(gcloud storage cat "gs://${GCP_STAGING_PROJECT_ID}-clinic-db/_meta/writer-lease.json" 2>/dev/null \
+              | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);console.log(Date.parse(j.expiresAt)>Date.now()?'held':'clear')}catch{console.log('clear')}})" || echo clear)"
+            echo "lease=$held attempt=$i"
+            [ "$held" = "clear" ] && break
+            sleep 10
+          done
+          [ "$held" = "clear" ] || { echo "STOP: lease still held"; exit 1; }
+          CAND="$(gcloud run services describe "$API" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
+          TAG_URL="$(gcloud run services describe "$API" --region="$REGION" --format=json \
+            | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=(s.status?.trafficStatuses||[]).find(x=>x.tag==='mvp-candidate');console.log(t?.url||'')")"
+          test -n "$TAG_URL"
+          curl -fsS "${TAG_URL}/api/health" | node -e "const j=JSON.parse(require('fs').readFileSync(0,'utf8')); if(!j.ok||!j.writerLease?.held) process.exit(1)"
+          gcloud run services update-traffic "$API" --region="$REGION" --to-revisions="${CAND}=100" --quiet
+          gcloud run services update "$API" --region="$REGION" --scaling=auto --max-instances=1 --quiet
+          echo "api_live_rev=$CAND"
+
+      - name: Deploy CRM and shift traffic
+        run: |
+          set -euo pipefail
+          REGION=asia-south1
+          gcloud builds submit --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-crm.yaml \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            .
+          CRM=kaana-clinic-staging
+          CAND="$(gcloud run services describe "$CRM" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
+          TAG="$(gcloud run services describe "$CRM" --region="$REGION" --format=json \
+            | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=(s.status?.trafficStatuses||[]).find(x=>x.tag==='crm-candidate');console.log(t?.url||'')")"
+          curl -fsS -o /dev/null "$TAG"
+          gcloud run services update-traffic "$CRM" --region="$REGION" --to-revisions="${CAND}=100" --quiet
+          echo "crm_live_rev=$CAND"
+
+      - name: Staging ops validate
+        run: |
+          set -euo pipefail
+          BUILD_ID="$(gcloud builds submit \
+            --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-ops.yaml \
+            --substitutions="_COMMIT_SHA=${{ github.event.inputs.release_sha }}" \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            --format='value(id)' \
+            .)"
+          gcloud builds log "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --stream
+          test "$(gcloud builds describe "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')" = "SUCCESS"
