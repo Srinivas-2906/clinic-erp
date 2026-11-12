@@ -63,7 +63,9 @@ jobs:
           if [ -f scripts/staging-monitoring-alerts.sh ]; then chmod +x scripts/staging-monitoring-alerts.sh; fi
           echo "rollback_api=$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
           echo "rollback_crm=$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.traffic[0].revisionName)')"
-          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash apps/api/scripts/staging-restore-drill.sh
+          chmod +x scripts/staging-backup-health.sh
+          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash scripts/staging-backup-health.sh
+          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash apps/api/scripts/staging-restore-drill.sh --sync-only
           test "$(gcloud storage ls "gs://${GCP_STAGING_PROJECT_ID}-clinic-db/clinic-files-staging/denta-care/" | wc -l)" -ge 4
 
       - name: Secrets and monitoring
