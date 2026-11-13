@@ -134,7 +134,7 @@ export function PaymentsView({
         {canRecordPayments && (
           <div className="page-header-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setInvoiceOpen(true)}>+ Invoice</button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => { setPayAgainstInvoice(null); setRecordOpen(true); }}>+ Payment</button>
+            <button type="button" className="btn btn-primary btn-sm" data-guide="payments-record" onClick={() => { setPayAgainstInvoice(null); setRecordOpen(true); }}>+ Payment</button>
           </div>
         )}
       </header>

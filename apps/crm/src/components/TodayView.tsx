@@ -300,7 +300,7 @@ export function TodayView({
             </span>
           </div>
           <div className="today-stat-row">
-            <div className="header-stat-chips" role="toolbar" aria-label="Filter appointments">
+            <div className="header-stat-chips" role="toolbar" aria-label="Filter appointments" data-guide="today-status-chips">
               {FILTER_CHIPS.map(({ id, tone, label, statKey }) => (
                 <button
                   key={id}
@@ -351,7 +351,7 @@ export function TodayView({
           )}
         </div>
 
-        <div className="schedule-day-col">
+        <div className="schedule-day-col" data-guide="today-appointment-board">
           {sorted.length > 0 && (
             <div className="today-toolbar">
               <div className="view-toggle view-toggle-desktop" role="tablist" aria-label="Schedule view">

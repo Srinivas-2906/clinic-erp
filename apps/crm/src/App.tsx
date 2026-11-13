@@ -18,6 +18,12 @@ import { AuditView } from './components/AuditView';
 import { ClinicSettingsView } from './components/ClinicSettingsView';
 import { SetPasswordScreen } from './components/SetPasswordScreen';
 import { ClinicOnboardingChecklist } from './components/ClinicOnboardingChecklist';
+import { ClinicGuideProvider, useClinicGuideOptional } from './guides/ClinicGuideContext';
+import { ClinicGuideWelcome } from './components/ClinicGuideWelcome';
+import { ClinicGuideOverlay } from './components/ClinicGuideOverlay';
+import { HelpGuidesPanel } from './components/HelpGuidesPanel';
+import { readPilotSetupDismissed, writePilotSetupDismissed } from './lib/pilotSetupStorage';
+import { resolveTenantSlug } from './lib/tenant';
 import { VisitBillingHandoffDialog } from './components/VisitBillingHandoffDialog';
 import { useKeyboardOpen } from './hooks/useKeyboardOpen';
 import { useTodayData } from './hooks/useTodayData';
@@ -88,6 +94,8 @@ function ClinicApp() {
   const [showSearch,    setShowSearch]    = useState(false);
   const [displayName,   setDisplayName]   = useState<string>('');
   const [userRole,      setUserRole]      = useState<string>('');
+  const [userId,        setUserId]        = useState<string>('');
+  const [tenantSlug,    setTenantSlug]    = useState<string>(() => resolveTenantSlug() || 'default');
   const [userCaps, setUserCaps] = useState<Required<UserCapabilities>>({
     managePatients: true,
     manageAppointments: true,
@@ -97,9 +105,7 @@ function ClinicApp() {
     viewReports: true,
   });
   const [canSignClinical, setCanSignClinical] = useState(false);
-  const [pilotSetupDismissed, setPilotSetupDismissed] = useState(
-    () => localStorage.getItem('pilot-setup-dismissed') === '1',
-  );
+  const [pilotSetupDismissed, setPilotSetupDismissed] = useState(() => readPilotSetupDismissed(tenantSlug));
   const [onboardingRefresh, setOnboardingRefresh] = useState(0);
   const [paymentsFocusDue, setPaymentsFocusDue] = useState(false);
   const [denseMode,     setDenseModeOn]   = useState(() => isDenseMode());
@@ -200,6 +206,8 @@ function ClinicApp() {
       const n = m?.user?.name || m?.user?.username || m?.user?.email || '';
       if (n) setDisplayName(n);
       if (m?.user?.role) setUserRole(m.user.role);
+      if (m?.user?.id) setUserId(m.user.id);
+      if (m?.tenant?.slug) setTenantSlug(m.tenant.slug);
       setUserCaps(capsFromMe(m?.user?.role || '', m?.user?.capabilities, m?.user?.isPlatformAdmin));
       setCanSignClinical(!!m?.user?.canSignClinical);
     }).catch(() => {});
@@ -372,8 +380,13 @@ function ClinicApp() {
   }
 
   function dismissPilotSetup() {
-    localStorage.setItem('pilot-setup-dismissed', '1');
+    writePilotSetupDismissed(tenantSlug);
     setPilotSetupDismissed(true);
+  }
+
+  function restorePilotSetupChecklist() {
+    setPilotSetupDismissed(false);
+    setOnboardingRefresh((k) => k + 1);
   }
 
   function handleScheduleDateChange(ymd: string) {
@@ -417,7 +430,7 @@ function ClinicApp() {
   const userRoleLabel =
     userRole === 'owner' ? 'Clinic owner' : userRole === 'receptionist' ? 'Reception' : userRole === 'doctor' ? 'Doctor' : userRole || 'Staff';
 
-  return (
+  const clinicUi = (
     <div className={`clinic-app${keyboardOpen ? ' keyboard-open' : ''}`}>
       {/* Sidebar — desktop */}
       <Sidebar
@@ -507,6 +520,7 @@ function ClinicApp() {
                     <button type="button" className="user-menu-item" onClick={() => { setShowUserMenu(false); toggleDense(); }}>
                       <Rows3 size={14} /> {denseMode ? 'Normal view' : 'Compact view'}
                     </button>
+                    <HelpGuidesMenuButton onOpen={() => setShowUserMenu(false)} />
                   </div>
                 )}
               </div>
@@ -695,7 +709,9 @@ function ClinicApp() {
             )
           ) : tab === 'settings' ? (
             userCaps.manageSettings ? (
-              <ClinicSettingsView onToast={toast} />
+              <div className="view">
+                <ClinicSettingsView onToast={toast} />
+              </div>
             ) : (
               <div className="doctors-empty">Only the clinic owner can change clinic settings.</div>
             )
@@ -752,6 +768,62 @@ function ClinicApp() {
         />
       )}
     </div>
+  );
+
+  if (!userId) return clinicUi;
+
+  return (
+    <ClinicGuideProvider
+      tenantSlug={tenantSlug}
+      userId={userId}
+      userRole={userRole}
+      userCaps={userCaps}
+      tab={tab}
+      onTabChange={handleTabChange}
+    >
+      <ClinicAppGuideChrome
+        tenantSlug={tenantSlug}
+        userRole={userRole}
+        userCaps={userCaps}
+        onRestoreChecklist={restorePilotSetupChecklist}
+      />
+      {clinicUi}
+    </ClinicGuideProvider>
+  );
+}
+
+function HelpGuidesMenuButton({ onOpen }: { onOpen: () => void }) {
+  const guide = useClinicGuideOptional();
+  if (!guide) return null;
+  return (
+    <button
+      type="button"
+      className="user-menu-item"
+      data-guide="help-guides"
+      onClick={() => { onOpen(); guide.openPicker(); }}
+    >
+      Help &amp; guides
+    </button>
+  );
+}
+
+function ClinicAppGuideChrome({
+  tenantSlug,
+  userRole,
+  userCaps,
+  onRestoreChecklist,
+}: {
+  tenantSlug: string;
+  userRole: string;
+  userCaps: Required<UserCapabilities>;
+  onRestoreChecklist: () => void;
+}) {
+  return (
+    <>
+      <ClinicGuideWelcome userRole={userRole} userCaps={userCaps} />
+      <ClinicGuideOverlay />
+      <HelpGuidesPanel tenantSlug={tenantSlug} onRestoreChecklist={onRestoreChecklist} />
+    </>
   );
 }
 

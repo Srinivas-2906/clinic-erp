@@ -6384,3 +6384,165 @@ html.dense .header-stat-chip { padding: 3px 8px; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Interactive clinic guide ── */
+.guide-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  pointer-events: none;
+}
+.guide-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.guide-spotlight-ring {
+  position: fixed;
+  border: 2px solid var(--brand);
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.35);
+  pointer-events: none;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-spotlight-ring { transition: none; }
+}
+.guide-spotlight-target {
+  position: relative;
+  z-index: 1201;
+}
+.guide-tooltip {
+  position: fixed;
+  z-index: 1305;
+  pointer-events: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.22);
+}
+.guide-progress {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.guide-tooltip-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.guide-tooltip-body,
+.guide-tooltip-action {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.guide-demo-badge {
+  font-size: 11px;
+  color: var(--brand-dark);
+  background: var(--brand-light);
+  padding: 6px 8px;
+  border-radius: 8px;
+  margin: 0 0 10px;
+}
+.guide-missing {
+  font-size: 12px;
+  color: #b45309;
+  margin: 0 0 8px;
+}
+.guide-tooltip-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.guide-welcome-overlay,
+.guide-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1250;
+  background: rgba(8, 15, 30, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.guide-welcome-card,
+.guide-picker-card {
+  background: var(--surface);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  pointer-events: auto;
+  max-height: min(90vh, 640px);
+  overflow-y: auto;
+}
+.guide-welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+.guide-demo-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  margin-top: 14px;
+  cursor: pointer;
+}
+.guide-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.guide-picker-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.guide-picker-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.guide-picker-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-help-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.sidebar-help-btn:hover {
+  background: var(--brand-light);
+  border-color: var(--brand);
+}

@@ -1,4 +1,5 @@
-import { ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield, Settings } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, LayoutDashboard, CalendarDays, Users, CalendarPlus, LogOut, Banknote, BarChart3, UserCog, Stethoscope, Shield, Settings } from 'lucide-react';
+import { useClinicGuideOptional } from '../guides/ClinicGuideContext';
 import { logout } from '../lib/auth';
 import type { TabId } from '../types';
 
@@ -47,6 +48,7 @@ export function Sidebar({
   showPaymentsNav = true,
   showReportsNav = true,
 }: Props) {
+  const guide = useClinicGuideOptional();
   let baseNav = NAV_ITEMS;
   if (!showPaymentsNav) baseNav = baseNav.filter((i) => i.id !== 'payments');
   if (!showReportsNav) baseNav = baseNav.filter((i) => i.id !== 'reports');
@@ -77,6 +79,7 @@ export function Sidebar({
             key={id}
             type="button"
             className={`sidebar-link${active === id ? ' active' : ''}`}
+            data-guide={`nav-${id}`}
             onClick={() => onChange(id)}
             title={collapsed ? label : undefined}
           >
@@ -102,6 +105,12 @@ export function Sidebar({
                 <ChevronLeft size={14} />
               </button>
             </div>
+            {guide && (
+              <button type="button" className="sidebar-help-btn" data-guide="help-guides" onClick={() => guide.openPicker()}>
+                <BookOpen size={16} strokeWidth={1.8} />
+                <span>Help &amp; guides</span>
+              </button>
+            )}
             <button type="button" className="sidebar-logout-btn" onClick={logout}>
               <LogOut size={16} strokeWidth={1.8} />
               <span>Log out</span>

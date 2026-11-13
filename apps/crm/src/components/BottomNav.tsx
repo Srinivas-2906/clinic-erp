@@ -31,6 +31,7 @@ export function BottomNav({
           key={id}
           type="button"
           className={`nav-item${active === id ? ' active' : ''}`}
+          data-guide={`nav-${id}`}
           onClick={() => onChange(id)}
           aria-label={label}
         >
