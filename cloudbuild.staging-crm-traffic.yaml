@@ -8,12 +8,12 @@ steps:
         set -euo pipefail
         test "$PROJECT_ID" = "clinic-erp-staging"
         REGION=asia-south1
-        CRM=kaana-clinic-staging
-        CAND="$(gcloud run services describe "$CRM" --project="$PROJECT_ID" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
-        TAG="$(gcloud run services describe "$CRM" --project="$PROJECT_ID" --region="$REGION" --format=json \
+        CRMSVC=kaana-clinic-staging
+        CAND="$$(gcloud run services describe "$$CRMSVC" --project="$PROJECT_ID" --region="$$REGION" --format='value(status.latestCreatedRevisionName)')"
+        TAG="$$(gcloud run services describe "$$CRMSVC" --project="$PROJECT_ID" --region="$$REGION" --format=json \
           | python3 -c "import json,sys; s=json.load(sys.stdin); t=next((x for x in s.get('status',{}).get('trafficStatuses',[]) if x.get('tag')=='crm-candidate'),{}); print(t.get('url',''))")"
         curl -fsS -o /dev/null "$$TAG"
-        gcloud run services update-traffic "$CRM" --project="$PROJECT_ID" --region="$REGION" --to-revisions="$$CAND=100" --quiet
+        gcloud run services update-traffic "$$CRMSVC" --project="$PROJECT_ID" --region="$$REGION" --to-revisions="$$CAND=100" --quiet
         echo "crm_live_rev=$$CAND"
 
 options:
