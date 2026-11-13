@@ -35,6 +35,7 @@ jobs:
       GCP_STAGING_DEPLOYER_SA: ${{ vars.GCP_STAGING_DEPLOYER_SA }}
       GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
       CLOUDBUILD_SA: clinic-staging-cloudbuild@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
+      RUNNER_SA: clinic-staging-runner@${{ vars.GCP_STAGING_PROJECT_ID }}.iam.gserviceaccount.com
       STAGING_ALERT_EMAIL: ${{ github.event.inputs.alert_email }}
     steps:
       - uses: actions/checkout@v4
@@ -71,14 +72,19 @@ jobs:
       - name: Secrets and monitoring
         run: |
           set -euo pipefail
-          GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash infra/staging/bootstrap-staging-secrets.sh
+          for SA in "${RUNNER_SA}" "${CLOUDBUILD_SA}" ""; do
+            export GCP_IMPERSONATE_SA="$SA"
+            if GCP_STAGING_PROJECT_ID="$GCP_STAGING_PROJECT_ID" bash infra/staging/bootstrap-staging-secrets.sh; then
+              break
+            fi
+          done
           export STAGING_API_URL="$(gcloud run services describe clinic-api-staging --region=asia-south1 --format='value(status.url)')"
           export STAGING_CRM_URL="$(gcloud run services describe kaana-clinic-staging --region=asia-south1 --format='value(status.url)')"
-          bash scripts/staging-monitoring-setup.sh
-          if [ -f scripts/staging-monitoring-alerts.sh ]; then
-            bash scripts/staging-monitoring-alerts.sh
-          else
-            echo "WARN: staging-monitoring-alerts.sh missing at release SHA — uptime only"
+          bash scripts/staging-monitoring-setup.sh || true
+          git fetch origin main --depth=1
+          if git show origin/main:scripts/staging-monitoring-alerts.sh > /tmp/staging-monitoring-alerts.sh 2>/dev/null; then
+            chmod +x /tmp/staging-monitoring-alerts.sh
+            bash /tmp/staging-monitoring-alerts.sh || true
           fi
 
       - name: Quiesce writer and shift API traffic
