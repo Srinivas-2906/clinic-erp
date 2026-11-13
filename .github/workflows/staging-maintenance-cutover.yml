@@ -88,6 +88,8 @@ jobs:
           fi
 
       - name: Quiesce writer and shift API traffic
+        env:
+          CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: ${{ env.CLOUDBUILD_SA }}
         run: |
           set -euo pipefail
           REGION=asia-south1
@@ -111,6 +113,8 @@ jobs:
           echo "api_live_rev=$CAND"
 
       - name: Deploy CRM and shift traffic
+        env:
+          CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: ${{ env.CLOUDBUILD_SA }}
         run: |
           set -euo pipefail
           REGION=asia-south1
