@@ -88,47 +88,39 @@ jobs:
           fi
 
       - name: Quiesce writer and shift API traffic
-        env:
-          CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: ${{ env.CLOUDBUILD_SA }}
         run: |
           set -euo pipefail
-          REGION=asia-south1
-          API=clinic-api-staging
-          gcloud run services update "$API" --region="$REGION" --scaling=0 --quiet
-          for i in $(seq 1 36); do
-            held="$(gcloud storage cat "gs://${GCP_STAGING_PROJECT_ID}-clinic-db/_meta/writer-lease.json" 2>/dev/null \
-              | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);console.log(Date.parse(j.expiresAt)>Date.now()?'held':'clear')}catch{console.log('clear')}})" || echo clear)"
-            echo "lease=$held attempt=$i"
-            [ "$held" = "clear" ] && break
-            sleep 10
-          done
-          [ "$held" = "clear" ] || { echo "STOP: lease still held"; exit 1; }
-          CAND="$(gcloud run services describe "$API" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
-          TAG_URL="$(gcloud run services describe "$API" --region="$REGION" --format=json \
-            | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=(s.status?.trafficStatuses||[]).find(x=>x.tag==='mvp-candidate');console.log(t?.url||'')")"
-          test -n "$TAG_URL"
-          curl -fsS "${TAG_URL}/api/health" | node -e "const j=JSON.parse(require('fs').readFileSync(0,'utf8')); if(!j.ok||!j.writerLease?.held) process.exit(1)"
-          gcloud run services update-traffic "$API" --region="$REGION" --to-revisions="${CAND}=100" --quiet
-          gcloud run services update "$API" --region="$REGION" --scaling=auto --max-instances=1 --quiet
-          echo "api_live_rev=$CAND"
+          git fetch origin main --depth=1
+          git show origin/main:cloudbuild.staging-traffic.yaml > cloudbuild.staging-traffic.yaml
+          BUILD_ID="$(gcloud builds submit \
+            --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-traffic.yaml \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            --format='value(id)' \
+            .)"
+          gcloud builds log "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --stream
+          test "$(gcloud builds describe "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')" = SUCCESS
 
       - name: Deploy CRM and shift traffic
-        env:
-          CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT: ${{ env.CLOUDBUILD_SA }}
         run: |
           set -euo pipefail
-          REGION=asia-south1
-          gcloud builds submit --project "$GCP_STAGING_PROJECT_ID" \
+          BUILD_ID="$(gcloud builds submit --project "$GCP_STAGING_PROJECT_ID" \
             --config cloudbuild.staging-crm.yaml \
             --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
-            .
-          CRM=kaana-clinic-staging
-          CAND="$(gcloud run services describe "$CRM" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
-          TAG="$(gcloud run services describe "$CRM" --region="$REGION" --format=json \
-            | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));const t=(s.status?.trafficStatuses||[]).find(x=>x.tag==='crm-candidate');console.log(t?.url||'')")"
-          curl -fsS -o /dev/null "$TAG"
-          gcloud run services update-traffic "$CRM" --region="$REGION" --to-revisions="${CAND}=100" --quiet
-          echo "crm_live_rev=$CAND"
+            --format='value(id)' \
+            .)"
+          gcloud builds log "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --stream
+          test "$(gcloud builds describe "$BUILD_ID" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')" = SUCCESS
+          git fetch origin main --depth=1
+          git show origin/main:cloudbuild.staging-crm-traffic.yaml > cloudbuild.staging-crm-traffic.yaml
+          BUILD_ID2="$(gcloud builds submit \
+            --project "$GCP_STAGING_PROJECT_ID" \
+            --config cloudbuild.staging-crm-traffic.yaml \
+            --service-account="projects/${GCP_STAGING_PROJECT_ID}/serviceAccounts/${CLOUDBUILD_SA}" \
+            --format='value(id)' \
+            .)"
+          gcloud builds log "$BUILD_ID2" --project "$GCP_STAGING_PROJECT_ID" --stream
+          test "$(gcloud builds describe "$BUILD_ID2" --project "$GCP_STAGING_PROJECT_ID" --format='value(status)')" = SUCCESS
 
       - name: Staging ops validate
         run: |

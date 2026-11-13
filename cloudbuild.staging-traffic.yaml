@@ -1,0 +1,33 @@
+# Staging API traffic cutover — runs as clinic-staging-cloudbuild SA (no local gcloud impersonation).
+steps:
+  - id: api-traffic-cutover
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        test "$PROJECT_ID" = "clinic-erp-staging"
+        REGION=asia-south1
+        API=clinic-api-staging
+        gcloud run services update "$API" --project="$PROJECT_ID" --region="$REGION" --scaling=0 --quiet
+        held=held
+        for i in $(seq 1 36); do
+          held="$(gcloud storage cat "gs://${PROJECT_ID}-clinic-db/_meta/writer-lease.json" --project="$PROJECT_ID" 2>/dev/null \
+            | python3 -c "import sys,json,datetime; d=json.load(sys.stdin); print('held' if datetime.datetime.fromisoformat(d['expiresAt'].replace('Z','+00:00'))>datetime.datetime.now(datetime.timezone.utc) else 'clear')" 2>/dev/null || echo clear)"
+          echo "lease=$held attempt=$i"
+          [ "$held" = "clear" ] && break
+          sleep 10
+        done
+        [ "$held" = "clear" ] || exit 1
+        CAND="$(gcloud run services describe "$API" --project="$PROJECT_ID" --region="$REGION" --format='value(status.latestCreatedRevisionName)')"
+        TAG_URL="$(gcloud run services describe "$API" --project="$PROJECT_ID" --region="$REGION" --format=json \
+          | python3 -c "import json,sys; s=json.load(sys.stdin); t=next((x for x in s.get('status',{}).get('trafficStatuses',[]) if x.get('tag')=='mvp-candidate'),{}); print(t.get('url',''))")"
+        test -n "$$TAG_URL"
+        curl -fsS "$$TAG_URL/api/health" | python3 -c "import json,sys; j=json.load(sys.stdin); assert j.get('ok') and j.get('writerLease',{}).get('held')"
+        gcloud run services update-traffic "$API" --project="$PROJECT_ID" --region="$REGION" --to-revisions="$$CAND=100" --quiet
+        gcloud run services update "$API" --project="$PROJECT_ID" --region="$REGION" --scaling=auto --max-instances=1 --quiet
+        echo "api_live_rev=$$CAND"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
