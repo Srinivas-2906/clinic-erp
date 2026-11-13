@@ -753,6 +753,7 @@ export function BookView({ onBooked, onToast, prefillPatient, prefillFollowUpId,
             <label className="form-label" htmlFor="book-search">Phone or name</label>
             <input
               id="book-search"
+              data-guide="book-search"
               className="form-input"
               type="search"
               autoComplete="off"

@@ -61,6 +61,8 @@ export function ClinicOnboardingChecklist({ onGoTab, onDismiss, refreshKey = 0 }
           <strong>Set up your clinic</strong>
           <p className="signup-hint" style={{ margin: '4px 0 0' }}>
             {status.completed} of {status.total} complete
+            {' · '}
+            Dismiss hides this banner—restore it from Help &amp; guides
             {plan?.planLabel && (
               <>
                 {' · '}

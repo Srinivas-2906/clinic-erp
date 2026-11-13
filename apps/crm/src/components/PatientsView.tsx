@@ -128,7 +128,7 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
               <LayoutList size={15} /> List
             </button>
           </div>
-          <button type="button" className="btn btn-primary add-patient-btn" onClick={() => setShowAdd(true)}>
+          <button type="button" className="btn btn-primary add-patient-btn" data-guide="patients-add" onClick={() => setShowAdd(true)}>
             <Plus size={15} /> Add patient
           </button>
         </div>
@@ -137,6 +137,7 @@ export function PatientsView({ patients, onSelect, onToast, onPatientSaved, onPa
       <div className="patients-toolbar patients-toolbar-filters-only">
         <input
           id="patients-search"
+          data-guide="patients-search"
           type="search"
           className="form-input patients-search-input"
           placeholder="Search name or phone…"
